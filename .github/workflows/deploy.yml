@@ -1,0 +1,52 @@
+name: Deploy Qeshm Frontend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+
+          script: |
+            set -e
+
+            echo "🚀 Starting Qeshm Frontend deployment..."
+
+            cd /var/www/frontend
+
+            echo "📌 Current commit:"
+            OLD_COMMIT=$(git rev-parse HEAD)
+            echo "$OLD_COMMIT"
+
+            echo "📥 Fetching latest code..."
+            git fetch origin main
+
+            echo "🔄 Resetting to origin/main..."
+            git reset --hard origin/main
+            git clean -fd
+
+            NEW_COMMIT=$(git rev-parse HEAD)
+
+            echo "📌 New commit:"
+            echo "$NEW_COMMIT"
+
+            echo "📦 Installing dependencies..."
+            npm ci
+
+            echo "🏗️ Building frontend..."
+            npm run build
+
+            echo "📁 Checking dist..."
+            ls -lah dist
+
+            echo "✅ Qeshm Frontend deployment completed successfully!"
