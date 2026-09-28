@@ -1,4 +1,4 @@
-import { HardHat, Plus } from 'lucide-react'
+import { MapPinned, Plus } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -16,25 +16,18 @@ import { useConfirmDelete } from '../../hooks/useConfirmDelete'
 import { useListParams } from '../../hooks/useListParams'
 import { useListSort } from '../../hooks/useListSort'
 import { api } from '../../lib/api'
-import { formatGroupedNumber } from '../../lib/datetime'
-import { jobCatalogApi, jobCatalogEditPath, jobCatalogNewPath, jobCatalogPath, jobsCatalogApi } from '../../lib/paths/jobs'
-import type { Job, Paginated } from '../../types/app'
+import type { Paginated, RegistrationPlace } from '../../types/app'
+import { GeoStatus } from '../geo/GeoShared'
 
-function dailyFee(annualFee: number | null | undefined) {
-  if (annualFee == null || !Number.isFinite(annualFee)) return null
-  return Math.round(annualFee / 365)
-}
-
-export function JobsCatalogListPage() {
-  const { t, i18n } = useTranslation()
-  const locale = i18n.language.split('-')[0] ?? 'fa'
+export function RegistrationPlacesListPage() {
+  const { t } = useTranslation()
   const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams } = useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const { confirmDelete } = useConfirmDelete()
   const query = useQuery({
-    queryKey: ['jobs-catalog', 'list', q, page, sortBy, sortDir],
+    queryKey: ['registration-places', 'list', q, page, sortBy, sortDir],
     queryFn: async () => {
-      const { data } = await api.get<Paginated<Job>>(jobsCatalogApi(), {
+      const { data } = await api.get<Paginated<RegistrationPlace>>('/registration-places', {
         params: { q: q || undefined, page, ...sortParams },
       })
       return data
@@ -46,14 +39,14 @@ export function JobsCatalogListPage() {
   return (
     <div className={baseInfoFormShellClassName}>
       <PageHeader
-        icon={HardHat}
-        title={t('menus.jobs')}
-        subtitle={t('jobCatalog.subtitle')}
+        icon={MapPinned}
+        title={t('menus.registrationPlaces')}
+        subtitle={t('registrationPlaces.subtitle')}
         action={
-          <Link to={jobCatalogNewPath()}>
+          <Link to="/base-info/registration-places/new">
             <Button>
               <Plus className="size-4" />
-              {t('jobCatalog.create')}
+              {t('registrationPlaces.create')}
             </Button>
           </Link>
         }
@@ -62,12 +55,12 @@ export function JobsCatalogListPage() {
         term={term}
         onTermChange={setTerm}
         onSubmit={() => applySearch()}
-        label={t('jobCatalog.search')}
-        placeholder={t('jobCatalog.searchPlaceholder')}
+        label={t('registrationPlaces.search')}
+        placeholder={t('registrationPlaces.searchPlaceholder')}
       />
       <TableCard
         loading={query.isLoading}
-        empty={q ? t('jobCatalog.noResults') : t('jobCatalog.empty')}
+        empty={q ? t('registrationPlaces.noResults') : t('registrationPlaces.empty')}
         hasRows={rows.length > 0}
       >
         <table className="w-full text-sm">
@@ -75,28 +68,21 @@ export function JobsCatalogListPage() {
             <tr>
               <SortableTh
                 column="title"
-                label={t('jobCatalog.title')}
+                label={t('registrationPlaces.title')}
                 sortBy={sortBy}
                 sortDir={sortDir}
                 onSort={onSort}
               />
               <SortableTh
-                column="jobType"
-                label={t('jobCatalog.jobType')}
+                column="description"
+                label={t('registrationPlaces.description')}
                 sortBy={sortBy}
                 sortDir={sortDir}
                 onSort={onSort}
               />
               <SortableTh
-                column="annualFee"
-                label={t('jobCatalog.listAnnualFee')}
-                sortBy={sortBy}
-                sortDir={sortDir}
-                onSort={onSort}
-              />
-              <SortableTh
-                column="group"
-                label={t('jobCatalog.jobGroup')}
+                column="isActive"
+                label={t('registrationPlaces.isActive')}
                 sortBy={sortBy}
                 sortDir={sortDir}
                 onSort={onSort}
@@ -107,31 +93,21 @@ export function JobsCatalogListPage() {
           <tbody>
             {rows.map((item) => (
               <tr key={item.id} className="border-t border-line">
-                <td className="px-4 py-3">{item.title || '—'}</td>
-                <td className="px-4 py-3">{item.jobType.title}</td>
+                <td className="px-4 py-3">{item.title}</td>
+                <td className="px-4 py-3">{item.description || '—'}</td>
                 <td className="px-4 py-3">
-                  {item.annualFee == null ? (
-                    '—'
-                  ) : (
-                    <span className="inline-flex flex-wrap items-center gap-2">
-                      {formatGroupedNumber(item.annualFee, locale)}
-                      <span className="inline-flex rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700">
-                        {t('jobCatalog.dailyFee')} {formatGroupedNumber(dailyFee(item.annualFee) ?? 0, locale)}
-                      </span>
-                    </span>
-                  )}
+                  <GeoStatus active={item.isActive} />
                 </td>
-                <td className="px-4 py-3">{item.group?.title ?? '—'}</td>
                 <td className={actionsColClassName}>
                   <EntityRowActions
-                    viewTo={jobCatalogPath(item.id)}
-                    editTo={jobCatalogEditPath(item.id)}
+                    viewTo={`/base-info/registration-places/${item.id}`}
+                    editTo={`/base-info/registration-places/${item.id}/edit`}
                     onDelete={() =>
                       confirmDelete({
-                        message: t('jobCatalog.confirmDelete'),
-                        successMessage: t('jobCatalog.deleted'),
-                        path: jobCatalogApi(item.id),
-                        queryKey: ['jobs-catalog'],
+                        message: t('registrationPlaces.confirmDelete'),
+                        successMessage: t('registrationPlaces.deleted'),
+                        path: `/registration-places/${item.id}`,
+                        queryKey: ['registration-places'],
                       })
                     }
                   />

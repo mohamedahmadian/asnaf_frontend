@@ -1,5 +1,6 @@
-import { LogOut, Menu, Search, X } from 'lucide-react'
+import { CircleChevronDown, CircleChevronUp, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, X } from 'lucide-react'
 import {
+  createElement,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -37,6 +38,10 @@ function sidebarMenuItemId(code: string) {
   return `sidebar-menu-${code}`
 }
 
+function sidebarModuleId(code: string) {
+  return `sidebar-module-${code}`
+}
+
 const SIDEBAR_NAV_SCROLL_KEY = 'template.sidebar-nav-scroll'
 
 function readSidebarNavScroll() {
@@ -58,6 +63,60 @@ function writeSidebarNavScroll(value: number) {
 }
 
 let sidebarNavScrollTop = readSidebarNavScroll()
+
+const SIDEBAR_COLLAPSED_MODULES_KEY = 'template.sidebar-collapsed-modules'
+const SIDEBAR_DESKTOP_OPEN_KEY = 'template.sidebar-desktop-open'
+
+function readCollapsedModules() {
+  try {
+    const raw = localStorage.getItem(SIDEBAR_COLLAPSED_MODULES_KEY)
+    if (!raw) return [] as string[]
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((item): item is string => typeof item === 'string')
+  } catch {
+    return []
+  }
+}
+
+function writeCollapsedModules(codes: string[]) {
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSED_MODULES_KEY, JSON.stringify(codes))
+  } catch {
+    /* private mode / quota */
+  }
+}
+
+function readDesktopSidebarOpen() {
+  try {
+    return localStorage.getItem(SIDEBAR_DESKTOP_OPEN_KEY) !== '0'
+  } catch {
+    return true
+  }
+}
+
+function writeDesktopSidebarOpen(open: boolean) {
+  try {
+    localStorage.setItem(SIDEBAR_DESKTOP_OPEN_KEY, open ? '1' : '0')
+  } catch {
+    /* private mode / quota */
+  }
+}
+
+function useIsLargeScreen() {
+  const query = '(min-width: 1024px)'
+  const [matches, setMatches] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia(query).matches : true,
+  )
+  useEffect(() => {
+    const media = window.matchMedia(query)
+    const onChange = () => setMatches(media.matches)
+    onChange()
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [])
+  return matches
+}
 
 function isElementFullyVisible(container: HTMLElement, item: HTMLElement) {
   const containerRect = container.getBoundingClientRect()
@@ -96,7 +155,10 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
   const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
-  const [open, setOpen] = useState(false)
+  const isLargeScreen = useIsLargeScreen()
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [desktopOpen, setDesktopOpen] = useState(readDesktopSidebarOpen)
+  const [collapsedModules, setCollapsedModules] = useState(readCollapsedModules)
   const [query, setQuery] = useState('')
   const [highlightedIndex, setHighlightedIndex] = useState(0)
   const mainRef = useRef<HTMLElement>(null)
@@ -105,13 +167,31 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
   const menuSearchHintId = 'sidebar-menu-search-hint'
   const menuSearchListId = 'sidebar-menu-list'
 
-  const focusMenuSearch = useCallback(() => {
-    setOpen(true)
-    const input = menuSearchRef.current
-    if (!input) return
-    input.focus()
-    input.select()
+  const setDesktopSidebarOpen = useCallback((next: boolean) => {
+    setDesktopOpen(next)
+    writeDesktopSidebarOpen(next)
   }, [])
+
+  const toggleModule = useCallback((code: string) => {
+    setCollapsedModules((current) => {
+      const next = current.includes(code)
+        ? current.filter((item) => item !== code)
+        : [...current, code]
+      writeCollapsedModules(next)
+      return next
+    })
+  }, [])
+
+  const focusMenuSearch = useCallback(() => {
+    setMobileOpen(true)
+    setDesktopSidebarOpen(true)
+    window.setTimeout(() => {
+      const input = menuSearchRef.current
+      if (!input) return
+      input.focus()
+      input.select()
+    }, 0)
+  }, [setDesktopSidebarOpen])
 
   useEffect(() => {
     const DOUBLE_CTRL_MS = 500
@@ -180,10 +260,12 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
     [navModules],
   )
 
+  const sidebarInteractive = isLargeScreen ? desktopOpen : mobileOpen
+
   const openMenu = useCallback(
     (item: SidebarNavMenu) => {
       rememberSidebarScroll()
-      setOpen(false)
+      setMobileOpen(false)
       navigate(item.path)
     },
     [navigate, rememberSidebarScroll],
@@ -233,21 +315,32 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
     <QuickToolsProvider>
       <div className="h-svh w-full overflow-hidden bg-cream-50">
         <div className="flex h-full w-full">
-          {open ? (
+          {mobileOpen ? (
             <button
               type="button"
-              className="fixed inset-0 z-30 bg-ink-900/20 lg:hidden"
+              className="fixed inset-0 z-30 cursor-pointer bg-ink-900/20 lg:hidden"
               aria-label={t('nav.closeMenu')}
-              onClick={() => setOpen(false)}
+              onClick={() => setMobileOpen(false)}
             />
           ) : null}
           <aside
-            className={`fixed inset-y-0 start-0 z-40 flex h-svh w-[280px] flex-col overflow-hidden border-e border-teal-100 bg-gradient-to-b from-white via-teal-50/70 to-cream-50 shadow-[8px_0_28px_rgba(46,189,182,0.08)] transition lg:relative lg:h-full lg:translate-x-0 ${
-              open
+            inert={sidebarInteractive ? undefined : true}
+            aria-hidden={sidebarInteractive ? undefined : true}
+            className={`fixed inset-y-0 start-0 z-40 flex h-svh w-[308px] shrink-0 flex-col overflow-hidden border-e border-teal-100 bg-gradient-to-b from-white via-teal-50/70 to-cream-50 shadow-[8px_0_28px_rgba(46,189,182,0.08)] transition-[width,transform,border-color,box-shadow] duration-300 ease-out lg:h-full lg:ltr:translate-x-0 lg:rtl:translate-x-0 ${
+              mobileOpen
                 ? 'translate-x-0'
-                : 'ltr:-translate-x-full rtl:translate-x-full lg:ltr:translate-x-0 lg:rtl:translate-x-0'
+                : 'ltr:-translate-x-full rtl:translate-x-full'
+            } ${
+              desktopOpen
+                ? 'lg:relative lg:w-[308px] lg:min-w-[308px]'
+                : 'lg:relative lg:w-0 lg:min-w-0 lg:border-transparent lg:shadow-none'
             }`}
           >
+            <div
+              className={`relative flex h-full w-[308px] min-w-[308px] flex-col transition-opacity duration-300 ease-out ${
+                desktopOpen ? 'opacity-100' : 'lg:opacity-0'
+              }`}
+            >
             <div
               className="pointer-events-none absolute -start-16 top-24 size-44 rounded-full bg-teal-200/25 blur-2xl"
               aria-hidden
@@ -259,26 +352,35 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
 
             <div className="relative overflow-hidden border-b border-teal-100/80 bg-gradient-to-e from-mint-50 via-white to-teal-50 px-5 py-5">
               <FormCardHeaderDecor />
-              <div className="relative flex items-center gap-3">
+              <div className="relative flex items-center gap-2">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <NavLink to="/dashboard" onClick={() => setOpen(false)} className="shrink-0">
+                  <NavLink to="/dashboard" onClick={() => setMobileOpen(false)} className="shrink-0">
                     <AppLogo decorative className="h-10 w-auto max-w-10 shrink-0 object-contain" />
                   </NavLink>
                   <NavLink
                     to="/dashboard"
-                    onClick={() => setOpen(false)}
-                    className="block truncate font-semibold text-ink-900"
+                    onClick={() => setMobileOpen(false)}
+                    className="min-w-0 font-semibold leading-snug text-ink-900"
                   >
                     {t('nav.panel')}
                   </NavLink>
                 </div>
                 <button
                   type="button"
-                  className="rounded-lg p-2 text-ink-500 lg:hidden"
-                  onClick={() => setOpen(false)}
+                  className="shrink-0 cursor-pointer rounded-lg p-2 text-ink-500 lg:hidden"
+                  onClick={() => setMobileOpen(false)}
                   aria-label={t('nav.closeMenu')}
                 >
-                  <X className="size-5" />
+                  <X className="size-5" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="hidden shrink-0 cursor-pointer rounded-lg p-2 text-teal-700 transition hover:bg-teal-50 lg:inline-flex"
+                  onClick={() => setDesktopSidebarOpen(false)}
+                  aria-expanded={true}
+                  aria-label={t('nav.closeMenu')}
+                >
+                  <PanelLeftClose className="size-5 rtl:-scale-x-100" aria-hidden />
                 </button>
               </div>
             </div>
@@ -318,11 +420,13 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
               onScroll={(event) => writeSidebarNavScroll(event.currentTarget.scrollTop)}
             >
               {modules.map((mod, index) => {
-                const ModuleIcon = getNavIcon(mod.icon)
                 const moduleActive = mod.menus.some((item) =>
                   isSidebarMenuActive(location.pathname, item.path, allMenuPaths),
                 )
                 const mintTone = index % 2 === 1
+                const moduleExpanded = searching || !collapsedModules.includes(mod.code)
+                const moduleName = t(mod.nameKey)
+                const chevronClass = `size-4 shrink-0 ${mintTone ? 'text-mint-600' : 'text-teal-600'}`
                 return (
                   <section
                     key={mod.code}
@@ -335,43 +439,75 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
                     }`}
                   >
                     <header
-                      className={`flex items-center gap-2.5 border-b px-3 py-2.5 ${
+                      className={
                         mintTone
                           ? 'border-mint-100/80 bg-gradient-to-e from-mint-50 via-white to-teal-50/50'
                           : 'border-teal-100/80 bg-gradient-to-e from-teal-50 via-white to-mint-50/50'
+                      }
+                    >
+                      <button
+                        type="button"
+                        className="flex w-full cursor-pointer appearance-none items-center gap-2.5 bg-transparent px-3 py-2.5 text-start transition hover:bg-white/70 focus-visible:outline-none! focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-300"
+                        aria-expanded={moduleExpanded}
+                        aria-controls={sidebarModuleId(mod.code)}
+                        aria-label={t(moduleExpanded ? 'nav.collapseModule' : 'nav.expandModule', {
+                          name: moduleName,
+                        })}
+                        onClick={() => {
+                          if (searching) return
+                          toggleModule(mod.code)
+                        }}
+                      >
+                        <span
+                          className={`flex size-7 shrink-0 items-center justify-center rounded-xl text-white ${
+                            mintTone
+                              ? 'bg-mint-500 shadow-[0_6px_14px_rgba(63,214,190,0.32)]'
+                              : 'bg-teal-500 shadow-[0_6px_14px_rgba(46,189,182,0.32)]'
+                          }`}
+                        >
+                          {createElement(getNavIcon(mod.icon), {
+                            className: 'size-3.5',
+                            'aria-hidden': true,
+                          })}
+                        </span>
+                        <span
+                          className={`min-w-0 flex-1 text-[11px] font-semibold leading-snug ${
+                            mintTone ? 'text-mint-800' : 'text-teal-800'
+                          }`}
+                        >
+                          {moduleName}
+                        </span>
+                        {moduleExpanded ? (
+                          <CircleChevronUp className={chevronClass} aria-hidden />
+                        ) : (
+                          <CircleChevronDown className={chevronClass} aria-hidden />
+                        )}
+                      </button>
+                    </header>
+                    <div
+                      id={sidebarModuleId(mod.code)}
+                      inert={moduleExpanded ? undefined : true}
+                      className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                        moduleExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
                       }`}
                     >
-                      <span
-                        className={`flex size-7 shrink-0 items-center justify-center rounded-xl text-white ${
-                          mintTone
-                            ? 'bg-mint-500 shadow-[0_6px_14px_rgba(63,214,190,0.32)]'
-                            : 'bg-teal-500 shadow-[0_6px_14px_rgba(46,189,182,0.32)]'
-                        }`}
-                      >
-                        <ModuleIcon className="size-3.5" aria-hidden />
-                      </span>
-                      <p
-                        className={`min-w-0 truncate text-[11px] font-semibold ${
-                          mintTone ? 'text-mint-800' : 'text-teal-800'
-                        }`}
-                      >
-                        {t(mod.nameKey)}
-                      </p>
-                    </header>
-                    <div className="space-y-1 p-1.5">
-                      {mod.menus.map((item) => (
-                        <SidebarMenuLink
-                          key={item.code}
-                          item={item}
-                          allMenuPaths={allMenuPaths}
-                          highlighted={highlightedMenu?.code === item.code}
-                          onHighlight={() => highlightMenu(item.code)}
-                          onNavigate={() => {
-                            rememberSidebarScroll()
-                            setOpen(false)
-                          }}
-                        />
-                      ))}
+                      <div className="overflow-hidden">
+                        <div className="space-y-1 p-1.5">
+                          {mod.menus.map((item) => (
+                            <SidebarMenuLink
+                              key={item.code}
+                              item={item}
+                              allMenuPaths={allMenuPaths}
+                              highlighted={highlightedMenu?.code === item.code}
+                              onHighlight={() => highlightMenu(item.code)}
+                              onNavigate={() => {
+                                rememberSidebarScroll()
+                                setMobileOpen(false)
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </section>
                 )
@@ -383,7 +519,7 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
                 className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm text-red-600 transition hover:bg-red-50"
                 onClick={() => {
                   const impersonating = Boolean(user?.impersonating)
-                  setOpen(false)
+                  setMobileOpen(false)
                   logout()
                   if (!impersonating) navigate('/login')
                 }}
@@ -392,6 +528,7 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
                 {user?.impersonating ? t('auth.impersonateEnd') : t('auth.logout')}
               </button>
             </div>
+            </div>
           </aside>
 
           <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col">
@@ -399,12 +536,23 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
             <header className="z-20 flex shrink-0 items-center gap-3 bg-cream-50/90 px-4 py-4 backdrop-blur sm:px-8">
               <button
                 type="button"
-                className="rounded-xl p-2 text-ink-700 lg:hidden"
-                onClick={() => setOpen(true)}
+                className="cursor-pointer rounded-xl p-2 text-ink-700 lg:hidden"
+                onClick={() => setMobileOpen(true)}
                 aria-label={t('nav.openMenu')}
               >
-                <Menu className="size-5" />
+                <Menu className="size-5" aria-hidden />
               </button>
+              {desktopOpen ? null : (
+                <button
+                  type="button"
+                  className="hidden cursor-pointer rounded-xl p-2 text-teal-700 transition hover:bg-teal-50 lg:inline-flex"
+                  onClick={() => setDesktopSidebarOpen(true)}
+                  aria-expanded={false}
+                  aria-label={t('nav.openMenu')}
+                >
+                  <PanelLeftOpen className="size-5 rtl:-scale-x-100" aria-hidden />
+                </button>
+              )}
               <PageBreadcrumb pathname={location.pathname} modules={APP_NAV} />
               <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                 <HeaderToday />
@@ -440,7 +588,6 @@ function SidebarMenuLink({
 }) {
   const { t } = useTranslation()
   const { pathname } = useLocation()
-  const Icon = getNavIcon(item.icon)
   const isActive = isSidebarMenuActive(pathname, item.path, allMenuPaths)
   return (
     <Link
@@ -466,7 +613,10 @@ function SidebarMenuLink({
               : 'bg-teal-50 text-teal-600 group-hover:bg-white group-hover:text-teal-700 group-hover:shadow-[0_4px_10px_rgba(46,189,182,0.16)]'
         }`}
       >
-        <Icon className="size-3.5" aria-hidden />
+        {createElement(getNavIcon(item.icon), {
+          className: 'size-3.5',
+          'aria-hidden': true,
+        })}
       </span>
       <span className="min-w-0 flex-1 truncate">{t(item.nameKey)}</span>
     </Link>

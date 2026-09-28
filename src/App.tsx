@@ -63,6 +63,10 @@ import { JobCatalogCreatePage } from './pages/jobs/JobCatalogCreatePage'
 import { JobCatalogDetailPage } from './pages/jobs/JobCatalogDetailPage'
 import { JobCatalogEditPage } from './pages/jobs/JobCatalogEditPage'
 import { JobsCatalogListPage } from './pages/jobs/JobsCatalogListPage'
+import { RegistrationPlaceCreatePage } from './pages/registration-places/RegistrationPlaceCreatePage'
+import { RegistrationPlaceDetailPage } from './pages/registration-places/RegistrationPlaceDetailPage'
+import { RegistrationPlaceEditPage } from './pages/registration-places/RegistrationPlaceEditPage'
+import { RegistrationPlacesListPage } from './pages/registration-places/RegistrationPlacesListPage'
 import { JobTypeCreatePage } from './pages/job-types/JobTypeCreatePage'
 import { JobTypeDetailPage } from './pages/job-types/JobTypeDetailPage'
 import { JobTypeEditPage } from './pages/job-types/JobTypeEditPage'
@@ -198,6 +202,10 @@ export default function App() {
                   <Route path="/base-info/jobs/new" element={<JobCatalogCreatePage />} />
                   <Route path="/base-info/jobs/:id" element={<JobCatalogDetailPage />} />
                   <Route path="/base-info/jobs/:id/edit" element={<JobCatalogEditPage />} />
+                  <Route path="/base-info/registration-places" element={<RegistrationPlacesListPage />} />
+                  <Route path="/base-info/registration-places/new" element={<RegistrationPlaceCreatePage />} />
+                  <Route path="/base-info/registration-places/:id" element={<RegistrationPlaceDetailPage />} />
+                  <Route path="/base-info/registration-places/:id/edit" element={<RegistrationPlaceEditPage />} />
                   <Route path="/base-info/job-groups" element={<JobGroupsListPage />} />
                   <Route path="/base-info/job-groups/new" element={<JobGroupCreatePage />} />
                   <Route path="/base-info/job-groups/:id" element={<JobGroupDetailPage />} />

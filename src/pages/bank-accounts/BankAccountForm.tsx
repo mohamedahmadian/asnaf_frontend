@@ -4,7 +4,6 @@ import {
   Hash,
   Landmark,
   ToggleRight,
-  Type,
   Wallet,
 } from 'lucide-react'
 import { type FormEvent, useState } from 'react'

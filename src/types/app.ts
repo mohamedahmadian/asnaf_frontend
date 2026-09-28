@@ -1213,6 +1213,15 @@ export type StaffPost = {
   updatedAt: string;
 };
 
+export type RegistrationPlace = {
+  id: string;
+  title: string;
+  description: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ViolationType = {
   id: string;
   title: string;
@@ -1281,7 +1290,7 @@ export type JobDocumentRef = {
 
 export type Job = {
   id: string;
-  groupId: string;
+  groupId: string | null;
   title: string;
   titleEn: string | null;
   taxIntaCode: string | null;
@@ -1293,7 +1302,7 @@ export type Job = {
   createdAt: string;
   updatedAt: string;
   jobType: { id: string; title: string };
-  group: { id: string; title: string; titleEn: string | null; code: string | null; isActive: boolean };
+  group: { id: string; title: string; titleEn: string | null; code: string | null; isActive: boolean } | null;
   inquiryCenters: JobInquiryCenterRef[];
   documents: JobDocumentRef[];
 };

@@ -37,8 +37,8 @@ const variants = {
 }
 
 export const formShellClassName = 'mx-auto w-full min-w-0'
-/** فرم‌های اطلاعات پایه: وسط صفحه و حدود نصف عرض ناحیهٔ محتوا */
-export const baseInfoFormShellClassName = 'mx-auto w-full min-w-0 lg:w-1/2'
+/** فرم‌ها و فهرست‌های اطلاعات پایه: وسط صفحه و سه‌چهارم عرض ناحیهٔ محتوا */
+export const baseInfoFormShellClassName = 'mx-auto w-full min-w-0 lg:w-3/4'
 export const userFormShellClassName = 'mx-auto w-full min-w-0'
 export const listShellClassName = 'mx-auto w-full min-w-0'
 

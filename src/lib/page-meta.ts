@@ -241,6 +241,18 @@ export function getPageMeta(pathname: string): {
   if (jobsMeta) {
     return jobsMeta
   }
+  if (pathname === '/base-info/registration-places/new') {
+    return { titleKey: 'registrationPlaces.create', subtitleKey: 'registrationPlaces.createSubtitle' }
+  }
+  if (pathname.endsWith('/edit') && pathname.startsWith('/base-info/registration-places/')) {
+    return { titleKey: 'registrationPlaces.edit', subtitleKey: 'registrationPlaces.editSubtitle' }
+  }
+  if (pathname.startsWith('/base-info/registration-places/')) {
+    return { titleKey: 'registrationPlaces.details', subtitleKey: 'registrationPlaces.detailsSubtitle' }
+  }
+  if (pathname.startsWith('/base-info/registration-places')) {
+    return { titleKey: 'menus.registrationPlaces', subtitleKey: 'registrationPlaces.subtitle' }
+  }
   const jobGroupsMeta = jobGroupsPageMeta(pathname)
   if (jobGroupsMeta) {
     return jobGroupsMeta

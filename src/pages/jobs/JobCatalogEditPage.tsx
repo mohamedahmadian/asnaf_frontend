@@ -41,7 +41,7 @@ export function JobCatalogEditPage() {
           taxIntaCode: query.data.taxIntaCode ?? '',
           jobTypeId: query.data.jobTypeId,
           annualFee: query.data.annualFee,
-          groupId: query.data.groupId,
+          groupId: query.data.groupId ?? '',
           isActive: query.data.isActive,
           inquiryCenterIds: query.data.inquiryCenters.map((center) => center.id),
           inquiryCenters: query.data.inquiryCenters,

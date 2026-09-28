@@ -304,7 +304,7 @@ export function JobTypeJobs({
                     )}
                     {job.title || '—'}
                   </td>
-                  <td className="px-4 py-3">{job.group.title}</td>
+                  <td className="px-4 py-3">{job.group?.title ?? '—'}</td>
                   <td className="px-4 py-3">
                     {editing ? (
                       <JobFeeEditor

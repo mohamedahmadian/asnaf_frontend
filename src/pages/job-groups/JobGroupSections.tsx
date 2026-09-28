@@ -1,4 +1,4 @@
-import { FolderKanban, IdCard, KeyRound, Phone, Trash2, UserRound, Users } from 'lucide-react'
+import { FolderKanban, HardHat, IdCard, KeyRound, Phone, Plus, Trash2, UserRound, Users } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,6 +15,7 @@ import {
 } from '../../components/ui/Form'
 import { FormSectionTitle, formCardBodyClassName } from '../../components/ui/FormLayout'
 import { FormTabs } from '../../components/ui/FormTabs'
+import { SearchSelect } from '../../components/ui/SearchSelect'
 import {
   ActionsTh,
   PaginationBar,
@@ -26,26 +27,37 @@ import {
 import { useListParams } from '../../hooks/useListParams'
 import { useListSort } from '../../hooks/useListSort'
 import { api, getApiErrorMessage } from '../../lib/api'
-import { parseDigitString } from '../../lib/datetime'
+import { localizeDigits, parseDigitString } from '../../lib/datetime'
 import { isPhoneReady } from '../../lib/identity'
 import { isValidIranianNationalId, normalizeNationalId } from '../../lib/national-id'
 import {
+  jobGroupJobMembershipApi,
   jobGroupRepresentativeApi,
   jobGroupRepresentativesApi,
+  jobsApi,
 } from '../../lib/paths/job-groups'
-import type { JobGroupRepresentative, Paginated } from '../../types/app'
+import { jobsCatalogApi } from '../../lib/paths/jobs'
+import type { Job, JobGroupRepresentative, Paginated } from '../../types/app'
 
-export type JobGroupSection = 'info' | 'representatives'
+export type JobGroupSection = 'info' | 'representatives' | 'jobs'
+
+function readJobGroupSection(value: string | null): JobGroupSection {
+  if (value === 'representatives' || value === 'jobs') return value
+  return 'info'
+}
 
 export function useJobGroupSection() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const section: JobGroupSection =
-    searchParams.get('section') === 'representatives' ? 'representatives' : 'info'
+  const section = readJobGroupSection(searchParams.get('section'))
 
   function setSection(next: JobGroupSection) {
     const params = new URLSearchParams(searchParams)
-    if (next === 'representatives') params.set('section', 'representatives')
-    else params.delete('section')
+    if (next === 'info') params.delete('section')
+    else params.set('section', next)
+    params.delete('q')
+    params.delete('page')
+    params.delete('sortBy')
+    params.delete('sortDir')
     setSearchParams(params, { replace: true })
   }
 
@@ -62,6 +74,7 @@ export function JobGroupSectionTabs({
   const { t } = useTranslation()
   const tabs: { id: JobGroupSection; label: string; icon: typeof FolderKanban }[] = [
     { id: 'info', label: t('jobGroups.infoTab'), icon: FolderKanban },
+    { id: 'jobs', label: t('jobGroups.jobsTab'), icon: HardHat },
     { id: 'representatives', label: t('jobGroups.representativesTab'), icon: Users },
   ]
 
@@ -345,6 +358,216 @@ export function JobGroupRepresentatives({
                 </td>
                 <td className="px-4 py-3">
                   <CopyableDigits value={item.phone} />
+                </td>
+                {manage ? (
+                  <td className={actionsColClassName}>
+                    <div data-row-actions className="flex flex-nowrap items-center gap-2 whitespace-nowrap">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        icon
+                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                        aria-label={t('common.delete')}
+                        title={t('common.delete')}
+                        onClick={() => remove(item)}
+                      >
+                        <Trash2 className="size-4" aria-hidden />
+                      </Button>
+                    </div>
+                  </td>
+                ) : null}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableCard>
+      {query.data ? (
+        <PaginationBar
+          page={query.data.page}
+          pageSize={query.data.pageSize}
+          total={query.data.total}
+          onPageChange={setPage}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function asList<T>(data: T[] | Paginated<T>) {
+  return Array.isArray(data) ? data : data.items
+}
+
+export function JobGroupJobs({
+  jobGroupId,
+  manage = false,
+}: {
+  jobGroupId: string
+  manage?: boolean
+}) {
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language.split('-')[0] ?? 'fa'
+  const queryClient = useQueryClient()
+  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams } = useListParams()
+  const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
+  const [pick, setPick] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const query = useQuery({
+    queryKey: ['jobs', jobGroupId, 'list', q, page, sortBy, sortDir],
+    queryFn: async () => {
+      const { data } = await api.get<Paginated<Job>>(jobsApi(jobGroupId), {
+        params: { q: q || undefined, page, ...sortParams },
+      })
+      return data
+    },
+  })
+
+  const catalogQuery = useQuery({
+    queryKey: ['jobs-catalog', 'lookup'],
+    enabled: manage,
+    queryFn: async () => {
+      const { data } = await api.get<Job[] | Paginated<Job>>(jobsCatalogApi())
+      return asList(data)
+    },
+  })
+
+  const options = (catalogQuery.data ?? [])
+    .filter((item) => item.groupId !== jobGroupId)
+    .map((item) => ({
+      value: item.id,
+      label: item.group ? `${item.title} — ${item.group.title}` : item.title,
+    }))
+
+  async function refresh() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['jobs', jobGroupId] }),
+      queryClient.invalidateQueries({ queryKey: ['jobs-catalog'] }),
+      queryClient.invalidateQueries({ queryKey: ['job-group', jobGroupId] }),
+      queryClient.invalidateQueries({ queryKey: ['job-groups'] }),
+    ])
+  }
+
+  async function add() {
+    if (!pick || saving) return
+    setSaving(true)
+    try {
+      await api.post(jobGroupJobMembershipApi(jobGroupId, pick))
+      await refresh()
+      toast.success(t('jobGroups.jobAdded'))
+      setPick('')
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, t('common.error')))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function remove(item: Job) {
+    confirmToast({
+      title: t('jobGroups.confirmRemoveJob'),
+      confirmLabel: t('common.yesDelete'),
+      cancelLabel: t('common.cancel'),
+      confirmVariant: 'danger',
+      onConfirm: async () => {
+        try {
+          await api.delete(jobGroupJobMembershipApi(jobGroupId, item.id))
+          await refresh()
+          toast.success(t('jobGroups.jobRemoved'))
+        } catch (error) {
+          toast.error(getApiErrorMessage(error, t('common.error')))
+        }
+      },
+    })
+  }
+
+  const rows = query.data?.items ?? []
+
+  return (
+    <div
+      role="tabpanel"
+      id="form-panel-jobs"
+      aria-labelledby="form-tab-jobs"
+      className={formCardBodyClassName}
+      onDoubleClick={(event) => event.stopPropagation()}
+    >
+      {manage ? (
+        <div className="space-y-4">
+          <FormSectionTitle icon={HardHat} className="mb-0">
+            {t('jobGroups.addJob')}
+          </FormSectionTitle>
+          <p className="text-sm text-ink-500">{t('jobGroups.jobsHint')}</p>
+          <FormField icon={HardHat} label={t('jobGroups.selectJob')} htmlFor="jobGroupJobAdd">
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <SearchSelect
+                  id="jobGroupJobAdd"
+                  value={pick}
+                  onChange={setPick}
+                  placeholder={
+                    !catalogQuery.isLoading && options.length === 0
+                      ? t('jobGroups.noJobsToAdd')
+                      : t('jobGroups.selectJob')
+                  }
+                  disabled={saving || catalogQuery.isLoading || options.length === 0}
+                  options={options}
+                />
+              </div>
+              <Button type="button" variant="soft" className="shrink-0" disabled={!pick || saving} onClick={add}>
+                <Plus className="size-4" aria-hidden />
+                {t('jobGroups.addJob')}
+              </Button>
+            </div>
+          </FormField>
+        </div>
+      ) : null}
+      <SearchBar
+        autoFocus={false}
+        term={term}
+        onTermChange={setTerm}
+        onSubmit={() => applySearch()}
+        label={t('jobGroups.jobsSearch')}
+        placeholder={t('jobGroups.jobsSearchPlaceholder')}
+      />
+      <TableCard
+        rowClick={false}
+        loading={query.isLoading}
+        empty={q ? t('jobGroups.jobsNoResults') : t('jobGroups.jobsEmpty')}
+        hasRows={rows.length > 0}
+      >
+        <table className="w-full text-sm">
+          <thead className="bg-cream-50 text-ink-700">
+            <tr>
+              <SortableTh
+                column="title"
+                label={t('jobCatalog.title')}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={onSort}
+              />
+              <SortableTh
+                column="jobType"
+                label={t('jobCatalog.jobType')}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={onSort}
+              />
+              <SortableTh
+                column="taxIntaCode"
+                label={t('jobCatalog.taxIntaCode')}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={onSort}
+              />
+              {manage ? <ActionsTh /> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((item) => (
+              <tr key={item.id} className="border-t border-line">
+                <td className="px-4 py-3">{item.title || '—'}</td>
+                <td className="px-4 py-3">{item.jobType.title}</td>
+                <td className="px-4 py-3" dir="ltr">
+                  {item.taxIntaCode ? localizeDigits(item.taxIntaCode, locale) : '—'}
                 </td>
                 {manage ? (
                   <td className={actionsColClassName}>

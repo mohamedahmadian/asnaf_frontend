@@ -9,7 +9,7 @@ import { api } from '../../lib/api'
 import { jobGroupApi, jobGroupsPath } from '../../lib/paths/job-groups'
 import type { JobGroup } from '../../types/app'
 import { JobGroupForm } from './JobGroupForm'
-import { JobGroupRepresentatives, JobGroupSectionTabs, useJobGroupSection } from './JobGroupSections'
+import { JobGroupJobs, JobGroupRepresentatives, JobGroupSectionTabs, useJobGroupSection } from './JobGroupSections'
 
 export function JobGroupEditPage() {
   const { t } = useTranslation()
@@ -29,8 +29,6 @@ export function JobGroupEditPage() {
     return <LoadingState />
   }
 
-  const representativesTab = section === 'representatives'
-
   return (
     <div className={baseInfoFormShellClassName}>
       <PageHeader
@@ -40,9 +38,9 @@ export function JobGroupEditPage() {
       />
       <FormCard icon={FolderKanban} title={query.data.title}>
         <JobGroupSectionTabs section={section} onChange={setSection} />
-        {representativesTab ? (
-          <JobGroupRepresentatives jobGroupId={id} manage />
-        ) : (
+        {section === 'representatives' ? <JobGroupRepresentatives jobGroupId={id} manage /> : null}
+        {section === 'jobs' ? <JobGroupJobs jobGroupId={id} manage /> : null}
+        {section === 'info' ? (
           <JobGroupForm
             embedded
             initial={{
@@ -58,7 +56,7 @@ export function JobGroupEditPage() {
               navigate(jobGroupsPath())
             }}
           />
-        )}
+        ) : null}
       </FormCard>
     </div>
   )

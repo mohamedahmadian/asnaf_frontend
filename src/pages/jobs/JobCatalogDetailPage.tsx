@@ -95,7 +95,12 @@ export function JobCatalogDetailPage() {
                 empty={item.annualFee == null}
                 tone="mint"
               />
-              <FormFactTile icon={FolderKanban} label={t('jobCatalog.jobGroup')} value={item.group.title} />
+              <FormFactTile
+                icon={FolderKanban}
+                label={t('jobCatalog.jobGroup')}
+                value={item.group?.title ?? '—'}
+                empty={!item.group}
+              />
               <FormFactTile icon={HardHat} label={t('jobCatalog.isActive')} value={<GeoStatus active={item.isActive} />} />
             </div>
           ) : tab === 'centers' ? (

@@ -16,3 +16,5 @@ export const jobGroupRepresentativeApi = (groupId: string, userId: string) =>
   `${jobGroupRepresentativesApi(groupId)}/${userId}`
 export const jobsApi = (groupId: string) => `${jobGroupApi(groupId)}/jobs`
 export const jobApi = (groupId: string, jobId: string) => `${jobsApi(groupId)}/${jobId}`
+export const jobGroupJobMembershipApi = (groupId: string, jobId: string) =>
+  `${jobApi(groupId, jobId)}/membership`

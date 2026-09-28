@@ -16,7 +16,7 @@ import { formatNumber, localizeDigits } from '../../lib/datetime'
 import { jobGroupApi, jobGroupEditPath, jobGroupsPath, jobsPath } from '../../lib/paths/job-groups'
 import type { JobGroup } from '../../types/app'
 import { GeoStatus } from '../geo/GeoShared'
-import { JobGroupRepresentatives, JobGroupSectionTabs, useJobGroupSection } from './JobGroupSections'
+import { JobGroupJobs, JobGroupRepresentatives, JobGroupSectionTabs, useJobGroupSection } from './JobGroupSections'
 
 export function JobGroupDetailPage() {
   const { t, i18n } = useTranslation()
@@ -39,7 +39,7 @@ export function JobGroupDetailPage() {
     return <LoadingState />
   }
 
-  const representativesTab = section === 'representatives'
+  const infoTab = section === 'info'
 
   return (
     <div className={baseInfoFormShellClassName}>
@@ -50,13 +50,14 @@ export function JobGroupDetailPage() {
       />
       <FormCard icon={FolderKanban} title={item.title}>
         <JobGroupSectionTabs section={section} onChange={setSection} />
-        {representativesTab ? <JobGroupRepresentatives jobGroupId={item.id} /> : null}
+        {section === 'representatives' ? <JobGroupRepresentatives jobGroupId={item.id} /> : null}
+        {section === 'jobs' ? <JobGroupJobs jobGroupId={item.id} /> : null}
         <div
           role="tabpanel"
           id="form-panel-info"
           aria-labelledby="form-tab-info"
-          hidden={representativesTab}
-          className={representativesTab ? 'hidden' : 'space-y-6 p-5 sm:p-6'}
+          hidden={!infoTab}
+          className={infoTab ? 'space-y-6 p-5 sm:p-6' : 'hidden'}
         >
           <FormSectionTitle icon={FolderKanban}>{t('jobGroups.details')}</FormSectionTitle>
           <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
@@ -95,9 +96,7 @@ export function JobGroupDetailPage() {
           </div>
           <DetailActions
             editTo={
-              representativesTab
-                ? `${jobGroupEditPath(item.id)}?section=representatives`
-                : jobGroupEditPath(item.id)
+              infoTab ? jobGroupEditPath(item.id) : `${jobGroupEditPath(item.id)}?section=${section}`
             }
             editLabel={t('common.edit')}
             deleteLabel={t('jobGroups.delete')}
