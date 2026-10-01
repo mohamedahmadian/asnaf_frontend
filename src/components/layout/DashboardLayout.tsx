@@ -326,7 +326,7 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
           <aside
             inert={sidebarInteractive ? undefined : true}
             aria-hidden={sidebarInteractive ? undefined : true}
-            className={`fixed inset-y-0 start-0 z-40 flex h-svh w-[308px] shrink-0 flex-col overflow-hidden border-e border-teal-100 bg-gradient-to-b from-white via-teal-50/70 to-cream-50 shadow-[8px_0_28px_rgba(46,189,182,0.08)] transition-[width,transform,border-color,box-shadow] duration-300 ease-out lg:h-full lg:ltr:translate-x-0 lg:rtl:translate-x-0 ${
+            className={`print:hidden fixed inset-y-0 start-0 z-40 flex h-svh w-[308px] shrink-0 flex-col overflow-hidden border-e border-teal-100 bg-gradient-to-b from-white via-teal-50/70 to-cream-50 shadow-[8px_0_28px_rgba(46,189,182,0.08)] transition-[width,transform,border-color,box-shadow] duration-300 ease-out lg:h-full lg:ltr:translate-x-0 lg:rtl:translate-x-0 ${
               mobileOpen
                 ? 'translate-x-0'
                 : 'ltr:-translate-x-full rtl:translate-x-full'
@@ -533,7 +533,7 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
 
           <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col">
             <ImpersonationBanner />
-            <header className="z-20 flex shrink-0 items-center gap-3 bg-cream-50/90 px-4 py-4 backdrop-blur sm:px-8">
+            <header className="print:hidden z-20 flex shrink-0 items-center gap-3 bg-cream-50/90 px-4 py-4 backdrop-blur sm:px-8">
               <button
                 type="button"
                 className="cursor-pointer rounded-xl p-2 text-ink-700 lg:hidden"

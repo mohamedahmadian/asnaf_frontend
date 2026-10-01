@@ -1,4 +1,4 @@
-import { FileText, Files, Plus, Trash2 } from 'lucide-react'
+import { FileText, Files, Plus, ToggleRight, Trash2, Users } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -10,7 +10,13 @@ import { LoadingState } from '../../components/ui/LoadingState'
 import { SearchSelect } from '../../components/ui/SearchSelect'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { jobCatalogApi } from '../../lib/paths/jobs'
-import type { DocumentItem, Job, JobDocumentRef, Paginated } from '../../types/app'
+import { documentGenders, type DocumentGender, type DocumentItem, type Job, type JobDocumentRef, type Paginated } from '../../types/app'
+
+type JobDocumentLink = {
+  documentId: string
+  gender: DocumentGender
+  isRequired: boolean
+}
 
 function asList<T>(data: T[] | Paginated<T>) {
   return Array.isArray(data) ? data : data.items
@@ -28,6 +34,8 @@ export function JobDocumentsPanel({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [pick, setPick] = useState('')
+  const [gender, setGender] = useState<DocumentGender>(documentGenders.BOTH)
+  const [isRequired, setIsRequired] = useState(true)
   const [saving, setSaving] = useState(false)
   const catalogQuery = useQuery({
     queryKey: ['documents', 'lookup'],
@@ -39,21 +47,49 @@ export function JobDocumentsPanel({
 
   const byTitle = (left: { title: string }, right: { title: string }) =>
     left.title.localeCompare(right.title, 'fa')
-  const fixed = (catalogQuery.data ?? []).filter((item) => item.isFixed).sort(byTitle)
-  const extra = documents.filter((item) => !item.isFixed).sort(byTitle)
+  const alwaysShown = (item: { isFixed: boolean; isRequired: boolean }) => item.isFixed && item.isRequired
+  const fixed = (catalogQuery.data ?? []).filter(alwaysShown).sort(byTitle)
+  const extra = [...documents].sort(byTitle)
   const extraIds = new Set(extra.map((item) => item.id))
   const options = (catalogQuery.data ?? [])
-    .filter((item) => !item.isFixed && !extraIds.has(item.id))
+    .filter((item) => !alwaysShown(item) && !extraIds.has(item.id))
     .sort(byTitle)
     .map((item) => ({ value: item.id, label: item.title }))
 
-  async function save(documentIds: string[], success: string) {
+  const genderOptions = Object.values(documentGenders).map((item) => ({
+    value: item,
+    label: item === documentGenders.BOTH ? t('jobCatalog.genderMaleAndFemale') : t(`documents.genders.${item}`),
+  }))
+  const requirementOptions = [
+    { value: 'required', label: t('documents.required') },
+    { value: 'optional', label: t('documents.optional') },
+  ]
+
+  function linksOf(items: JobDocumentRef[], extraLink?: JobDocumentLink): JobDocumentLink[] {
+    const links = items.map((item) => ({
+      documentId: item.id,
+      gender: item.gender,
+      isRequired: item.isRequired,
+    }))
+    return extraLink ? [...links, extraLink] : links
+  }
+
+  function onPick(id: string) {
+    setPick(id)
+    const item = (catalogQuery.data ?? []).find((doc) => doc.id === id)
+    setGender(item?.gender ?? documentGenders.BOTH)
+    setIsRequired(item?.isRequired ?? true)
+  }
+
+  async function save(jobDocuments: JobDocumentLink[], success: string) {
     setSaving(true)
     try {
-      const { data } = await api.patch<Job>(jobCatalogApi(jobId), { documentIds })
+      const { data } = await api.patch<Job>(jobCatalogApi(jobId), { jobDocuments })
       queryClient.setQueryData(queryKey, data)
       toast.success(success)
       setPick('')
+      setGender(documentGenders.BOTH)
+      setIsRequired(true)
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('common.error')))
     } finally {
@@ -63,7 +99,7 @@ export function JobDocumentsPanel({
 
   function add() {
     if (!pick || saving) return
-    void save([...extra.map((item) => item.id), pick], t('jobCatalog.documentAdded'))
+    void save(linksOf(extra, { documentId: pick, gender, isRequired }), t('jobCatalog.documentAdded'))
   }
 
   function remove(id: string) {
@@ -72,7 +108,7 @@ export function JobDocumentsPanel({
       confirmLabel: t('common.yesDelete'),
       cancelLabel: t('common.cancel'),
       confirmVariant: 'danger',
-      onConfirm: () => save(extra.filter((item) => item.id !== id).map((item) => item.id), t('jobCatalog.documentRemoved')),
+      onConfirm: () => save(linksOf(extra.filter((item) => item.id !== id)), t('jobCatalog.documentRemoved')),
     })
   }
 
@@ -83,41 +119,53 @@ export function JobDocumentsPanel({
   return (
     <div className="space-y-6">
       <section>
-        <FormSectionTitle icon={Files}>{t('jobCatalog.fixedDocuments')}</FormSectionTitle>
-        {fixed.length === 0 ? (
-          <FormEmptyHint>{t('jobCatalog.noFixedDocuments')}</FormEmptyHint>
-        ) : (
-          <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
-            {fixed.map((item, index) => (
-              <DocumentInfoCard key={item.id} item={item} tone={index % 2 === 0 ? 'teal' : 'mint'} />
-            ))}
-          </div>
-        )}
-      </section>
-      <section>
         <FormSectionTitle icon={FileText} className="mb-5">
           {t('jobCatalog.extraDocuments')}
         </FormSectionTitle>
-        <FormField icon={FileText} label={t('jobCatalog.addDocument')} htmlFor="jobDocumentAdd">
-          <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1">
+            <FormField icon={FileText} label={t('jobCatalog.addDocument')} htmlFor="jobDocumentAdd">
               <SearchSelect
                 id="jobDocumentAdd"
                 value={pick}
-                onChange={setPick}
+                onChange={onPick}
                 placeholder={
                   options.length === 0 ? t('jobCatalog.noDocumentsToAdd') : t('jobCatalog.selectDocument')
                 }
                 disabled={saving || options.length === 0}
                 options={options}
               />
-            </div>
-            <Button type="button" variant="soft" className="shrink-0" disabled={!pick || saving} onClick={add}>
-              <Plus className="size-4" aria-hidden />
-              {t('jobCatalog.addDocumentAction')}
-            </Button>
+            </FormField>
           </div>
-        </FormField>
+          <div className="w-full sm:w-44">
+            <FormField icon={ToggleRight} label={t('documents.isRequired')} htmlFor="jobDocumentRequired">
+              <SearchSelect
+                id="jobDocumentRequired"
+                value={isRequired ? 'required' : 'optional'}
+                onChange={(next) => setIsRequired(next === 'required')}
+                placeholder={t('documents.isRequired')}
+                disabled={saving}
+                options={requirementOptions}
+              />
+            </FormField>
+          </div>
+          <div className="w-full sm:w-52">
+            <FormField icon={Users} label={t('documents.gender')} htmlFor="jobDocumentGender">
+              <SearchSelect
+                id="jobDocumentGender"
+                value={gender}
+                onChange={(next) => setGender(next as DocumentGender)}
+                placeholder={t('documents.selectGender')}
+                disabled={saving}
+                options={genderOptions}
+              />
+            </FormField>
+          </div>
+          <Button type="button" variant="soft" className="shrink-0" disabled={!pick || saving} onClick={add}>
+            <Plus className="size-4" aria-hidden />
+            {t('jobCatalog.addDocumentAction')}
+          </Button>
+        </div>
         <div className="mt-3">
         {extra.length === 0 ? (
           <FormEmptyHint>{t('jobCatalog.noExtraDocuments')}</FormEmptyHint>
@@ -147,6 +195,18 @@ export function JobDocumentsPanel({
           </div>
         )}
         </div>
+      </section>
+      <section>
+        <FormSectionTitle icon={Files}>{t('jobCatalog.fixedDocuments')}</FormSectionTitle>
+        {fixed.length === 0 ? (
+          <FormEmptyHint>{t('jobCatalog.noFixedDocuments')}</FormEmptyHint>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+            {fixed.map((item, index) => (
+              <DocumentInfoCard key={item.id} item={item} tone={index % 2 === 0 ? 'teal' : 'mint'} />
+            ))}
+          </div>
+        )}
       </section>
     </div>
   )

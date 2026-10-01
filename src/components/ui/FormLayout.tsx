@@ -113,6 +113,7 @@ export function FormCardHeaderDecor() {
 export function FormCardHeader({
   icon: Icon,
   title,
+  titleExtra,
   subtitle,
   chips,
   action,
@@ -122,6 +123,7 @@ export function FormCardHeader({
 }: {
   icon: LucideIcon
   title: ReactNode
+  titleExtra?: ReactNode
   subtitle?: ReactNode
   chips?: ReactNode
   action?: ReactNode
@@ -146,7 +148,10 @@ export function FormCardHeader({
             <Icon className="size-6" aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
-            <Heading className={titleClass}>{title}</Heading>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <Heading className={titleClass}>{title}</Heading>
+              {titleExtra}
+            </div>
             {subtitle ? <div className={subtitleClass}>{subtitle}</div> : null}
             {chips ? <div className="mt-3 flex flex-wrap gap-1.5">{chips}</div> : null}
           </div>

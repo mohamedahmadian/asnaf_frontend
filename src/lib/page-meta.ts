@@ -293,6 +293,33 @@ export function getPageMeta(pathname: string): {
   if (pathname.startsWith('/base-info/staff-posts')) {
     return { titleKey: 'menus.staffPosts', subtitleKey: 'staffPosts.subtitle' }
   }
+  if (pathname === '/inspection/violations/new') {
+    return { titleKey: 'violations.create', subtitleKey: 'violations.createSubtitle' }
+  }
+  if (pathname === '/inspection/violations/reports') {
+    return { titleKey: 'menus.violationReports', subtitleKey: 'violations.reportsSubtitle' }
+  }
+  if (/^\/inspection\/violations\/[^/]+\/proceedings\/[^/]+\/edit$/.test(pathname)) {
+    return { titleKey: 'violationProceedings.edit', subtitleKey: 'violationProceedings.editSubtitle' }
+  }
+  if (/^\/inspection\/violations\/[^/]+\/proceedings\/new$/.test(pathname)) {
+    return { titleKey: 'violationProceedings.create', subtitleKey: 'violationProceedings.createSubtitle' }
+  }
+  if (/^\/inspection\/violations\/[^/]+\/proceedings\/[^/]+$/.test(pathname)) {
+    return { titleKey: 'violationProceedings.details', subtitleKey: 'violationProceedings.detailsSubtitle' }
+  }
+  if (/^\/inspection\/violations\/[^/]+\/proceedings$/.test(pathname)) {
+    return { titleKey: 'violationProceedings.title', subtitleKey: 'violationProceedings.subtitle' }
+  }
+  if (pathname.endsWith('/edit') && pathname.startsWith('/inspection/violations/')) {
+    return { titleKey: 'violations.edit', subtitleKey: 'violations.editSubtitle' }
+  }
+  if (pathname.startsWith('/inspection/violations/')) {
+    return { titleKey: 'violations.details', subtitleKey: 'violations.detailsSubtitle' }
+  }
+  if (pathname.startsWith('/inspection/violations')) {
+    return { titleKey: 'menus.violations', subtitleKey: 'violations.subtitle' }
+  }
   if (pathname === '/inspection/violation-types/new') {
     return { titleKey: 'violationTypes.create', subtitleKey: 'violationTypes.createSubtitle' }
   }
@@ -316,6 +343,30 @@ export function getPageMeta(pathname: string): {
   }
   if (pathname.startsWith('/base-info/roles')) {
     return { titleKey: 'menus.roles', subtitleKey: 'accessRoles.subtitle' }
+  }
+  if (pathname.startsWith('/cases/formation/inquiries/')) {
+    return { titleKey: 'cases.inquiryLetter', subtitleKey: 'cases.inquiriesHint' }
+  }
+  if (pathname.startsWith('/cases/formation')) {
+    return { titleKey: 'menus.caseFormation', subtitleKey: 'cases.formationSubtitle' }
+  }
+  if (pathname.startsWith('/cases/inquiries/') && pathname.endsWith('/letter')) {
+    return { titleKey: 'cases.inquiryLetter', subtitleKey: 'cases.inquiriesHint' }
+  }
+  if (/^\/cases\/inquiries\/[^/]+$/.test(pathname)) {
+    return { titleKey: 'cases.inquiryDetails', subtitleKey: 'cases.inquiriesSubtitle' }
+  }
+  if (pathname.startsWith('/cases/inquiries')) {
+    return { titleKey: 'menus.caseInquiries', subtitleKey: 'cases.inquiriesSubtitle' }
+  }
+  if (pathname.startsWith('/cases/reports')) {
+    return { titleKey: 'menus.caseReports', subtitleKey: 'cases.reportsSubtitle' }
+  }
+  if (pathname.startsWith('/cases/settings')) {
+    return { titleKey: 'menus.caseSettings', subtitleKey: 'cases.settingsSubtitle' }
+  }
+  if (pathname.startsWith('/cases')) {
+    return { titleKey: 'menus.caseManagement', subtitleKey: 'cases.managementSubtitle' }
   }
   if (pathname === '/dashboard') {
     return { titleKey: 'dashboard.title', subtitleKey: 'dashboard.subtitle' }

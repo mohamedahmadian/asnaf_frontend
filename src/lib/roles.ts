@@ -79,6 +79,12 @@ export function canAccessPath(
   if (!user) return false
   if (isAdmin(user)) return true
   if (pathname === '/' || pathname === '/dashboard') return true
+  if (pathname === '/inspection/violations/new') {
+    return (
+      hasMenuAccess(user, 'inspection.violations.register', 'inspection') ||
+      hasMenuAccess(user, 'inspection.violations', 'inspection')
+    )
+  }
   if (ALWAYS_ALLOWED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
     return true
   }

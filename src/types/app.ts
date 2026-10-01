@@ -1231,6 +1231,76 @@ export type ViolationType = {
   updatedAt: string;
 };
 
+export type ViolationStatus =
+  | 'REGISTERED'
+  | 'UNDER_REVIEW'
+  | 'NOTICE'
+  | 'REFERRED'
+  | 'VERDICT_ISSUED'
+  | 'CLOSED'
+  | 'DISMISSED';
+
+export type ViolationAttachment = {
+  id: string;
+  kind: 'IMAGE' | 'FILE';
+  originalName: string | null;
+  sortOrder: number;
+};
+
+export type ViolationPerson = {
+  id: string;
+  fullName: string;
+};
+
+export type ViolationCaseFile = {
+  id: string;
+  fullName: string;
+  caseTrackingCode: string | null;
+  businessUnitTitle: string | null;
+  jobTitle: string | null;
+  formationStep: number;
+};
+
+export type Violation = {
+  id: string;
+  nationalId: string;
+  violationTypeId: string;
+  violationType: { id: string; title: string };
+  occurredAt: string;
+  description: string | null;
+  status: ViolationStatus;
+  person: ViolationPerson | null;
+  caseFile: ViolationCaseFile | null;
+  attachments: ViolationAttachment[];
+  createdAt: string;
+  updatedAt: string;
+  _count: { proceedings: number };
+};
+
+export type ViolationProceeding = {
+  id: string;
+  violationId: string;
+  occurredAt: string;
+  title: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  attachments?: ViolationAttachment[];
+  _count?: { attachments: number };
+};
+
+export type ViolationReport = {
+  calendar: 'jalali' | 'gregorian';
+  span: 'year' | 'all';
+  year: number;
+  month: number | null;
+  total: number;
+  byStatus: { status: ViolationStatus; count: number }[];
+  monthly: { month: number; count: number }[];
+  yearly: { year: number; count: number }[];
+  years: number[];
+};
+
 export type InquiryCenterOfficer = {
   id: string;
   fullName: string;

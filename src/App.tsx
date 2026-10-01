@@ -15,6 +15,13 @@ import { ImpersonateEndedPage } from './pages/ImpersonateEndedPage'
 import { ImpersonateEntryPage } from './pages/ImpersonateEntryPage'
 import { LoginPage } from './pages/LoginPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { CaseFormationPage } from './pages/cases/CaseFormationPage'
+import { CaseInquiriesListPage } from './pages/cases/CaseInquiriesListPage'
+import { CaseInquiryDetailPage } from './pages/cases/CaseInquiryDetailPage'
+import { CaseInquiryLetterPage } from './pages/cases/CaseInquiryLetterPage'
+import { CaseManagementPage } from './pages/cases/CaseManagementPage'
+import { CaseReportsPage } from './pages/cases/CaseReportsPage'
+import { CaseSettingsPage } from './pages/cases/CaseSettingsPage'
 import { CitiesListPage } from './pages/geo/CitiesListPage'
 import { CityCreatePage } from './pages/geo/CityCreatePage'
 import { CityDetailPage } from './pages/geo/CityDetailPage'
@@ -43,6 +50,15 @@ import { ViolationTypeCreatePage } from './pages/violation-types/ViolationTypeCr
 import { ViolationTypeDetailPage } from './pages/violation-types/ViolationTypeDetailPage'
 import { ViolationTypeEditPage } from './pages/violation-types/ViolationTypeEditPage'
 import { ViolationTypesListPage } from './pages/violation-types/ViolationTypesListPage'
+import { ProceedingCreatePage } from './pages/violations/proceedings/ProceedingCreatePage'
+import { ProceedingDetailPage } from './pages/violations/proceedings/ProceedingDetailPage'
+import { ProceedingEditPage } from './pages/violations/proceedings/ProceedingEditPage'
+import { ProceedingsListPage } from './pages/violations/proceedings/ProceedingsListPage'
+import { ViolationCreatePage } from './pages/violations/ViolationCreatePage'
+import { ViolationDetailPage } from './pages/violations/ViolationDetailPage'
+import { ViolationEditPage } from './pages/violations/ViolationEditPage'
+import { ViolationReportsPage } from './pages/violations/ViolationReportsPage'
+import { ViolationsListPage } from './pages/violations/ViolationsListPage'
 import { WorkUnitCreatePage } from './pages/work-units/WorkUnitCreatePage'
 import { WorkUnitDetailPage } from './pages/work-units/WorkUnitDetailPage'
 import { WorkUnitEditPage } from './pages/work-units/WorkUnitEditPage'
@@ -226,10 +242,27 @@ export default function App() {
                   <Route path="/base-info/staff-posts/new" element={<StaffPostCreatePage />} />
                   <Route path="/base-info/staff-posts/:id" element={<StaffPostDetailPage />} />
                   <Route path="/base-info/staff-posts/:id/edit" element={<StaffPostEditPage />} />
+                  <Route path="/cases/formation/inquiries/:id/letter" element={<CaseInquiryLetterPage />} />
+                  <Route path="/cases/formation" element={<CaseFormationPage />} />
+                  <Route path="/cases/inquiries/:id/letter" element={<CaseInquiryLetterPage />} />
+                  <Route path="/cases/inquiries/:id" element={<CaseInquiryDetailPage />} />
+                  <Route path="/cases/inquiries" element={<CaseInquiriesListPage />} />
+                  <Route path="/cases/reports" element={<CaseReportsPage />} />
+                  <Route path="/cases/settings" element={<CaseSettingsPage />} />
+                  <Route path="/cases" element={<CaseManagementPage />} />
                   <Route path="/inspection/violation-types" element={<ViolationTypesListPage />} />
                   <Route path="/inspection/violation-types/new" element={<ViolationTypeCreatePage />} />
                   <Route path="/inspection/violation-types/:id" element={<ViolationTypeDetailPage />} />
                   <Route path="/inspection/violation-types/:id/edit" element={<ViolationTypeEditPage />} />
+                  <Route path="/inspection/violations" element={<ViolationsListPage />} />
+                  <Route path="/inspection/violations/new" element={<ViolationCreatePage />} />
+                  <Route path="/inspection/violations/reports" element={<ViolationReportsPage />} />
+                  <Route path="/inspection/violations/:id/proceedings" element={<ProceedingsListPage />} />
+                  <Route path="/inspection/violations/:id/proceedings/new" element={<ProceedingCreatePage />} />
+                  <Route path="/inspection/violations/:id/proceedings/:proceedingId" element={<ProceedingDetailPage />} />
+                  <Route path="/inspection/violations/:id/proceedings/:proceedingId/edit" element={<ProceedingEditPage />} />
+                  <Route path="/inspection/violations/:id" element={<ViolationDetailPage />} />
+                  <Route path="/inspection/violations/:id/edit" element={<ViolationEditPage />} />
                   <Route path="/base-info/roles" element={<RolesListPage />} />
                   <Route path="/base-info/roles/new" element={<RoleCreatePage />} />
                   <Route path="/base-info/roles/:id" element={<RoleDetailPage />} />

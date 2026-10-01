@@ -193,35 +193,39 @@ export function PersianDateField({
           <DatePickerActions key="actions" position="bottom" />,
         ]}
         render={(formatted, openCalendar) => (
-          <div className={`${fieldClassName} flex items-center gap-1`}>
-            <button
-              type="button"
-              id={id}
-              className="min-w-0 flex-1 truncate text-start"
-              onClick={openCalendar}
-            >
-              <span className={formatted ? 'text-ink-900' : 'text-ink-400'}>
-                {formatted || t('common.selectDate')}
-              </span>
-            </button>
+          <div
+            id={id}
+            role="button"
+            tabIndex={0}
+            data-enter-ignore
+            className={`${fieldClassName} date-field-trigger flex cursor-pointer items-center gap-1`}
+            onClick={() => openCalendar()}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                event.stopPropagation()
+                openCalendar()
+              }
+            }}
+          >
+            <span className={`pointer-events-none min-w-0 flex-1 truncate text-start ${formatted ? 'text-ink-900' : 'text-ink-400'}`}>
+              {formatted || t('common.selectDate')}
+            </span>
             {value ? (
               <button
                 type="button"
-                className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-ink-400 hover:bg-cream-100 hover:text-ink-700"
+                className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-400 hover:bg-cream-100 hover:text-ink-700"
                 aria-label={t('common.clearDate')}
-                onClick={() => onChange(undefined)}
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onChange(undefined)
+                }}
               >
                 <X className="size-4" aria-hidden />
               </button>
             ) : null}
-            <button
-              type="button"
-              className="inline-flex size-8 shrink-0 items-center justify-center text-teal-600"
-              aria-label={t('common.selectDate')}
-              onClick={openCalendar}
-            >
-              <CalendarDays className="size-4" aria-hidden />
-            </button>
+            <CalendarDays className="pointer-events-none size-4 shrink-0 text-teal-600" aria-hidden />
           </div>
         )}
         onChange={(date: DateObject | DateObject[] | null) => {

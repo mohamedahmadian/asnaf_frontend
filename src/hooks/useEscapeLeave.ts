@@ -111,6 +111,44 @@ function clickFormSave(formId: string) {
   button.click()
 }
 
+/** دو بار «س» یا s همان ذخیره را می‌زند؛ داخل فیلد تایپی و پنجرهٔ باز اجرا نمی‌شود */
+export function useDoubleSaveShortcut(enabled: boolean, onSave: () => void) {
+  const onSaveRef = useRef(onSave)
+  onSaveRef.current = onSave
+  useEffect(() => {
+    if (!enabled) return
+    let lastKey = ''
+    let lastAt = 0
+    const onKey = (event: KeyboardEvent) => {
+      if (event.repeat || event.isComposing || event.defaultPrevented) return
+      if (event.ctrlKey || event.altKey || event.metaKey) return
+      if (!isSaveShortcutKey(event.key)) {
+        lastKey = ''
+        lastAt = 0
+        return
+      }
+      if (isEscapeBlocked() || isTypingTarget(event.target)) {
+        lastKey = ''
+        lastAt = 0
+        return
+      }
+      const now = Date.now()
+      const doubled = lastKey !== '' && sameSaveKey(lastKey, event.key) && now - lastAt <= DOUBLE_SAVE_MS
+      lastKey = ''
+      lastAt = 0
+      if (!doubled) {
+        lastKey = event.key
+        lastAt = now
+        return
+      }
+      event.preventDefault()
+      onSaveRef.current()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [enabled])
+}
+
 /** روی صفحهٔ ویرایش: دو بار «س» یا s دکمهٔ ذخیره را می‌زند */
 export function useEditFormDoubleSave(enabled: boolean, formId?: string | null) {
   useEffect(() => {

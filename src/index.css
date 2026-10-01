@@ -224,6 +224,15 @@ th {
   height: auto !important;
 }
 
+.date-field-trigger {
+  box-sizing: border-box;
+  height: 42px !important;
+  min-height: 42px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  cursor: pointer;
+}
+
 .rmdp-wrapper {
   font-family: var(--font-sans);
   z-index: 80;
@@ -3133,4 +3142,111 @@ th {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cpath fill='none' stroke='%23ffffff' stroke-opacity='0.08' stroke-width='1' d='M36 4 44 28 68 36 44 44 36 68 28 44 4 36 28 28Z'/%3E%3C/svg%3E");
   background-size: 72px 72px;
   opacity: 0.7;
+}
+
+@keyframes case-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.case-step-in {
+  animation: case-step-in 280ms ease;
+}
+
+@keyframes case-step-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(63, 214, 190, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(63, 214, 190, 0.55);
+  }
+}
+
+.case-step-active {
+  animation: case-step-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes case-step-check-pop {
+  0% {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.case-step-check {
+  animation: case-step-check-pop 420ms ease both;
+}
+
+@keyframes case-step-done-pulse {
+  0%,
+  100% {
+    border-color: rgba(16, 185, 129, 0.2);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+  50% {
+    border-color: rgb(5, 150, 105);
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.28);
+  }
+}
+
+.case-step-done-pulse {
+  animation: case-step-done-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes case-step-num-pulse {
+  0%,
+  100% {
+    background-color: rgba(16, 185, 129, 0.2);
+    border-color: rgba(16, 185, 129, 0.35);
+    color: rgb(4, 120, 87);
+  }
+  50% {
+    background-color: rgb(5, 150, 105);
+    border-color: rgb(5, 150, 105);
+    color: #fff;
+  }
+}
+
+.case-step-num-pulse {
+  animation: case-step-num-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .case-step-in,
+  .case-step-active,
+  .case-step-check,
+  .case-step-done-pulse,
+  .case-step-num-pulse {
+    animation: none;
+  }
+
+  .case-step-active {
+    box-shadow: 0 0 0 3px rgba(63, 214, 190, 0.45);
+  }
+
+  .case-step-done-pulse {
+    border-color: rgb(5, 150, 105);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.35);
+  }
+
+  .case-step-num-pulse {
+    background-color: rgb(5, 150, 105);
+    border-color: rgb(5, 150, 105);
+    color: #fff;
+  }
 }

@@ -41,6 +41,8 @@ export const formShellClassName = 'mx-auto w-full min-w-0'
 export const baseInfoFormShellClassName = 'mx-auto w-full min-w-0 lg:w-3/4'
 export const userFormShellClassName = 'mx-auto w-full min-w-0'
 export const listShellClassName = 'mx-auto w-full min-w-0'
+/** صفحات ماژول پرونده: تمام عرض ناحیهٔ محتوا */
+export const caseShellClassName = 'w-full min-w-0 max-w-none'
 
 export function Button({
   variant = 'primary',
@@ -180,6 +182,7 @@ const PAGE_BACK_NESTED_LISTS = new Set([
   'lanes',
   'units',
   'jobs',
+  'proceedings',
 ])
 
 const UUID_SEGMENT =
@@ -230,6 +233,7 @@ function resolvePageBackTo(pathname: string): string | undefined {
 
 export function PageHeader({
   title,
+  titleExtra,
   subtitle,
   action,
   backTo,
@@ -237,6 +241,7 @@ export function PageHeader({
   className = 'mb-6',
 }: {
   title: string
+  titleExtra?: ReactNode
   subtitle?: ReactNode
   action?: ReactNode
   icon: LucideIcon
@@ -269,6 +274,7 @@ export function PageHeader({
         icon={icon}
         heading="h1"
         title={title}
+        titleExtra={titleExtra}
         subtitle={subtitle}
         action={
           <div className="flex items-center gap-2">
