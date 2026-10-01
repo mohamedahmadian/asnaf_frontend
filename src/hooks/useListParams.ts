@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
-export function useListParams() {
+export function useListParams(keys?: { q?: string; page?: string }) {
+  const qKey = keys?.q ?? 'q'
+  const pageKey = keys?.page ?? 'page'
   const [searchParams, setSearchParams] = useSearchParams()
-  const q = searchParams.get('q') ?? ''
-  const page = Math.max(1, Number(searchParams.get('page') || '1') || 1)
+  const q = searchParams.get(qKey) ?? ''
+  const page = Math.max(1, Number(searchParams.get(pageKey) || '1') || 1)
   const [term, setTerm] = useState(q)
 
   useEffect(() => {
@@ -24,18 +26,18 @@ export function useListParams() {
       }
     }
     if (options?.resetPage) {
-      next.set('page', '1')
+      next.set(pageKey, '1')
     }
     setSearchParams(next)
   }
 
   function applySearch(nextTerm = term) {
     const trimmed = nextTerm.trim()
-    setParams({ q: trimmed || undefined }, { resetPage: true })
+    setParams({ [qKey]: trimmed || undefined }, { resetPage: true })
   }
 
   function setPage(nextPage: number) {
-    setParams({ page: String(Math.max(1, nextPage)) })
+    setParams({ [pageKey]: String(Math.max(1, nextPage)) })
   }
 
   return { q, page, term, setTerm, applySearch, setPage, searchParams, setParams }

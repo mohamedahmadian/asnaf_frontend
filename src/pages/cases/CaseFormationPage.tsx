@@ -36,12 +36,14 @@ import { optimizeImageFile } from '../../lib/optimize-image'
 import type { City, CommercialComplex, Country, DocumentItem, Job, JobGroup, Paginated, RegistrationPlace } from '../../types/app'
 import { CaseActivityStep } from './CaseActivityStep'
 import { CaseInquiriesStep } from './CaseInquiriesStep'
+import { CasePlacesStep } from './CasePlacesStep'
 import type { CaseInquiryRow } from './inquiry-types'
 import { CaseLocationStep } from './CaseLocationStep'
 import { CaseDocumentList } from './CaseDocumentList'
 import { CaseIdentityFields } from './CaseIdentityFields'
 import {
   FORMATION_STEPS,
+  MANAGEMENT_FORMATION_STEP,
   PLACES_FORMATION_STEP,
   activityDocumentRows,
   emptyLocationForm,
@@ -136,6 +138,14 @@ export function CaseFormationPage() {
     enabled: Boolean(person?.id) && (step >= FORMATION_STEPS.indexOf('inquiries') || reached >= FORMATION_STEPS.indexOf('inquiries')),
     queryFn: async () =>
       (await api.get<CaseInquiryRow[]>('/cases/formation/inquiries', { params: { userId: person?.id } })).data,
+  })
+  const casePlaces = useQuery({
+    queryKey: ['cases', 'formation-places', person?.id],
+    enabled:
+      Boolean(person?.id) &&
+      (step >= PLACES_FORMATION_STEP || reached >= PLACES_FORMATION_STEP),
+    queryFn: async () =>
+      (await api.get<CaseInquiryRow | null>('/cases/formation/places', { params: { userId: person?.id } })).data,
   })
 
   useEffect(() => {
@@ -712,6 +722,20 @@ export function CaseFormationPage() {
           items={caseInquiries.data ?? []}
           loading={caseInquiries.isLoading}
           autoAdvance={reached < PLACES_FORMATION_STEP}
+          onAdvanced={(formationStep) => {
+            setPerson((current) => (current ? { ...current, formationStep } : current))
+            setReached((current) => Math.max(current, formationStep))
+            setStep(formationStep)
+          }}
+        />
+      ) : null}
+
+      {step === PLACES_FORMATION_STEP && person?.id ? (
+        <CasePlacesStep
+          userId={person.id}
+          item={casePlaces.data ?? null}
+          loading={casePlaces.isLoading}
+          autoAdvance={reached < MANAGEMENT_FORMATION_STEP}
           onAdvanced={(formationStep) => {
             setPerson((current) => (current ? { ...current, formationStep } : current))
             setReached((current) => Math.max(current, formationStep))

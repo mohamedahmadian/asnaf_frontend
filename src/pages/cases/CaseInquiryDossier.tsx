@@ -114,7 +114,15 @@ function DocumentStats({ stats, locale }: { stats: InquiryDocumentStats; locale:
   )
 }
 
-function DossierDocumentCard({ inquiryId, item }: { inquiryId: string; item: InquiryDossierDocument }) {
+function DossierDocumentCard({
+  inquiryId,
+  apiBase,
+  item,
+}: {
+  inquiryId: string
+  apiBase: string
+  item: InquiryDossierDocument
+}) {
   const { t } = useTranslation()
   const [previewUrl, setPreviewUrl] = useState<string>()
   const [enlarged, setEnlarged] = useState(false)
@@ -130,7 +138,7 @@ function DossierDocumentCard({ inquiryId, item }: { inquiryId: string; item: Inq
     let cancelled = false
     let url = ''
     void api
-      .get<Blob>(`/cases/inquiries/${inquiryId}/documents/${file.id}`, { responseType: 'blob' })
+      .get<Blob>(`${apiBase}/${inquiryId}/documents/${file.id}`, { responseType: 'blob' })
       .then(({ data }) => {
         if (cancelled) return
         url = URL.createObjectURL(data)
@@ -143,7 +151,7 @@ function DossierDocumentCard({ inquiryId, item }: { inquiryId: string; item: Inq
       cancelled = true
       if (url) URL.revokeObjectURL(url)
     }
-  }, [file, inquiryId, isImage])
+  }, [apiBase, file, inquiryId, isImage])
 
   useEffect(() => {
     if (!enlarged) return
@@ -160,7 +168,7 @@ function DossierDocumentCard({ inquiryId, item }: { inquiryId: string; item: Inq
       setEnlarged(true)
       return
     }
-    const { data } = await api.get<Blob>(`/cases/inquiries/${inquiryId}/documents/${file.id}`, {
+    const { data } = await api.get<Blob>(`${apiBase}/${inquiryId}/documents/${file.id}`, {
       responseType: 'blob',
     })
     const url = URL.createObjectURL(data)
@@ -224,11 +232,13 @@ function DossierDocumentCard({ inquiryId, item }: { inquiryId: string; item: Inq
 
 export function CaseInquiryDossier({
   inquiryId,
+  apiBase = '/cases/inquiries',
   tab,
   createdAt,
   applicant,
 }: {
   inquiryId: string
+  apiBase?: string
   tab: string
   createdAt: string
   applicant: Applicant
@@ -236,9 +246,9 @@ export function CaseInquiryDossier({
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const query = useQuery({
-    queryKey: ['cases', 'inquiry-dossier', inquiryId],
+    queryKey: ['cases', 'inquiry-dossier', apiBase, inquiryId],
     enabled: Boolean(inquiryId),
-    queryFn: async () => (await api.get<InquiryDossier>(`/cases/inquiries/${inquiryId}/dossier`)).data,
+    queryFn: async () => (await api.get<InquiryDossier>(`${apiBase}/${inquiryId}/dossier`)).data,
   })
   const dossier = query.data
 
@@ -253,7 +263,7 @@ export function CaseInquiryDossier({
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {dossier.documents.map((item) => (
-              <DossierDocumentCard key={item.id} inquiryId={inquiryId} item={item} />
+              <DossierDocumentCard key={item.id} inquiryId={inquiryId} apiBase={apiBase} item={item} />
             ))}
           </div>
         )}

@@ -97,8 +97,8 @@ export async function submitInquiryDecision(
   await api.post(url, body)
 }
 
-export async function openInquiryFile(fileId: string) {
-  const { data } = await api.get<Blob>(`/cases/inquiries/files/${fileId}`, { responseType: 'blob' })
+export async function openInquiryFile(fileId: string, filesPath = '/cases/inquiries/files') {
+  const { data } = await api.get<Blob>(`${filesPath}/${fileId}`, { responseType: 'blob' })
   const url = URL.createObjectURL(data)
   window.open(url, '_blank', 'noopener')
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000)

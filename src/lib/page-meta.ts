@@ -362,6 +362,15 @@ export function getPageMeta(pathname: string): {
   if (pathname.startsWith('/cases/inquiries')) {
     return { titleKey: 'menus.caseInquiries', subtitleKey: 'cases.inquiriesSubtitle' }
   }
+  if (pathname.startsWith('/cases/places/') && pathname.endsWith('/letter')) {
+    return { titleKey: 'cases.inquiryLetter', subtitleKey: 'cases.placesSubtitle' }
+  }
+  if (/^\/cases\/places\/[^/]+$/.test(pathname)) {
+    return { titleKey: 'cases.placesDetails', subtitleKey: 'cases.placesSubtitle' }
+  }
+  if (pathname.startsWith('/cases/places')) {
+    return { titleKey: 'menus.casePlaces', subtitleKey: 'cases.placesSubtitle' }
+  }
   if (pathname.startsWith('/cases/reports')) {
     return { titleKey: 'menus.caseReports', subtitleKey: 'cases.reportsSubtitle' }
   }

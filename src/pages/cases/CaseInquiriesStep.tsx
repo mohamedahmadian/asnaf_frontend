@@ -150,7 +150,7 @@ export function CaseInquiriesStep({
   )
 }
 
-function InquiryProgressChart({ done, total, locale }: { done: number; total: number; locale: string }) {
+export function InquiryProgressChart({ done, total, locale }: { done: number; total: number; locale: string }) {
   const { t } = useTranslation()
   const label = t('cases.inquiryProgress', {
     done: formatNumber(done, locale),
@@ -231,16 +231,26 @@ function inquiryElapsedLabel(
   return t('cases.inquiryElapsedWeekDay', { weeks: n(weeks), days: n(days) })
 }
 
-function InquiryCard({
+export function InquiryCard({
   item,
   locale,
   onChanged,
   onPrint,
+  decisionUrl = `/cases/formation/inquiries/${item.id}/decision`,
+  reopenUrl = `/cases/formation/inquiries/${item.id}/reopen`,
+  letterUrl = `/cases/inquiries/${item.id}/letter`,
+  filesPath = '/cases/inquiries/files',
+  attachmentLabelKey = 'cases.inquiryAddAttachment',
 }: {
   item: CaseInquiryRow
   locale: string
   onChanged: () => void
   onPrint: () => void
+  decisionUrl?: string
+  reopenUrl?: string
+  letterUrl?: string
+  filesPath?: string
+  attachmentLabelKey?: string
 }) {
   const { t } = useTranslation()
   const [note, setNote] = useState(item.note ?? '')
@@ -256,7 +266,7 @@ function InquiryCard({
     }
     setSaving(true)
     try {
-      await submitInquiryDecision(`/cases/formation/inquiries/${item.id}/decision`, status, note, file)
+      await submitInquiryDecision(decisionUrl, status, note, file)
       toast.success(t('cases.inquiryDecided'))
       setFile(null)
       setAttachmentOpen(false)
@@ -280,7 +290,7 @@ function InquiryCard({
   async function reopen() {
     setSaving(true)
     try {
-      await api.post(`/cases/formation/inquiries/${item.id}/reopen`)
+      await api.post(reopenUrl)
       toast.success(t('cases.inquiryReopened'))
       setNote('')
       setFile(null)
@@ -296,7 +306,7 @@ function InquiryCard({
   async function download() {
     setDownloading(true)
     try {
-      const { data } = await api.get<CaseInquiryLetter>(`/cases/inquiries/${item.id}/letter`)
+      const { data } = await api.get<CaseInquiryLetter>(letterUrl)
       const filled = presentInquiryLetter(data, locale)
       downloadInquiryLetter(inquiryLetterFilename(data.centerName), filled.title, filled.body)
     } catch (error) {
@@ -365,7 +375,7 @@ function InquiryCard({
               </label>
               <Button type="button" variant="ghost" onClick={() => setAttachmentOpen((open) => !open)}>
                 <Paperclip className="size-4" aria-hidden />
-                {t('cases.inquiryAddAttachment')}
+                {t(attachmentLabelKey)}
               </Button>
             </div>
             <textarea
@@ -387,7 +397,7 @@ function InquiryCard({
               />
             </FormField>
           ) : null}
-          <InquiryFiles files={item.files} />
+          <InquiryFiles files={item.files} filesPath={filesPath} />
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Button
               type="button"
@@ -419,12 +429,18 @@ function InquiryCard({
           </div>
         </div>
       ) : item.status === 'APPROVED' ? (
-        <ApprovedInquirySummary item={item} locale={locale} saving={saving} onReopen={askReopen} />
+        <ApprovedInquirySummary
+          item={item}
+          locale={locale}
+          saving={saving}
+          filesPath={filesPath}
+          onReopen={askReopen}
+        />
       ) : (
         <div className="space-y-2">
           {item.note ? <p className="text-sm whitespace-pre-wrap text-ink-800">{item.note}</p> : null}
           {item.decidedBy ? <p className="text-xs text-ink-500">{item.decidedBy.fullName}</p> : null}
-          <InquiryFiles files={item.files} />
+          <InquiryFiles files={item.files} filesPath={filesPath} />
           <div className="flex justify-end">
             <Button type="button" variant="ghost" disabled={saving} onClick={askReopen}>
               <RotateCcw className="size-4" aria-hidden />
@@ -441,11 +457,13 @@ function ApprovedInquirySummary({
   item,
   locale,
   saving,
+  filesPath,
   onReopen,
 }: {
   item: CaseInquiryRow
   locale: string
   saving: boolean
+  filesPath: string
   onReopen: () => void
 }) {
   const { t } = useTranslation()
@@ -496,7 +514,7 @@ function ApprovedInquirySummary({
           <FormFactTile icon={FileText} label={t('cases.inquiryNote')} value={item.note} tone="ink" className="sm:col-span-2" />
         ) : null}
       </div>
-      <InquiryFiles files={item.files} />
+      <InquiryFiles files={item.files} filesPath={filesPath} />
       <div className="flex justify-end">
         <Button type="button" variant="ghost" disabled={saving} onClick={onReopen}>
           <RotateCcw className="size-4" aria-hidden />
@@ -507,19 +525,21 @@ function ApprovedInquirySummary({
   )
 }
 
-function InquiryLetterModal({
+export function InquiryLetterModal({
   inquiryId,
   locale,
   onClose,
+  letterUrl = `/cases/inquiries/${inquiryId}/letter`,
 }: {
   inquiryId: string
   locale: string
   onClose: () => void
+  letterUrl?: string
 }) {
   const { t } = useTranslation()
   const query = useQuery({
-    queryKey: ['cases', 'inquiry-letter', inquiryId],
-    queryFn: async () => (await api.get<CaseInquiryLetter>(`/cases/inquiries/${inquiryId}/letter`)).data,
+    queryKey: ['cases', 'inquiry-letter', letterUrl],
+    queryFn: async () => (await api.get<CaseInquiryLetter>(letterUrl)).data,
   })
   const filled = useMemo(
     () => (query.data ? presentInquiryLetter(query.data, locale) : null),
@@ -590,7 +610,7 @@ function InquiryLetterModal({
   )
 }
 
-function InquiryFiles({ files }: { files: CaseInquiryRow['files'] }) {
+function InquiryFiles({ files, filesPath }: { files: CaseInquiryRow['files']; filesPath: string }) {
   if (!files.length) return null
   return (
     <div className="flex flex-wrap gap-2">
@@ -599,7 +619,7 @@ function InquiryFiles({ files }: { files: CaseInquiryRow['files'] }) {
           key={file.id}
           type="button"
           className="cursor-pointer text-sm text-teal-700"
-          onClick={() => void openInquiryFile(file.id)}
+          onClick={() => void openInquiryFile(file.id, filesPath)}
         >
           {file.originalName || file.id}
         </button>

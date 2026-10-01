@@ -12,6 +12,7 @@ import {
   Paperclip,
   Printer,
   Radio,
+  Landmark,
   ScanSearch,
   ClipboardCheck,
   UserCheck,
@@ -71,9 +72,27 @@ function applicantConfirmName(
   return name
 }
 
-export function CaseInquiryDetailPage() {
+export function CaseInquiryDetailPage({
+  apiBase = '/cases/inquiries',
+  variant = 'inquiry',
+}: {
+  apiBase?: string
+  variant?: 'inquiry' | 'places'
+} = {}) {
   const { id = '' } = useParams()
   const { t, i18n } = useTranslation()
+  const places = variant === 'places'
+  const PageIcon = places ? Landmark : ScanSearch
+  const copy = {
+    details: places ? 'cases.placesDetails' : 'cases.inquiryDetails',
+    decision: places ? 'cases.placesDecision' : 'cases.inquiryDecision',
+    result: places ? 'cases.placesResult' : 'cases.inquiryResult',
+    approveConfirm: places ? 'cases.placesApproveConfirm' : 'cases.inquiryApproveConfirm',
+    rejectConfirm: places ? 'cases.placesRejectConfirm' : 'cases.inquiryRejectConfirm',
+    rejectNote: places ? 'cases.placesRejectNote' : 'cases.inquiryRejectNote',
+    decided: places ? 'cases.placesDecided' : 'cases.inquiryDecided',
+    addAttachment: places ? 'cases.placesAddAttachment' : 'cases.inquiryAddAttachment',
+  }
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const queryClient = useQueryClient()
   const [note, setNote] = useState('')
@@ -83,9 +102,9 @@ export function CaseInquiryDetailPage() {
   const [letterBusy, setLetterBusy] = useState<'print' | 'download' | null>(null)
   const [dossierTab, setDossierTab] = useState('identity')
   const query = useQuery({
-    queryKey: ['cases', 'inquiry', id],
+    queryKey: ['cases', variant, id],
     enabled: Boolean(id),
-    queryFn: async () => (await api.get<InquiryDetail>(`/cases/inquiries/${id}`)).data,
+    queryFn: async () => (await api.get<InquiryDetail>(`${apiBase}/${id}`)).data,
   })
   const item = query.data
 
@@ -93,7 +112,7 @@ export function CaseInquiryDetailPage() {
 
   function askApprove() {
     confirmToast({
-      title: t('cases.inquiryApproveConfirm', { name: applicantName }).trim(),
+      title: t(copy.approveConfirm, { name: applicantName }).trim(),
       confirmLabel: t('cases.inquiryApprove'),
       cancelLabel: t('common.cancel'),
       onConfirm: () => void decide('APPROVED'),
@@ -102,7 +121,7 @@ export function CaseInquiryDetailPage() {
 
   function askReject() {
     confirmToast({
-      title: t('cases.inquiryRejectConfirm'),
+      title: t(copy.rejectConfirm),
       confirmLabel: t('cases.inquiryReject'),
       cancelLabel: t('common.cancel'),
       confirmVariant: 'danger',
@@ -113,17 +132,17 @@ export function CaseInquiryDetailPage() {
   async function decide(status: 'APPROVED' | 'REJECTED') {
     if (!item) return
     if (status === 'REJECTED' && !note.trim()) {
-      toast.error(t('cases.inquiryRejectNote'))
+      toast.error(t(copy.rejectNote))
       return
     }
     setSaving(true)
     try {
-      await submitInquiryDecision(`/cases/inquiries/${item.id}/decision`, status, note, file)
-      toast.success(t('cases.inquiryDecided'))
+      await submitInquiryDecision(`${apiBase}/${item.id}/decision`, status, note, file)
+      toast.success(t(copy.decided))
       setFile(null)
       setNote('')
-      await queryClient.invalidateQueries({ queryKey: ['cases', 'inquiry', id] })
-      await queryClient.invalidateQueries({ queryKey: ['cases', 'inquiries'] })
+      await queryClient.invalidateQueries({ queryKey: ['cases', variant, id] })
+      await queryClient.invalidateQueries({ queryKey: ['cases', variant === 'places' ? 'places' : 'inquiries'] })
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('cases.saveFailed')))
     } finally {
@@ -135,7 +154,7 @@ export function CaseInquiryDetailPage() {
     if (!item) return
     setLetterBusy(action)
     try {
-      const { data } = await api.get<CaseInquiryLetter>(`/cases/inquiries/${item.id}/letter`)
+      const { data } = await api.get<CaseInquiryLetter>(`${apiBase}/${item.id}/letter`)
       const filled = presentInquiryLetter(data, locale)
       if (action === 'print') printInquiryLetter(filled.title, filled.body)
       else downloadInquiryLetter(inquiryLetterFilename(data.centerName), filled.title, filled.body)
@@ -149,14 +168,14 @@ export function CaseInquiryDetailPage() {
   return (
     <div className={caseShellClassName}>
       <PageHeader
-        icon={ScanSearch}
-        title={t('cases.inquiryDetails')}
+        icon={PageIcon}
+        title={t(copy.details)}
         subtitle={item?.applicant?.fullName}
       />
       {query.isLoading ? <LoadingState /> : null}
       {item ? (
         <FormCard
-          icon={ScanSearch}
+          icon={PageIcon}
           title={item.center.name}
           subtitle={t(`cases.inquiryStatuses.${item.status}`)}
           action={
@@ -164,7 +183,7 @@ export function CaseInquiryDetailPage() {
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="primary" disabled={saving} onClick={askApprove}>
                   <Check className="size-4" aria-hidden />
-                  {t('cases.inquiryApproveConfirm', { name: applicantName }).trim()}
+                  {t(copy.approveConfirm, { name: applicantName }).trim()}
                 </Button>
                 <Button type="button" variant="ghost" disabled={saving} onClick={askReject}>
                   <X className="size-4" aria-hidden />
@@ -187,6 +206,7 @@ export function CaseInquiryDetailPage() {
             <div role="tabpanel" id={`form-panel-${dossierTab}`} aria-labelledby={`form-tab-${dossierTab}`}>
               <CaseInquiryDossier
                 inquiryId={item.id}
+                apiBase={apiBase}
                 tab={dossierTab}
                 createdAt={item.createdAt}
                 applicant={item.applicant}
@@ -215,10 +235,10 @@ export function CaseInquiryDetailPage() {
             {item.status === 'PENDING' ? (
               <section className="space-y-4 rounded-[22px] border border-teal-200 bg-gradient-to-b from-teal-50/70 to-white p-4 shadow-[0_10px_28px_rgba(46,189,182,0.08)] sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="text-xl font-semibold text-ink-900">{t('cases.inquiryDecision')}</h3>
+                  <h3 className="text-xl font-semibold text-ink-900">{t(copy.decision)}</h3>
                   <Button type="button" variant="ghost" onClick={() => setAttachmentOpen((open) => !open)}>
                     <Paperclip className="size-4" aria-hidden />
-                    {t('cases.inquiryAddAttachment')}
+                    {t(copy.addAttachment)}
                   </Button>
                 </div>
                 <FormField icon={FileText} label={t('cases.inquiryNote')} htmlFor="inquiry-decision-note">
@@ -250,7 +270,7 @@ export function CaseInquiryDetailPage() {
                     onClick={askApprove}
                   >
                     <Check className="size-4" aria-hidden />
-                    {t('cases.inquiryApproveConfirm', { name: applicantName }).trim()}
+                    {t(copy.approveConfirm, { name: applicantName }).trim()}
                   </Button>
                   <Button
                     type="button"
@@ -266,7 +286,7 @@ export function CaseInquiryDetailPage() {
               </section>
             ) : (
               <div className="space-y-3">
-                <FormSectionTitle icon={ClipboardCheck}>{t('cases.inquiryResult')}</FormSectionTitle>
+                <FormSectionTitle icon={ClipboardCheck}>{t(copy.result)}</FormSectionTitle>
                 <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
                   <FormFactTile
                     icon={item.status === 'REJECTED' ? CircleX : CircleCheck}
@@ -312,7 +332,7 @@ export function CaseInquiryDetailPage() {
                         key={attachment.id}
                         type="button"
                         className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-teal-800 ring-1 ring-teal-200"
-                        onClick={() => void openInquiryFile(attachment.id)}
+                        onClick={() => void openInquiryFile(attachment.id, `${apiBase}/files`)}
                       >
                         <Paperclip className="size-3.5" aria-hidden />
                         {attachment.originalName || attachment.id}

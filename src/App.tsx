@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Landmark } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Toaster } from 'sonner'
@@ -249,6 +250,26 @@ export default function App() {
                   <Route path="/cases/inquiries/:id/letter" element={<CaseInquiryLetterPage />} />
                   <Route path="/cases/inquiries/:id" element={<CaseInquiryDetailPage />} />
                   <Route path="/cases/inquiries" element={<CaseInquiriesListPage />} />
+                  <Route path="/cases/places/:id/letter" element={<CaseInquiryLetterPage />} />
+                  <Route
+                    path="/cases/places/:id"
+                    element={<CaseInquiryDetailPage apiBase="/cases/places" variant="places" />}
+                  />
+                  <Route
+                    path="/cases/places"
+                    element={
+                      <CaseInquiriesListPage
+                        apiPath="/cases/places"
+                        viewBase="/cases/places"
+                        titleKey="menus.casePlaces"
+                        subtitleKey="cases.placesSubtitle"
+                        emptyKey="cases.placesListEmpty"
+                        noResultsKey="cases.placesNoResults"
+                        queryScope="places"
+                        icon={Landmark}
+                      />
+                    }
+                  />
                   <Route path="/cases/reports" element={<CaseReportsPage />} />
                   <Route path="/cases/settings" element={<CaseSettingsPage />} />
                   <Route path="/cases" element={<CaseManagementPage />} />

@@ -1,4 +1,4 @@
-import { ScanSearch } from 'lucide-react'
+import { ScanSearch, type LucideIcon } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { PageHeader, caseShellClassName } from '../../components/ui/Form'
@@ -48,16 +48,34 @@ const statusBadgeClass: Record<CaseInquiryStatus, string> = {
   REJECTED: 'bg-red-50 text-red-700 ring-red-200',
 }
 
-export function CaseInquiriesListPage() {
+export function CaseInquiriesListPage({
+  apiPath = '/cases/inquiries',
+  viewBase = '/cases/inquiries',
+  titleKey = 'menus.caseInquiries',
+  subtitleKey = 'cases.inquiriesSubtitle',
+  emptyKey = 'cases.inquiriesListEmpty',
+  noResultsKey = 'cases.inquiriesNoResults',
+  icon: Icon = ScanSearch,
+  queryScope = 'inquiries',
+}: {
+  apiPath?: string
+  viewBase?: string
+  titleKey?: string
+  subtitleKey?: string
+  emptyKey?: string
+  noResultsKey?: string
+  icon?: LucideIcon
+  queryScope?: string
+} = {}) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams } = useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const status = searchParams.get('status') ?? ''
   const query = useQuery({
-    queryKey: ['cases', 'inquiries', q, page, status, sortBy, sortDir],
+    queryKey: ['cases', queryScope, q, page, status, sortBy, sortDir],
     queryFn: async () => {
-      const { data } = await api.get<Paginated<InboxRow> & { centers: InboxCenter[] }>('/cases/inquiries', {
+      const { data } = await api.get<Paginated<InboxRow> & { centers: InboxCenter[] }>(apiPath, {
         params: { q, page, status: status || undefined, ...sortParams },
       })
       return data
@@ -69,10 +87,12 @@ export function CaseInquiriesListPage() {
   return (
     <div className={caseShellClassName}>
       <PageHeader
-        icon={ScanSearch}
-        title={t('menus.caseInquiries')}
+        icon={Icon}
+        title={t(titleKey)}
         subtitle={
-          centers.length > 0 ? (
+          queryScope === 'places' ? (
+            t(subtitleKey)
+          ) : centers.length > 0 ? (
             <span className="flex flex-wrap gap-1.5">
               {centers.map((center) => (
                 <span
@@ -110,7 +130,7 @@ export function CaseInquiriesListPage() {
       />
       <TableCard
         loading={query.isLoading}
-        empty={q || status ? t('cases.inquiriesNoResults') : t('cases.inquiriesListEmpty')}
+        empty={q || status ? t(noResultsKey) : t(emptyKey)}
         hasRows={rows.length > 0}
       >
         <table className="w-full text-sm">
@@ -147,7 +167,7 @@ export function CaseInquiriesListPage() {
                   <DateText value={item.decidedAt} withTime />
                 </td>
                 <td className={actionsColClassName}>
-                  <EntityRowActions viewTo={`/cases/inquiries/${item.id}`} />
+                  <EntityRowActions viewTo={`${viewBase}/${item.id}`} />
                 </td>
               </tr>
             ))}

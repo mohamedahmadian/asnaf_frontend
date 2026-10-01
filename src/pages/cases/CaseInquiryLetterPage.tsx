@@ -1,4 +1,4 @@
-import { Download, Printer, ScanSearch } from 'lucide-react'
+import { Download, Landmark, Printer, ScanSearch } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,10 +15,13 @@ export function CaseInquiryLetterPage() {
   const location = useLocation()
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
+  const places = location.pathname.includes('/places/')
+  const apiBase = places ? '/cases/places' : '/cases/inquiries'
+  const PageIcon = places ? Landmark : ScanSearch
   const query = useQuery({
-    queryKey: ['cases', 'inquiry-letter', id],
+    queryKey: ['cases', 'inquiry-letter', apiBase, id],
     enabled: Boolean(id),
-    queryFn: async () => (await api.get<CaseInquiryLetter>(`/cases/inquiries/${id}/letter`)).data,
+    queryFn: async () => (await api.get<CaseInquiryLetter>(`${apiBase}/${id}/letter`)).data,
   })
   const letter = query.data
   const filled = useMemo(() => (letter ? presentInquiryLetter(letter, locale) : null), [letter, locale])
@@ -32,7 +35,7 @@ export function CaseInquiryLetterPage() {
     <div className={caseShellClassName}>
       <div className="print:hidden">
         <PageHeader
-          icon={ScanSearch}
+          icon={PageIcon}
           title={t('cases.inquiryLetter')}
           subtitle={letter?.centerName}
           backTo={
@@ -40,7 +43,7 @@ export function CaseInquiryLetterPage() {
               ? letter?.nationalId
                 ? `/cases/formation?nationalId=${encodeURIComponent(letter.nationalId)}`
                 : '/cases/formation'
-              : `/cases/inquiries/${id}`
+              : `${apiBase}/${id}`
           }
           action={
             <div className="flex flex-wrap gap-2">
@@ -58,7 +61,7 @@ export function CaseInquiryLetterPage() {
       </div>
       {query.isLoading ? <LoadingState /> : null}
       {filled ? (
-        <FormCard icon={ScanSearch} title={filled.title}>
+        <FormCard icon={PageIcon} title={filled.title}>
           <div className={`${formCardBodyClassName} whitespace-pre-wrap text-sm leading-8 text-ink-900`}>
             {filled.body}
           </div>

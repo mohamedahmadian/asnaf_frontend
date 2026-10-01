@@ -11,6 +11,7 @@ export const FORMATION_STEPS = [
 ] as const
 
 export const PLACES_FORMATION_STEP = FORMATION_STEPS.indexOf('places')
+export const MANAGEMENT_FORMATION_STEP = FORMATION_STEPS.indexOf('managementReview')
 
 export const EDUCATION_LEVELS = [
   'ILLITERATE',

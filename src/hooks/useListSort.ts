@@ -8,9 +8,12 @@ type SetParams = (
 export function useListSort(
   searchParams: URLSearchParams,
   setParams: SetParams,
+  keys?: { sortBy?: string; sortDir?: string },
 ) {
-  const sortBy = searchParams.get('sortBy') ?? ''
-  const sortDir = (searchParams.get('sortDir') ?? '') as SortDir | ''
+  const sortByKey = keys?.sortBy ?? 'sortBy'
+  const sortDirKey = keys?.sortDir ?? 'sortDir'
+  const sortBy = searchParams.get(sortByKey) ?? ''
+  const sortDir = (searchParams.get(sortDirKey) ?? '') as SortDir | ''
   const sortParams =
     sortBy && (sortDir === 'asc' || sortDir === 'desc')
       ? { sortBy, sortDir }
@@ -19,7 +22,7 @@ export function useListSort(
   function onSort(column: string) {
     const next = nextSortState(column, sortBy, sortDir)
     setParams(
-      { sortBy: next.sortBy, sortDir: next.sortDir },
+      { [sortByKey]: next.sortBy, [sortDirKey]: next.sortDir },
       { resetPage: true },
     )
   }
