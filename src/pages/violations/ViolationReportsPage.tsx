@@ -1,4 +1,5 @@
-import { CalendarRange, ChartColumn, ShieldAlert } from 'lucide-react'
+import { CalendarRange, ChartColumn, ShieldAlert, Tag } from 'lucide-react'
+import { useId, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { DateObject } from 'react-multi-date-picker'
 import gregorian from 'react-date-object/calendars/gregorian'
@@ -8,12 +9,40 @@ import gregorian_hi from 'react-date-object/locales/gregorian_hi'
 import persian_fa from 'react-date-object/locales/persian_fa'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  LabelList,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { FormField, PageHeader, listShellClassName } from '../../components/ui/Form'
-import { FormCard, FormFactTile, FormSectionTitle } from '../../components/ui/FormLayout'
+import { FormCard, FormEmptyHint, FormFactTile, FormSectionTitle } from '../../components/ui/FormLayout'
 import { SearchSelect } from '../../components/ui/SearchSelect'
+import { languageDir } from '../../i18n'
 import { api } from '../../lib/api'
 import { formatNumber, localizeDigits } from '../../lib/datetime'
 import type { ViolationReport } from '../../types/app'
+
+const axisColor = '#6d8482'
+const paleBar = '#e5f6f4'
+const tickStyle = { fill: axisColor, fontSize: 12, fontFamily: 'inherit' }
+
+function chartId(prefix: string, raw: string) {
+  return `${prefix}-${raw.replace(/:/g, '')}`
+}
+
+function ChartFrame({ children }: { children: ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-3xl border border-teal-100 bg-[linear-gradient(180deg,#ffffff_0%,#f3fbfa_100%)] px-1 pb-2 pt-3 shadow-[0_12px_32px_rgba(20,143,138,0.08)]">
+      {children}
+    </div>
+  )
+}
 
 function monthLabel(year: number, month: number, locale: string, calendar: ViolationReport['calendar']) {
   const jalali = calendar === 'jalali'
@@ -25,6 +54,205 @@ function monthLabel(year: number, month: number, locale: string, calendar: Viola
     locale: jalali ? persian_fa : locale === 'hi' ? gregorian_hi : gregorian_en,
   })
   return String(date.month.name)
+}
+
+function CountTooltip({
+  active,
+  payload,
+  label,
+  locale,
+}: {
+  active?: boolean
+  payload?: { value?: number }[]
+  label?: string
+  locale: string
+}) {
+  const value = payload?.[0]?.value
+  if (!active || value == null) return null
+  return (
+    <div
+      dir={languageDir(locale)}
+      className="rounded-2xl border border-teal-100 bg-white px-3.5 py-2.5 shadow-[0_12px_28px_rgba(20,143,138,0.16)]"
+    >
+      <p className="text-xs text-ink-500">{label}</p>
+      <p className="mt-0.5 text-base font-semibold text-teal-700">{formatNumber(value, locale)}</p>
+    </div>
+  )
+}
+
+function CountLabels({ locale }: { locale: string }) {
+  return (
+    <LabelList
+      dataKey="count"
+      position="top"
+      content={(props) => {
+        const view = props as { x?: number; y?: number; width?: number; value?: number | string }
+        const value = Number(view.value)
+        if (!value || view.x == null || view.y == null) return null
+        return (
+          <text
+            x={view.x + (view.width ?? 0) / 2}
+            y={view.y - 8}
+            textAnchor="middle"
+            fill="#148f8a"
+            fontSize={11}
+            fontFamily="inherit"
+          >
+            {localizeDigits(String(value), locale)}
+          </text>
+        )
+      }}
+    />
+  )
+}
+
+function ColumnChart({
+  data,
+  locale,
+  activeIndex,
+}: {
+  data: { label: string; count: number }[]
+  locale: string
+  activeIndex?: number
+}) {
+  const fillId = chartId('bar', useId())
+  const activeId = chartId('bar-active', useId())
+  return (
+    <ChartFrame>
+      <div className="h-80 w-full min-w-0" dir="ltr">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 22, right: 12, left: 0, bottom: 4 }} barCategoryGap="28%">
+            <defs>
+              <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#7aebdc" />
+                <stop offset="100%" stopColor="#2ebdb6" />
+              </linearGradient>
+              <linearGradient id={activeId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#3fd6be" />
+                <stop offset="100%" stopColor="#148f8a" />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="#d7f1ee" strokeDasharray="4 7" vertical={false} />
+            <XAxis
+              dataKey="label"
+              interval={0}
+              axisLine={false}
+              tickLine={false}
+              tick={(props) => (
+                <text
+                  x={props.x}
+                  y={props.y}
+                  dy={14}
+                  textAnchor="middle"
+                  fill={axisColor}
+                  fontSize={12}
+                  fontFamily="inherit"
+                  style={{ direction: languageDir(locale), unicodeBidi: 'plaintext' }}
+                >
+                  {props.payload?.value}
+                </text>
+              )}
+            />
+            <YAxis
+              allowDecimals={false}
+              width={36}
+              axisLine={false}
+              tickLine={false}
+              tick={tickStyle}
+              tickFormatter={(value) => localizeDigits(String(value), locale)}
+            />
+            <Tooltip content={<CountTooltip locale={locale} />} cursor={{ fill: 'rgba(46,189,182,0.07)' }} />
+            <Bar dataKey="count" radius={[12, 12, 6, 6]} maxBarSize={34}>
+              {data.map((item, index) => (
+                <Cell
+                  key={item.label}
+                  fill={
+                    item.count === 0
+                      ? paleBar
+                      : index === activeIndex
+                        ? `url(#${activeId})`
+                        : `url(#${fillId})`
+                  }
+                />
+              ))}
+              <CountLabels locale={locale} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </ChartFrame>
+  )
+}
+
+function TypeChart({
+  data,
+  locale,
+}: {
+  data: { label: string; fullLabel: string; count: number }[]
+  locale: string
+}) {
+  const fillId = chartId('type', useId())
+  return (
+    <ChartFrame>
+      <div className="h-96 w-full min-w-0" dir="ltr">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 22, right: 12, left: 0, bottom: 8 }} barCategoryGap="24%">
+            <defs>
+              <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#7aebdc" />
+                <stop offset="100%" stopColor="#2ebdb6" />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="#d7f1ee" strokeDasharray="4 7" vertical={false} />
+            <XAxis
+              dataKey="label"
+              interval={0}
+              height={78}
+              axisLine={false}
+              tickLine={false}
+              tick={(props) => (
+                <text
+                  x={props.x}
+                  y={props.y}
+                  dy={8}
+                  textAnchor="end"
+                  fill={axisColor}
+                  fontSize={12}
+                  fontFamily="inherit"
+                  transform={`rotate(-32 ${props.x} ${props.y})`}
+                  style={{ direction: languageDir(locale), unicodeBidi: 'plaintext' }}
+                >
+                  {props.payload?.value}
+                </text>
+              )}
+            />
+            <YAxis
+              allowDecimals={false}
+              width={36}
+              axisLine={false}
+              tickLine={false}
+              tick={tickStyle}
+              tickFormatter={(value) => localizeDigits(String(value), locale)}
+            />
+            <Tooltip
+              content={(props) => (
+                <CountTooltip
+                  active={props.active}
+                  payload={props.payload as { value?: number }[]}
+                  label={String((props.payload?.[0] as { payload?: { fullLabel?: string } } | undefined)?.payload?.fullLabel ?? props.label ?? '')}
+                  locale={locale}
+                />
+              )}
+              cursor={{ fill: 'rgba(46,189,182,0.07)' }}
+            />
+            <Bar dataKey="count" fill={`url(#${fillId})`} radius={[12, 12, 6, 6]} maxBarSize={42}>
+              <CountLabels locale={locale} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </ChartFrame>
+  )
 }
 
 export function ViolationReportsPage() {
@@ -134,55 +362,62 @@ export function ViolationReportsPage() {
             ))}
           </div>
 
+          <FormSectionTitle icon={Tag}>{t('violations.reportByType')}</FormSectionTitle>
+          {report?.byType.length ? (
+            <>
+              <div className="grid gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
+                {report.byType.map((item) => (
+                  <FormFactTile
+                    key={item.id}
+                    icon={Tag}
+                    label={item.title}
+                    value={formatNumber(item.count, locale)}
+                    tone="teal"
+                  />
+                ))}
+              </div>
+              <TypeChart
+                locale={locale}
+                data={report.byType.map((item) => ({
+                  label: item.title.length > 18 ? `${item.title.slice(0, 18)}…` : item.title,
+                  fullLabel: item.title,
+                  count: item.count,
+                }))}
+              />
+            </>
+          ) : report ? (
+            <FormEmptyHint>{t('violations.reportEmpty')}</FormEmptyHint>
+          ) : null}
+
           <FormSectionTitle icon={CalendarRange}>
             {t('violations.reportMonthly')}
             {report ? ` ${localizeDigits(String(report.year), locale)}` : ''}
           </FormSectionTitle>
-          <div className="overflow-x-auto rounded-2xl border border-line">
-            <table className="w-full text-sm">
-              <thead className="bg-cream-50 text-ink-700">
-                <tr>
-                  <th className="px-4 py-3 text-start font-medium">{t('violations.month')}</th>
-                  <th className="px-4 py-3 text-start font-medium">{t('violations.count')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(report?.monthly ?? []).map((item) => (
-                  <tr
-                    key={item.month}
-                    className={`border-t border-line ${
-                      report?.month === item.month ? 'bg-teal-50' : ''
-                    }`}
-                  >
-                    <td className="px-4 py-3">
-                      {report ? monthLabel(report.year, item.month, locale, report.calendar) : item.month}
-                    </td>
-                    <td className="px-4 py-3">{formatNumber(item.count, locale)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {report ? (
+            <ColumnChart
+              locale={locale}
+              activeIndex={report.month == null ? undefined : report.month - 1}
+              data={report.monthly.map((item) => ({
+                label: monthLabel(report.year, item.month, locale, report.calendar),
+                count: item.count,
+              }))}
+            />
+          ) : null}
 
           <FormSectionTitle icon={ChartColumn}>{t('violations.reportYearly')}</FormSectionTitle>
-          <div className="overflow-x-auto rounded-2xl border border-line">
-            <table className="w-full text-sm">
-              <thead className="bg-cream-50 text-ink-700">
-                <tr>
-                  <th className="px-4 py-3 text-start font-medium">{t('violations.year')}</th>
-                  <th className="px-4 py-3 text-start font-medium">{t('violations.count')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(report?.yearly ?? []).map((item) => (
-                  <tr key={item.year} className="border-t border-line">
-                    <td className="px-4 py-3">{localizeDigits(String(item.year), locale)}</td>
-                    <td className="px-4 py-3">{formatNumber(item.count, locale)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {report?.yearly.length ? (
+            <ColumnChart
+              locale={locale}
+              data={[...report.yearly]
+                .sort((left, right) => left.year - right.year)
+                .map((item) => ({
+                  label: localizeDigits(String(item.year), locale),
+                  count: item.count,
+                }))}
+            />
+          ) : report ? (
+            <FormEmptyHint>{t('violations.reportEmpty')}</FormEmptyHint>
+          ) : null}
         </div>
       </FormCard>
     </div>

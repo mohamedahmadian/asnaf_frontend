@@ -1257,6 +1257,7 @@ export type ViolationCaseFile = {
   fullName: string;
   caseTrackingCode: string | null;
   businessUnitTitle: string | null;
+  jobGroupTitle: string | null;
   jobTitle: string | null;
   formationStep: number;
 };
@@ -1296,6 +1297,7 @@ export type ViolationReport = {
   month: number | null;
   total: number;
   byStatus: { status: ViolationStatus; count: number }[];
+  byType: { id: string; title: string; count: number }[];
   monthly: { month: number; count: number }[];
   yearly: { year: number; count: number }[];
   years: number[];

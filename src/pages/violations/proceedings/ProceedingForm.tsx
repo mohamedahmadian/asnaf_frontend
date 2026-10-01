@@ -23,9 +23,11 @@ export type ProceedingFormValue = {
 
 export function ProceedingForm({
   initial,
+  attachmentPreviewHref,
   onSubmit,
 }: {
   initial?: ProceedingFormValue
+  attachmentPreviewHref?: (attachmentId: string) => string
   onSubmit: (payload: {
     occurredAt: string
     title: string
@@ -100,6 +102,7 @@ export function ProceedingForm({
           <AttachmentField
             id="proceedingFiles"
             existing={initial?.attachments}
+            previewHref={attachmentPreviewHref}
             removedIds={removedIds}
             onToggleRemove={(attachmentId) =>
               setRemovedIds((current) =>

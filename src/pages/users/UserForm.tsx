@@ -42,7 +42,7 @@ import { selectableLanguages, selectableLocale } from '../../i18n'
 import { api, getApiErrorMessage, getImageUrl } from '../../lib/api'
 import { parseDigitString, toLatinDigits } from '../../lib/datetime'
 import { useGeoName } from '../../lib/geo'
-import { isValidIranianNationalId, normalizeNationalId } from '../../lib/national-id'
+import { normalizeNationalId } from '../../lib/national-id'
 import {
   isLikelyEmail,
   isPhoneReady,
@@ -185,9 +185,7 @@ export function UserForm({
   const [uploading, setUploading] = useState<PhotoField>()
   const [saving, setSaving] = useState(false)
   const [checkingNationalId, setCheckingNationalId] = useState(false)
-  const [nationalIdReady, setNationalIdReady] = useState(
-    Boolean(initial?.nationalId && isValidIranianNationalId(initial.nationalId)),
-  )
+  const [nationalIdReady, setNationalIdReady] = useState(Boolean(initial?.nationalId))
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [phoneStatus, setPhoneStatus] = useState<UniqueCheckStatus>(initial?.phone ? 'ok' : 'idle')
   const [emailStatus, setEmailStatus] = useState<UniqueCheckStatus>(initial?.email ? 'ok' : 'idle')
@@ -271,8 +269,6 @@ export function UserForm({
   const selectedCountryId = countryId || (isCreate ? iranCountryId : '')
   const isIranian = !iranCountryId || !selectedCountryId || selectedCountryId === iranCountryId
   const phoneRequired = selfProfile ? isIranian : true
-  const identityRequired = !selfProfile && isIranian
-  const personalFieldsLocked = isCreate && !selfProfile && identityRequired && !nationalIdReady
   const provinces = useQuery({
     queryKey: ['provinces', 'lookup', selectedCountryId],
     enabled: Boolean(selectedCountryId),
@@ -326,16 +322,7 @@ export function UserForm({
       setNationalIdReady(false)
       setIdentityStatus('idle')
       clearError('nationalId')
-      return !identityRequired
-    }
-    if (isIranian && !isValidIranianNationalId(value)) {
-      lastNationalIdCheck.current = value
-      setNationalIdReady(false)
-      setIdentityStatus('idle')
-      const message = t('users.nationalIdInvalid')
-      setFieldError('nationalId', message)
-      toast.error(message)
-      return false
+      return true
     }
     if (initial?.nationalId && normalizeNationalId(initial.nationalId) === value) {
       lastNationalIdCheck.current = value
@@ -519,10 +506,6 @@ export function UserForm({
       failField('personal', 'phone', t('users.phoneRequired'))
       return
     }
-    if (identityRequired && !normalizeNationalId(nationalId)) {
-      failField('personal', 'nationalId', t('users.nationalIdRequired'))
-      return
-    }
     const emailValue = toLatinDigits(email).trim()
     if (emailValue && !isLikelyEmail(emailValue)) {
       failField('other', 'email', t('users.emailInvalid'))
@@ -665,7 +648,6 @@ export function UserForm({
                   inputMode="numeric"
                   autoComplete="off"
                   maxLength={10}
-                  required={identityRequired}
                   aria-invalid={Boolean(fieldErrors.nationalId)}
                   aria-busy={checkingNationalId}
                   onChange={(e) => {
@@ -678,23 +660,19 @@ export function UserForm({
                     if (next.length === 10) void checkNationalIdTaken(next)
                   }}
                   onBlur={() => {
-                    if (identityRequired || nationalId.trim()) void checkNationalIdTaken()
+                    if (nationalId.trim()) void checkNationalIdTaken()
                   }}
                 />
               </UniqueFieldWrap>
             </FormField>
-            <div
-              className={`space-y-4 transition-opacity duration-200 ${personalFieldsLocked ? 'opacity-50' : ''}`}
-              aria-disabled={personalFieldsLocked}
-            >
+            <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField icon={UserRound} label={t('users.firstName')} htmlFor="firstName" error={fieldErrors.firstName}>
                   <input
                     id="firstName"
-                    className={`${inputClassName(Boolean(fieldErrors.firstName))} disabled:cursor-not-allowed`}
+                    className={inputClassName(Boolean(fieldErrors.firstName))}
                     value={firstName}
                     required
-                    disabled={personalFieldsLocked}
                     onChange={(e) => {
                       setFirstName(e.target.value)
                       clearError('firstName')
@@ -704,10 +682,9 @@ export function UserForm({
                 <FormField icon={UserRound} label={t('users.lastName')} htmlFor="lastName" error={fieldErrors.lastName}>
                   <input
                     id="lastName"
-                    className={`${inputClassName(Boolean(fieldErrors.lastName))} disabled:cursor-not-allowed`}
+                    className={inputClassName(Boolean(fieldErrors.lastName))}
                     value={lastName}
                     required
-                    disabled={personalFieldsLocked}
                     onChange={(e) => {
                       setLastName(e.target.value)
                       clearError('lastName')
@@ -724,10 +701,9 @@ export function UserForm({
                   >
                     <input
                       id="phone"
-                      className={`${inputClassName(Boolean(fieldErrors.phone))} disabled:cursor-not-allowed`}
+                      className={inputClassName(Boolean(fieldErrors.phone))}
                       value={phone}
                       required={phoneRequired}
-                      disabled={personalFieldsLocked}
                       onChange={(e) => {
                         const value = parseDigitString(e.target.value).slice(0, isIranian ? 11 : 15)
                         lastPhoneCheck.current = null
@@ -750,7 +726,6 @@ export function UserForm({
                   <SearchSelect
                     id="gender"
                     value={gender}
-                    disabled={personalFieldsLocked}
                     onChange={setGender}
                     placeholder={t('users.selectOptional')}
                     options={[
@@ -824,7 +799,6 @@ export function UserForm({
                   <SearchSelect
                     id="religion"
                     value={religion}
-                    disabled={personalFieldsLocked}
                     onChange={setReligion}
                     placeholder={t('users.selectOptional')}
                     options={[
@@ -840,9 +814,8 @@ export function UserForm({
                   <FormField icon={FileText} label={t('users.religionOther')} htmlFor="religionOther">
                     <input
                       id="religionOther"
-                      className={`${fieldClassName} disabled:cursor-not-allowed`}
+                      className={fieldClassName}
                       value={religionOther}
-                      disabled={personalFieldsLocked}
                       onChange={(e) => setReligionOther(e.target.value)}
                     />
                   </FormField>

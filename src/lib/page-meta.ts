@@ -125,6 +125,9 @@ export function getPageMeta(pathname: string): {
   if (pathname.startsWith('/settings')) {
     return { titleKey: 'settings.title', subtitleKey: 'settings.subtitle' }
   }
+  if (pathname === '/users/register') {
+    return { titleKey: 'menus.userRegister', subtitleKey: 'users.registerSubtitle' }
+  }
   if (pathname === '/users/new') {
     return { titleKey: 'users.create', subtitleKey: 'users.createSubtitle' }
   }

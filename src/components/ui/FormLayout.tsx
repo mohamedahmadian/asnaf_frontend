@@ -46,6 +46,7 @@ function isFormCardInteractiveTarget(target: EventTarget | null) {
 export function FormCard({
   icon,
   title,
+  titleExtra,
   subtitle,
   chips,
   action,
@@ -57,6 +58,7 @@ export function FormCard({
 }: {
   icon: LucideIcon
   title: ReactNode
+  titleExtra?: ReactNode
   subtitle?: ReactNode
   chips?: ReactNode
   action?: ReactNode
@@ -84,6 +86,7 @@ export function FormCard({
       <FormCardHeader
         icon={icon}
         title={title}
+        titleExtra={titleExtra}
         subtitle={subtitle}
         chips={chips}
         action={action}

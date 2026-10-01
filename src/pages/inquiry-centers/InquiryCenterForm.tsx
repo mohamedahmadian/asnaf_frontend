@@ -1,13 +1,23 @@
-import { FileText, Mail, Phone, ScanSearch, ScrollText, ToggleRight, Type, UserRound } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
-import { type FormEvent, useMemo, useState } from 'react'
+import { FileText, KeyRound, Mail, Phone, ScanSearch, ScrollText, ToggleRight, Type, UserPlus, UserRound, X } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AppForm, FormActions, FormField, ToggleField, fieldClassName } from '../../components/ui/Form'
+import {
+  AppForm,
+  Button,
+  FormActions,
+  FormField,
+  ToggleField,
+  fieldClassName,
+  inputClassName,
+} from '../../components/ui/Form'
 import { FormCard, FormSectionTitle, formCardBodyClassName } from '../../components/ui/FormLayout'
 import { SearchSelect } from '../../components/ui/SearchSelect'
 import { api, getApiErrorMessage } from '../../lib/api'
-import { toLatinDigits } from '../../lib/datetime'
+import { parseDigitString, toLatinDigits } from '../../lib/datetime'
+import { isPhoneReady } from '../../lib/identity'
 import type { InquiryCenterOfficer, ManagedUser, Paginated } from '../../types/app'
 
 export type InquiryCenterPayload = {
@@ -25,6 +35,14 @@ function asUserList(data: ManagedUser[] | Paginated<ManagedUser>) {
   return Array.isArray(data) ? data : data.items
 }
 
+function mobileDigits(value: string) {
+  let phone = parseDigitString(value)
+  if (phone.startsWith('0098')) phone = phone.slice(4)
+  else if (phone.startsWith('98') && phone.length >= 12) phone = phone.slice(2)
+  if (phone.startsWith('9') && phone.length === 10) phone = `0${phone}`
+  return phone
+}
+
 export function InquiryCenterForm({
   initial,
   onSubmit,
@@ -37,6 +55,8 @@ export function InquiryCenterForm({
   const [description, setDescription] = useState(initial?.description ?? '')
   const [phone, setPhone] = useState(initial?.phone ?? '')
   const [officerId, setOfficerId] = useState(initial?.officerId ?? '')
+  const [addedOfficers, setAddedOfficers] = useState<InquiryCenterOfficer[]>([])
+  const [officerModal, setOfficerModal] = useState(false)
   const [letterTitle, setLetterTitle] = useState(initial?.letterTitle ?? '')
   const [letterBody, setLetterBody] = useState(initial?.letterBody ?? '')
   const [isActive, setIsActive] = useState(initial?.isActive ?? true)
@@ -54,11 +74,13 @@ export function InquiryCenterForm({
   const officerOptions = useMemo(() => {
     const users = usersQuery.data ?? []
     const options = users.map((user) => ({ value: user.id, label: user.fullName }))
-    if (initial?.officer && !options.some((option) => option.value === initial.officer?.id)) {
-      options.unshift({ value: initial.officer.id, label: initial.officer.fullName })
+    for (const officer of [initial?.officer, ...addedOfficers]) {
+      if (officer && !options.some((option) => option.value === officer.id)) {
+        options.unshift({ value: officer.id, label: officer.fullName })
+      }
     }
     return [{ value: '', label: t('inquiryCenters.selectOfficer') }, ...options]
-  }, [initial?.officer, t, usersQuery.data])
+  }, [addedOfficers, initial?.officer, t, usersQuery.data])
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -120,13 +142,26 @@ export function InquiryCenterForm({
           />
         </FormField>
         <FormField icon={UserRound} label={t('inquiryCenters.officer')} htmlFor="inquiryCenterOfficer">
-          <SearchSelect
-            id="inquiryCenterOfficer"
-            value={officerId}
-            onChange={setOfficerId}
-            placeholder={t('inquiryCenters.selectOfficer')}
-            options={officerOptions}
-          />
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <SearchSelect
+                id="inquiryCenterOfficer"
+                value={officerId}
+                onChange={setOfficerId}
+                placeholder={t('inquiryCenters.selectOfficer')}
+                options={officerOptions}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="soft"
+              className="shrink-0 whitespace-nowrap"
+              onClick={() => setOfficerModal(true)}
+            >
+              <UserPlus className="size-4" aria-hidden />
+              {t('inquiryCenters.addOfficer')}
+            </Button>
+          </div>
         </FormField>
         {initial ? (
           <FormField icon={ToggleRight} label={t('inquiryCenters.isActive')} htmlFor="inquiryCenterActive">
@@ -166,6 +201,182 @@ export function InquiryCenterForm({
           onCancel={() => history.back()}
         />
       </AppForm>
+      {officerModal ? (
+        <AddOfficerModal
+          onClose={() => setOfficerModal(false)}
+          onCreated={(officer) => {
+            setAddedOfficers((current) =>
+              current.some((item) => item.id === officer.id) ? current : [officer, ...current],
+            )
+            setOfficerId(officer.id)
+            setOfficerModal(false)
+          }}
+        />
+      ) : null}
     </FormCard>
+  )
+}
+
+function AddOfficerModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void
+  onCreated: (officer: InquiryCenterOfficer) => void
+}) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [phone, setPhone] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [password, setPassword] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.repeat) return
+      event.preventDefault()
+      onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [onClose])
+
+  function clearError(key: string) {
+    setFieldErrors((current) => {
+      if (!current[key]) return current
+      const next = { ...current }
+      delete next[key]
+      return next
+    })
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    const nextErrors: Record<string, string> = {}
+    const normalizedPhone = mobileDigits(phone)
+    if (!normalizedPhone) nextErrors.phone = t('users.phoneRequired')
+    else if (!isPhoneReady(normalizedPhone, true)) nextErrors.phone = t('inquiryCenters.officerPhoneInvalid')
+    if (firstName.trim().length < 2) nextErrors.firstName = t('users.nameRequired')
+    if (lastName.trim().length < 2) nextErrors.lastName = t('users.nameRequired')
+    if (password.length < 8) nextErrors.password = t('users.passwordMin')
+    setFieldErrors(nextErrors)
+    if (Object.keys(nextErrors).length) return
+
+    setSaving(true)
+    try {
+      const { data } = await api.post<InquiryCenterOfficer>('/inquiry-centers/officers', {
+        phone: normalizedPhone,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        password,
+      })
+      await queryClient.invalidateQueries({ queryKey: ['users', 'lookup', 'inquiry-centers'] })
+      toast.success(t('inquiryCenters.officerAdded'))
+      onCreated(data)
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, t('common.error')))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-ink-900/30 p-4"
+      data-nested-dialog
+    >
+      <button type="button" className="absolute inset-0 cursor-default" aria-label={t('common.close')} onClick={onClose} />
+      <FormCard
+        icon={UserPlus}
+        title={t('inquiryCenters.addOfficerTitle')}
+        subtitle={t('inquiryCenters.addOfficerSubtitle')}
+        className="relative z-10 w-full max-w-lg"
+        onDoubleClick={() => undefined}
+        action={
+          <Button type="button" variant="ghost" icon onClick={onClose} aria-label={t('common.close')} disabled={saving}>
+            <X className="size-4" aria-hidden />
+          </Button>
+        }
+      >
+        <AppForm onSubmit={submit} autoFocusFirst className={formCardBodyClassName}>
+          <FormField icon={Phone} label={t('users.phone')} htmlFor="officerPhone" error={fieldErrors.phone}>
+            <input
+              id="officerPhone"
+              className={`${inputClassName(Boolean(fieldErrors.phone))} digit-field`}
+              value={phone}
+              onChange={(event) => {
+                setPhone(parseDigitString(event.target.value).slice(0, 11))
+                clearError('phone')
+              }}
+              inputMode="tel"
+              autoComplete="off"
+              required
+              maxLength={11}
+            />
+          </FormField>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField icon={UserRound} label={t('users.firstName')} htmlFor="officerFirstName" error={fieldErrors.firstName}>
+              <input
+                id="officerFirstName"
+                className={inputClassName(Boolean(fieldErrors.firstName))}
+                value={firstName}
+                onChange={(event) => {
+                  setFirstName(event.target.value)
+                  clearError('firstName')
+                }}
+                required
+                minLength={2}
+                maxLength={80}
+              />
+            </FormField>
+            <FormField icon={UserRound} label={t('users.lastName')} htmlFor="officerLastName" error={fieldErrors.lastName}>
+              <input
+                id="officerLastName"
+                className={inputClassName(Boolean(fieldErrors.lastName))}
+                value={lastName}
+                onChange={(event) => {
+                  setLastName(event.target.value)
+                  clearError('lastName')
+                }}
+                required
+                minLength={2}
+                maxLength={80}
+              />
+            </FormField>
+          </div>
+          <FormField icon={KeyRound} label={t('users.password')} htmlFor="officerPassword" error={fieldErrors.password}>
+            <input
+              id="officerPassword"
+              type="password"
+              className={inputClassName(Boolean(fieldErrors.password))}
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value)
+                clearError('password')
+              }}
+              autoComplete="new-password"
+              required
+              minLength={8}
+              maxLength={72}
+            />
+          </FormField>
+          <FormActions
+            headerIcons={false}
+            submitLabel={t('inquiryCenters.addOfficer')}
+            cancelLabel={t('inquiryCenters.cancel')}
+            submitting={saving}
+            onCancel={onClose}
+          />
+        </AppForm>
+      </FormCard>
+    </div>,
+    document.body,
   )
 }

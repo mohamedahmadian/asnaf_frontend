@@ -32,6 +32,7 @@ export function ViolationEditPage() {
         subtitle={<EntityNameSubtitle name={name} icon={Gavel} />}
       />
       <ViolationForm
+        attachmentPreviewHref={(attachmentId) => `/violations/${id}/attachments/${attachmentId}`}
         initial={{
           nationalId: item.nationalId,
           violationTypeId: item.violationTypeId,

@@ -1,10 +1,12 @@
-import type { LucideIcon } from 'lucide-react'
+import { Check, type LucideIcon } from 'lucide-react'
 import type { KeyboardEvent } from 'react'
 
 export type FormTabItem = {
   id: string
   label: string
   icon?: LucideIcon
+  approved?: boolean
+  pending?: boolean
 }
 
 export function FormTabs({
@@ -50,13 +52,22 @@ export function FormTabs({
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(tab.id)}
             className={`inline-flex cursor-pointer items-center gap-2 rounded-t-xl px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-500 ${
-              active
-                ? 'bg-teal-500 bg-[linear-gradient(to_inline-end,var(--color-teal-500),var(--color-mint-500))] text-white shadow-sm'
-                : 'text-ink-600 hover:bg-teal-50 hover:text-teal-700'
+              tab.approved
+                ? active
+                  ? 'bg-emerald-100 text-emerald-800 shadow-sm ring-1 ring-emerald-200'
+                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80'
+                : tab.pending
+                  ? active
+                    ? 'bg-[#fff1f3] text-rose-800/80 shadow-sm ring-1 ring-[#f6e4e7]'
+                    : 'bg-[#fff7f8] text-ink-600 hover:bg-[#fff1f3]'
+                  : active
+                    ? 'bg-teal-500 bg-[linear-gradient(to_inline-end,var(--color-teal-500),var(--color-mint-500))] text-white shadow-sm'
+                    : 'text-ink-600 hover:bg-teal-50 hover:text-teal-700'
             }`}
           >
             {Icon ? <Icon className="size-4" aria-hidden /> : null}
             {tab.label}
+            {tab.approved ? <Check className="size-4" aria-hidden /> : null}
           </button>
         )
       })}

@@ -75,6 +75,7 @@ export function ViolationDetailPage() {
                         ? localizeDigits(item.caseFile.caseTrackingCode, locale)
                         : t('violations.caseNoCode'),
                       item.caseFile.businessUnitTitle,
+                      item.caseFile.jobGroupTitle,
                       item.caseFile.jobTitle,
                     ]
                       .filter(Boolean)

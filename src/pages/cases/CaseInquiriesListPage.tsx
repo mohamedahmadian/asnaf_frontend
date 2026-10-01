@@ -26,6 +26,7 @@ type InboxRow = {
   status: CaseInquiryStatus
   channel: CaseInquiryChannel | null
   createdAt: string
+  decidedAt: string | null
   centerName: string
   applicantName: string
   nationalId: string | null
@@ -34,7 +35,18 @@ type InboxRow = {
   jobTitle: string | null
 }
 
+type InboxCenter = {
+  id: string
+  name: string
+}
+
 const STATUSES: CaseInquiryStatus[] = ['PENDING', 'APPROVED', 'REJECTED']
+
+const statusBadgeClass: Record<CaseInquiryStatus, string> = {
+  PENDING: 'bg-amber-50 text-amber-800 ring-amber-200',
+  APPROVED: 'bg-teal-50 text-teal-800 ring-teal-200',
+  REJECTED: 'bg-red-50 text-red-700 ring-red-200',
+}
 
 export function CaseInquiriesListPage() {
   const { t, i18n } = useTranslation()
@@ -45,17 +57,35 @@ export function CaseInquiriesListPage() {
   const query = useQuery({
     queryKey: ['cases', 'inquiries', q, page, status, sortBy, sortDir],
     queryFn: async () => {
-      const { data } = await api.get<Paginated<InboxRow>>('/cases/inquiries', {
+      const { data } = await api.get<Paginated<InboxRow> & { centers: InboxCenter[] }>('/cases/inquiries', {
         params: { q, page, status: status || undefined, ...sortParams },
       })
       return data
     },
   })
   const rows = query.data?.items ?? []
+  const centers = query.data?.centers ?? []
 
   return (
     <div className={caseShellClassName}>
-      <PageHeader icon={ScanSearch} title={t('menus.caseInquiries')} subtitle={t('cases.inquiriesSubtitle')} />
+      <PageHeader
+        icon={ScanSearch}
+        title={t('menus.caseInquiries')}
+        subtitle={
+          centers.length > 0 ? (
+            <span className="flex flex-wrap gap-1.5">
+              {centers.map((center) => (
+                <span
+                  key={center.id}
+                  className="inline-flex rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-teal-800 ring-1 ring-teal-200"
+                >
+                  {center.name}
+                </span>
+              ))}
+            </span>
+          ) : null
+        }
+      />
       <SearchBar
         term={term}
         onTermChange={setTerm}
@@ -92,6 +122,7 @@ export function CaseInquiriesListPage() {
               <SortableTh column="job" label={t('cases.activityJob')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="status" label={t('cases.inquiryStatus')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="createdAt" label={t('cases.inquiryCreatedAt')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <SortableTh column="decidedAt" label={t('cases.inquiryDecidedAt')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <ActionsTh />
             </tr>
           </thead>
@@ -102,9 +133,18 @@ export function CaseInquiriesListPage() {
                 <td className="px-4 py-3">{item.nationalId ? localizeDigits(item.nationalId, locale) : '—'}</td>
                 <td className="px-4 py-3">{item.centerName}</td>
                 <td className="px-4 py-3">{item.jobTitle ?? '—'}</td>
-                <td className="px-4 py-3">{t(`cases.inquiryStatuses.${item.status}`)}</td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${statusBadgeClass[item.status]}`}
+                  >
+                    {t(`cases.inquiryStatuses.${item.status}`)}
+                  </span>
+                </td>
                 <td className="px-4 py-3">
                   <DateText value={item.createdAt} withTime />
+                </td>
+                <td className="px-4 py-3">
+                  <DateText value={item.decidedAt} withTime />
                 </td>
                 <td className={actionsColClassName}>
                   <EntityRowActions viewTo={`/cases/inquiries/${item.id}`} />

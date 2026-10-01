@@ -711,6 +711,7 @@ export function CaseFormationPage() {
           userId={person.id}
           items={caseInquiries.data ?? []}
           loading={caseInquiries.isLoading}
+          autoAdvance={reached < PLACES_FORMATION_STEP}
           onAdvanced={(formationStep) => {
             setPerson((current) => (current ? { ...current, formationStep } : current))
             setReached((current) => Math.max(current, formationStep))

@@ -149,7 +149,7 @@ export function FileDropField({
           type="file"
           accept="image/*"
           capture={capture}
-          className="sr-only"
+          className="sr-only lg:hidden"
           onChange={fromInput}
         />
       ) : null}
@@ -187,7 +187,7 @@ export function FileDropField({
           <Button
             type="button"
             variant="ghost"
-            className="hidden pointer-coarse:inline-flex"
+            className="lg:hidden"
             disabled={uploading}
             onClick={() => cameraRef.current?.click()}
           >

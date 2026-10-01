@@ -32,6 +32,9 @@ export function ProceedingEditPage() {
         subtitle={<EntityNameSubtitle name={item.title} icon={ClipboardList} />}
       />
       <ProceedingForm
+        attachmentPreviewHref={(attachmentId) =>
+          `/violations/${violationId}/proceedings/${proceedingId}/attachments/${attachmentId}`
+        }
         initial={{
           occurredAt: item.occurredAt,
           title: item.title,

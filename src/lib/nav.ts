@@ -236,18 +236,25 @@ export const APP_NAV: NavModule[] = withManagementLast([
     sortOrder: 6,
     menus: [
       {
+        code: 'management.userRegister',
+        nameKey: 'menus.userRegister',
+        path: '/users/register',
+        icon: 'user-plus',
+        sortOrder: 1,
+      },
+      {
         code: 'management.users',
         nameKey: 'menus.users',
         path: '/users',
         icon: 'users',
-        sortOrder: 1,
+        sortOrder: 2,
       },
       {
         code: 'management.roles',
         nameKey: 'menus.roles',
         path: '/base-info/roles',
         icon: 'shield',
-        sortOrder: 2,
+        sortOrder: 3,
       },
     ],
   },

@@ -13,10 +13,9 @@ import {
 } from '../../components/ui/Form'
 import { FormCard, FormEmptyHint, formCardBodyClassName } from '../../components/ui/FormLayout'
 import { api, getApiErrorMessage } from '../../lib/api'
-import { localizeDigits } from '../../lib/datetime'
+import { localizeDigits, todayIsoDate } from '../../lib/datetime'
 import { isValidIranianNationalId, normalizeNationalId } from '../../lib/national-id'
 import type { ViolationAttachment, ViolationCaseFile, ViolationStatus, ViolationType } from '../../types/app'
-import { FORMATION_STEPS } from '../cases/formation-types'
 import { AttachmentField } from './AttachmentField'
 import { VIOLATION_STATUSES } from './constants'
 
@@ -33,9 +32,11 @@ export type ViolationFormValue = {
 
 export function ViolationForm({
   initial,
+  attachmentPreviewHref,
   onSubmit,
 }: {
   initial?: ViolationFormValue
+  attachmentPreviewHref?: (attachmentId: string) => string
   onSubmit: (payload: {
     nationalId: string
     violationTypeId: string
@@ -51,7 +52,7 @@ export function ViolationForm({
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const [nationalId, setNationalId] = useState(initial?.nationalId ?? '')
   const [violationTypeId, setViolationTypeId] = useState(initial?.violationTypeId ?? '')
-  const [occurredAt, setOccurredAt] = useState(initial?.occurredAt ?? '')
+  const [occurredAt, setOccurredAt] = useState(initial?.occurredAt ?? todayIsoDate())
   const [description, setDescription] = useState(initial?.description ?? '')
   const [status, setStatus] = useState<ViolationStatus>(initial?.status ?? 'REGISTERED')
   const [caseUserId, setCaseUserId] = useState(initial?.caseUserId ?? '')
@@ -154,7 +155,17 @@ export function ViolationForm({
               <ul className="space-y-2">
                 {cases.map((item) => {
                   const selected = caseUserId === item.id
-                  const stepKey = FORMATION_STEPS[item.formationStep]
+                  const fields = [
+                    {
+                      label: t('violations.caseCode'),
+                      value: item.caseTrackingCode
+                        ? localizeDigits(item.caseTrackingCode, locale)
+                        : t('violations.caseNoCode'),
+                    },
+                    { label: t('violations.caseTitle'), value: item.businessUnitTitle },
+                    { label: t('violations.caseJobGroup'), value: item.jobGroupTitle },
+                    { label: t('violations.caseJob'), value: item.jobTitle },
+                  ]
                   return (
                     <li key={item.id}>
                       <button
@@ -167,19 +178,15 @@ export function ViolationForm({
                             : 'border-line bg-white hover:border-teal-300'
                         }`}
                       >
-                        <span className="block text-sm font-medium text-ink-900">
-                          {item.caseTrackingCode
-                            ? localizeDigits(item.caseTrackingCode, locale)
-                            : t('violations.caseNoCode')}
-                        </span>
-                        <span className="mt-1 block text-xs text-ink-500">
-                          {[
-                            item.businessUnitTitle,
-                            item.jobTitle,
-                            stepKey ? t(`cases.steps.${stepKey}`) : null,
-                          ]
-                            .filter(Boolean)
-                            .join(' · ') || item.fullName}
+                        <span className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                          {fields.map((field) => (
+                            <span key={field.label} className="min-w-0">
+                              <span className="block text-xs text-ink-500">{field.label}</span>
+                              <span className="mt-0.5 block truncate text-sm font-medium text-ink-900">
+                                {field.value || '—'}
+                              </span>
+                            </span>
+                          ))}
                         </span>
                       </button>
                     </li>
@@ -192,33 +199,47 @@ export function ViolationForm({
             <FormEmptyHint>{t('violations.caseEmpty')}</FormEmptyHint>
           )}
         </FormField>
-        <FormField icon={Tag} label={t('violations.violationType')} htmlFor="violationTypeId">
-          <SearchSelect
-            id="violationTypeId"
-            value={violationTypeId}
-            onChange={setViolationTypeId}
-            required
-            placeholder={t('violations.violationTypePlaceholder')}
-            options={typeOptions.map((item) => ({ value: item.id, label: item.title }))}
-          />
-        </FormField>
-        <FormField icon={CalendarDays} label={t('violations.occurredAt')} htmlFor="violationDate">
-          <PersianDateField id="violationDate" value={occurredAt} onChange={(value) => setOccurredAt(value ?? '')} />
-          <input className="sr-only" tabIndex={-1} value={occurredAt} required onChange={() => undefined} />
-        </FormField>
-        <FormField icon={ShieldAlert} label={t('violations.status')} htmlFor="violationStatus">
-          <SearchSelect
-            id="violationStatus"
-            value={status}
-            onChange={(value) => setStatus((value || 'REGISTERED') as ViolationStatus)}
-            required
-            placeholder={t('violations.statusPlaceholder')}
-            options={VIOLATION_STATUSES.map((item) => ({
-              value: item,
-              label: t(`violationStatuses.${item}`),
-            }))}
-          />
-        </FormField>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <FormField icon={Tag} label={t('violations.violationType')} htmlFor="violationTypeId">
+            <SearchSelect
+              id="violationTypeId"
+              value={violationTypeId}
+              onChange={setViolationTypeId}
+              required
+              placeholder={t('violations.violationTypePlaceholder')}
+              options={typeOptions.map((item) => ({ value: item.id, label: item.title }))}
+            />
+          </FormField>
+          <FormField icon={CalendarDays} label={t('violations.occurredAt')} htmlFor="violationDate">
+            <PersianDateField id="violationDate" value={occurredAt} onChange={(value) => setOccurredAt(value ?? '')} />
+            <input className="sr-only" tabIndex={-1} value={occurredAt} required onChange={() => undefined} />
+          </FormField>
+        </div>
+        {initial ? (
+          <FormField icon={ShieldAlert} label={t('violations.status')}>
+            <div role="radiogroup" aria-label={t('violations.status')} className="flex flex-wrap gap-2">
+              {VIOLATION_STATUSES.map((item) => {
+                const selected = status === item
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setStatus(item)}
+                    className={`min-w-[7.25rem] flex-1 cursor-pointer rounded-2xl border px-3 py-2.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300 ${
+                      selected
+                        ? 'border-transparent bg-teal-500 bg-[linear-gradient(to_inline-end,var(--color-teal-500),var(--color-mint-500))] text-white shadow-[0_8px_18px_rgba(46,189,182,0.28)]'
+                        : 'border-teal-200 bg-white text-ink-700 shadow-sm hover:border-teal-400 hover:bg-teal-50'
+                    }`}
+                  >
+                    {t(`violationStatuses.${item}`)}
+                  </button>
+                )
+              })}
+            </div>
+          </FormField>
+        ) : null}
         <FormField icon={FileText} label={t('violations.description')} htmlFor="violationDescription">
           <textarea
             id="violationDescription"
@@ -233,6 +254,7 @@ export function ViolationForm({
           <AttachmentField
             id="violationFiles"
             existing={initial?.attachments}
+            previewHref={attachmentPreviewHref}
             removedIds={removedIds}
             onToggleRemove={(attachmentId) =>
               setRemovedIds((current) =>
