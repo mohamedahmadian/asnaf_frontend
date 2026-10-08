@@ -332,7 +332,6 @@
     "resumePrevious": "تکمیل پرونده قبلی با کد رهگیری {{code}}",
     "resumePreviousNoCode": "تکمیل پرونده قبلی",
     "startNewCase": "تشکیل پرونده جدید",
-    "newCaseFromIssuance": "پروندهٔ قبلی در مرحلهٔ صدور مجوز است. پروندهٔ جدید تشکیل می‌شود.",
     "notFound": "این کد ملی در سامانه نیست. می‌توانید اطلاعات را دستی وارد کنید.",
     "citizenSystem": "سامانه شهروندی",
     "civilRegistry": "سامانه ثبت احوال",
@@ -363,7 +362,8 @@
     "locationComplexRequired": "مجتمع را انتخاب کنید",
     "locationOwnershipRequired": "نوع مالکیت را انتخاب کنید",
     "activityDocumentsTitle": "مدارک شغل",
-    "activityDocumentsHint": "نبودن مدارک الزامی مانع ذخیره این مرحله نیست. قبل از اماکن باید همه مدارک الزامی تحویل شده باشند.",
+    "activityDocumentsCount": "( {{required}} مدرک الزامی - {{optional}} مدرک اختیاری )",
+    "activityDocumentsHint": "بارگزاری مدارک در این مرحله الزامی نیست و می‌توانید در آینده (قبل از ارسال پرونده به اداره اماکن) نسبت به بارگزاری آن‌ها اقدام نمایید.",
     "activityDocumentsEmpty": "برای این شغل مدرکی تعریف نشده است.",
     "activityDocumentsBeforePlaces": "قبل از مرحله اماکن همه مدارک الزامی این شغل باید بارگذاری شده باشند.",
     "inquiriesHint": "نتیجه هر مرکز، تأیید یا رد به همراه توضیحات و در صورت نیاز پیوست است. تا همه استعلام‌ها نتیجه نداشته باشند رفتن به اماکن ممکن نیست.",
@@ -550,7 +550,9 @@
     "premiseCity": "شهر",
     "establishment": "محل استقرار",
     "complex": "مجتمع",
+    "locationCardSubtitle": "تعیین محل فیزیکی و قراردادهای مالی مربوطه",
     "premiseAddress": "آدرس تکمیلی",
+    "premiseAddressEn": "آدرس لاتین",
     "plaque": "پلاک",
     "plaqueSeries": "سری پلاک",
     "floor": "طبقه",
@@ -569,9 +571,9 @@
     "leaseAgency": "بنگاه تنظیم اجاره‌نامه",
     "ownerName": "مالک",
     "establishments": {
-      "INDEPENDENT": "مستقل",
       "COMMERCIAL_COMPLEX": "مجتمع تجاری",
-      "RESIDENTIAL_COMPLEX": "مجتمع مسکونی"
+      "INDEPENDENT": "مستقل",
+      "RESIDENTIAL_COMPLEX": "مسکونی"
     },
     "geoPositions": {
       "MAIN_FRONTAGE": "مجاور اصلی",
@@ -1117,7 +1119,7 @@
     "selectOfficer": "مسئول را انتخاب کنید",
     "addOfficer": "افزودن مسئول",
     "addOfficerTitle": "ثبت مسئول جدید",
-    "addOfficerSubtitle": "با ثبت، مسئول به فهرست اضافه می‌شود و می‌توانید همان را انتخاب کنید",
+    "addOfficerSubtitle": "با ثبت، این شخص با نقش کارمند صدور استعلام ساخته می‌شود و می‌توانید همان را به‌عنوان مسئول انتخاب کنید",
     "officerAdded": "مسئول ثبت شد",
     "officerPhoneInvalid": "شماره همراه معتبر نیست",
     "isActive": "وضعیت",

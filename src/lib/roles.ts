@@ -4,6 +4,7 @@ import type { AuthUser, NavModule } from '../types/app'
 
 export const ADMIN_ROLE_CODE = 'ADMIN'
 export const EMPLOYEE_ROLE_CODE = 'EMPLOYEE'
+export const INQUIRY_OFFICER_ROLE_CODE = 'INQUIRY_OFFICER'
 
 export function isSystemRoleLocked(role?: { isSystem?: boolean; code?: string } | null) {
   return Boolean(role?.isSystem || role?.code === ADMIN_ROLE_CODE)

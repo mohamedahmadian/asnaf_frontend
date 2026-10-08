@@ -296,10 +296,17 @@ export function CaseInquiryDossier({
               label={t('cases.establishment')}
               value={place.establishment ? t(`cases.establishments.${place.establishment}`) : '—'}
             />
-            {place.establishment === 'RESIDENTIAL_COMPLEX' || place.complex ? (
+            {place.establishment === 'COMMERCIAL_COMPLEX' || place.complex ? (
               <FormFactTile icon={Building2} label={t('cases.complex')} value={complexLabel} />
             ) : null}
             <FormFactTile icon={MapPin} label={t('cases.premiseAddress')} value={text(place.address)} className="sm:col-span-2" />
+            <FormFactTile
+              icon={MapPin}
+              label={t('cases.premiseAddressEn')}
+              value={place.addressEn ? <span dir="ltr">{place.addressEn}</span> : '—'}
+              empty={!place.addressEn}
+              className="sm:col-span-2"
+            />
             <FormFactTile icon={Building2} label={t('cases.floor')} value={text(place.floor)} />
             <FormFactTile icon={Hash} label={t('cases.plaqueSeries')} value={digits(place.plaqueSeries, locale)} />
             <FormFactTile icon={Hash} label={t('cases.plaque')} value={digits(place.plaque, locale)} />

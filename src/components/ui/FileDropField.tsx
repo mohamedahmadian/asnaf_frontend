@@ -37,6 +37,7 @@ export function FileDropField({
   allowCamera,
   previewUrl,
   uploading,
+  previewClassName = 'mx-auto mb-4 h-28 w-28 rounded-2xl object-cover',
   maxBytes = defaultMaxBytes,
   hideLocalPreview,
   onFile,
@@ -48,6 +49,7 @@ export function FileDropField({
   allowCamera?: boolean
   previewUrl?: string
   uploading?: boolean
+  previewClassName?: string
   maxBytes?: number
   hideLocalPreview?: boolean
   onFile: (file: File) => void
@@ -158,7 +160,7 @@ export function FileDropField({
         <img
           src={preview}
           alt=""
-          className="mx-auto mb-4 h-28 w-28 rounded-2xl object-cover"
+          className={previewClassName}
         />
       ) : (
         <span className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl bg-white text-teal-600 shadow-sm">

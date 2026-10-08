@@ -6,6 +6,7 @@ import {
   Hash,
   KeyRound,
   Landmark,
+  Languages,
   MapPin,
   Phone,
   Ruler,
@@ -100,7 +101,7 @@ export function CaseLocationStep({
   onSubmit: () => void
 }) {
   const { t } = useTranslation()
-  const residentialComplex = value.establishment === 'RESIDENTIAL_COMPLEX'
+  const commercialComplex = value.establishment === 'COMMERCIAL_COMPLEX'
   const rented = value.ownership === 'RENTED'
 
   return (
@@ -134,7 +135,7 @@ export function CaseLocationStep({
               onChange={(next) =>
                 onChange({
                   establishment: next,
-                  complexId: next === 'RESIDENTIAL_COMPLEX' ? value.complexId : '',
+                  complexId: next === 'COMMERCIAL_COMPLEX' ? value.complexId : '',
                 })
               }
               options={PREMISE_ESTABLISHMENTS.map((item) => ({
@@ -144,7 +145,7 @@ export function CaseLocationStep({
             />
           </FormField>
         </div>
-        {residentialComplex ? (
+        {commercialComplex ? (
           <FormField icon={Building2} label={t('cases.complex')} htmlFor="case-complex">
             <SearchSelect
               id="case-complex"
@@ -158,17 +159,25 @@ export function CaseLocationStep({
             />
           </FormField>
         ) : null}
-        <div className="sm:col-span-2">
-          <FormField icon={MapPin} label={t('cases.premiseAddress')} htmlFor="case-premise-address">
-            <textarea
-              id="case-premise-address"
-              rows={2}
-              className={inputClassName()}
-              value={value.address}
-              onChange={(event) => onChange({ address: event.target.value })}
-            />
-          </FormField>
-        </div>
+        <FormField icon={MapPin} label={t('cases.premiseAddress')} htmlFor="case-premise-address">
+          <textarea
+            id="case-premise-address"
+            rows={2}
+            className={inputClassName()}
+            value={value.address}
+            onChange={(event) => onChange({ address: event.target.value })}
+          />
+        </FormField>
+        <FormField icon={Languages} label={t('cases.premiseAddressEn')} htmlFor="case-premise-address-en">
+          <textarea
+            id="case-premise-address-en"
+            rows={2}
+            dir="ltr"
+            className={`${inputClassName()} latin-field`}
+            value={value.addressEn}
+            onChange={(event) => onChange({ addressEn: event.target.value })}
+          />
+        </FormField>
         <div className="grid gap-4 sm:grid-cols-4">
           <FormField icon={Building2} label={t('cases.floor')} htmlFor="case-floor">
             <input

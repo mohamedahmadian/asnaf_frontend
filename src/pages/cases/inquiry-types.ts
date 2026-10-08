@@ -90,6 +90,7 @@ export type InquiryDossier = {
     complex: { name: string; nameEn: string } | null
     establishment: string | null
     address: string | null
+    addressEn: string | null
     plaque: string | null
     plaqueSeries: string | null
     floor: string | null

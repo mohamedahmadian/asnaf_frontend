@@ -5,6 +5,7 @@ const roleClass: Record<string, string> = {
   ADMIN: 'bg-teal-50 text-teal-800 ring-teal-100',
   BOARD_ADMIN: 'bg-teal-50 text-teal-800 ring-teal-100',
   EMPLOYEE: 'bg-mint-50 text-mint-800 ring-mint-100',
+  INQUIRY_OFFICER: 'bg-teal-50 text-teal-800 ring-teal-100',
   PILGRIM: 'bg-teal-50 text-teal-800 ring-teal-100',
   CARAVAN_MANAGER: 'bg-mint-50 text-mint-800 ring-mint-100',
   GROUP_MANAGER: 'bg-mint-50 text-mint-800 ring-mint-100',

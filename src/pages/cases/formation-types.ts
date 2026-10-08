@@ -47,7 +47,7 @@ export type CaseActivity = {
   posDeviceCount: number | null
 }
 
-export const PREMISE_ESTABLISHMENTS = ['INDEPENDENT', 'COMMERCIAL_COMPLEX', 'RESIDENTIAL_COMPLEX'] as const
+export const PREMISE_ESTABLISHMENTS = ['COMMERCIAL_COMPLEX', 'INDEPENDENT', 'RESIDENTIAL_COMPLEX'] as const
 export const PREMISE_GEO_POSITIONS = ['MAIN_FRONTAGE', 'SIDE_FRONTAGE', 'ALLEY'] as const
 export const PREMISE_PUBLIC_ACCESSES = ['MEN', 'WOMEN', 'PUBLIC', 'SEPARATE'] as const
 export const PREMISE_OWNERSHIPS = ['OWNED', 'RENTED'] as const
@@ -60,6 +60,7 @@ export type CaseLocation = {
   establishment: PremiseEstablishment | null
   complexId: string | null
   address: string | null
+  addressEn: string | null
   plaque: string | null
   plaqueSeries: string | null
   floor: string | null
@@ -84,6 +85,7 @@ export type LocationForm = {
   establishment: string
   complexId: string
   address: string
+  addressEn: string
   plaque: string
   plaqueSeries: string
   floor: string
@@ -106,9 +108,10 @@ export type LocationForm = {
 export function emptyLocationForm(): LocationForm {
   return {
     cityId: '',
-    establishment: '',
+    establishment: 'INDEPENDENT',
     complexId: '',
     address: '',
+    addressEn: '',
     plaque: '',
     plaqueSeries: '',
     floor: '',
@@ -133,9 +136,10 @@ export function locationFormFrom(location: CaseLocation | null): LocationForm {
   return {
     ...emptyLocationForm(),
     cityId: location?.cityId ?? '',
-    establishment: location?.establishment ?? '',
+    establishment: location?.establishment || 'INDEPENDENT',
     complexId: location?.complexId ?? '',
     address: location?.address ?? '',
+    addressEn: location?.addressEn ?? '',
     plaque: location?.plaque ?? '',
     plaqueSeries: location?.plaqueSeries ?? '',
     floor: location?.floor ?? '',

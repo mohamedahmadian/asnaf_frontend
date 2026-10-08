@@ -18,7 +18,8 @@ import { SearchSelect } from '../../components/ui/SearchSelect'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { parseDigitString, toLatinDigits } from '../../lib/datetime'
 import { isPhoneReady } from '../../lib/identity'
-import type { InquiryCenterOfficer, ManagedUser, Paginated } from '../../types/app'
+import { INQUIRY_OFFICER_ROLE_CODE } from '../../lib/roles'
+import type { AppRole, InquiryCenterOfficer, ManagedUser, Paginated } from '../../types/app'
 
 export type InquiryCenterPayload = {
   name: string
@@ -61,11 +62,20 @@ export function InquiryCenterForm({
   const [letterBody, setLetterBody] = useState(initial?.letterBody ?? '')
   const [isActive, setIsActive] = useState(initial?.isActive ?? true)
   const [saving, setSaving] = useState(false)
+  const rolesQuery = useQuery({
+    queryKey: ['roles', 'lookup'],
+    queryFn: async () => {
+      const { data } = await api.get<AppRole[]>('/roles')
+      return data
+    },
+  })
+  const inquiryOfficerRoleId = rolesQuery.data?.find((role) => role.code === INQUIRY_OFFICER_ROLE_CODE)?.id
   const usersQuery = useQuery({
-    queryKey: ['users', 'lookup', 'inquiry-centers'],
+    queryKey: ['users', 'lookup', 'inquiry-centers', inquiryOfficerRoleId],
+    enabled: Boolean(inquiryOfficerRoleId),
     queryFn: async () => {
       const { data } = await api.get<ManagedUser[] | Paginated<ManagedUser>>('/users', {
-        params: { status: 'ACTIVE' },
+        params: { status: 'ACTIVE', roleId: inquiryOfficerRoleId },
       })
       return asUserList(data)
     },

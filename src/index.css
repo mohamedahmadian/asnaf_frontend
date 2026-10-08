@@ -3242,13 +3242,32 @@ th {
   animation: inquiry-doc-missing 1.3s ease-in-out infinite;
 }
 
+@keyframes case-doc-hint-blink {
+  0%,
+  40% {
+    opacity: 1;
+  }
+  50%,
+  90% {
+    opacity: 0.12;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.case-doc-hint-blink {
+  animation: case-doc-hint-blink 2.8s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .case-step-in,
   .case-step-active,
   .case-step-check,
   .case-step-done-pulse,
   .case-step-num-pulse,
-  .inquiry-doc-missing {
+  .inquiry-doc-missing,
+  .case-doc-hint-blink {
     animation: none;
   }
 

@@ -9,6 +9,7 @@ import {
   FolderKanban,
   Hash,
   IdCard,
+  Info,
   Landmark,
   MapPin,
   ScanSearch,
@@ -264,7 +265,7 @@ export function CaseFormationPage() {
     if (notify) toast.success(t('cases.found'))
   }
 
-  function applyFresh(nextPerson: IdentityPerson, notify: boolean, issued: boolean) {
+  function applyFresh(nextPerson: IdentityPerson, notify: boolean) {
     const filled = fillPerson({
       ...nextPerson,
       formationStep: 0,
@@ -280,8 +281,7 @@ export function CaseFormationPage() {
     setReached(0)
     setStep(0)
     setOpenCasePrompt(null)
-    if (notify && issued) toast.message(t('cases.newCaseFromIssuance'))
-    else if (notify) toast.success(t('cases.found'))
+    if (notify) toast.success(t('cases.found'))
   }
 
   async function lookupPerson(raw = nationalId, notify = true, openCaseId?: string) {
@@ -310,7 +310,7 @@ export function CaseFormationPage() {
           setLookup('idle')
           setReached(0)
           setStep(0)
-        } else applyFresh(data.person, notify, data.hasIssuedCase)
+        } else applyFresh(data.person, notify)
       } else {
         setOpenCasePrompt(null)
         setPerson(emptyPerson(normalized))
@@ -461,8 +461,8 @@ export function CaseFormationPage() {
       toast.error(t('cases.locationEstablishmentRequired'))
       return
     }
-    const residentialComplex = location.establishment === 'RESIDENTIAL_COMPLEX'
-    if (residentialComplex && !location.complexId) {
+    const commercialComplex = location.establishment === 'COMMERCIAL_COMPLEX'
+    if (commercialComplex && !location.complexId) {
       toast.error(t('cases.locationComplexRequired'))
       return
     }
@@ -481,8 +481,9 @@ export function CaseFormationPage() {
           caseId,
           cityId: location.cityId,
           establishment: location.establishment,
-          complexId: residentialComplex ? location.complexId : null,
+          complexId: commercialComplex ? location.complexId : null,
           address: location.address || null,
+          addressEn: location.addressEn || null,
           plaque: location.plaque || null,
           plaqueSeries: location.plaqueSeries || null,
           floor: location.floor || null,
@@ -770,7 +771,7 @@ export function CaseFormationPage() {
                     uploadingId={uploadingId}
                     removingId={removingId}
                     disabled={!person.id}
-                    framed
+                    layout="tabs"
                     onFile={(documentId, file) => void upload(documentId, file)}
                     onDelete={(documentId) => void removeDocument(documentId)}
                   />
@@ -810,8 +811,32 @@ export function CaseFormationPage() {
             />
             {activityJobId ? (
               <section className="space-y-3 border-t border-teal-100 pt-4">
-                <FormSectionTitle icon={Files}>{t('cases.activityDocumentsTitle')}</FormSectionTitle>
-                <p className="text-sm text-ink-500">{t('cases.activityDocumentsHint')}</p>
+                <FormSectionTitle icon={Files} className="mb-2.5 flex-wrap">
+                  <span>{t('cases.activityDocumentsTitle')}</span>
+                  {activityDocuments.length > 0 ? (
+                    <span className="font-medium text-ink-500">
+                      {t('cases.activityDocumentsCount', {
+                        required: formatNumber(
+                          activityDocuments.filter((item) => item.isRequired).length,
+                          locale,
+                        ),
+                        optional: formatNumber(
+                          activityDocuments.filter((item) => !item.isRequired).length,
+                          locale,
+                        ),
+                      })}
+                    </span>
+                  ) : null}
+                </FormSectionTitle>
+                {activityDocuments.some((item) => item.isRequired) ? (
+                  <div
+                    role="status"
+                    className="flex items-start gap-3 rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm leading-7 text-ink-700"
+                  >
+                    <Info className="case-doc-hint-blink mt-0.5 size-5 shrink-0 text-teal-600" aria-hidden />
+                    <p>{t('cases.activityDocumentsHint')}</p>
+                  </div>
+                ) : null}
                 {activityDocuments.length === 0 ? (
                   documentCatalog.isLoading || jobs.isLoading ? null : (
                     <FormEmptyHint>{t('cases.activityDocumentsEmpty')}</FormEmptyHint>
@@ -838,6 +863,7 @@ export function CaseFormationPage() {
         <FormCard
           icon={MapPin}
           title={t('cases.steps.location')}
+          subtitle={t('cases.locationCardSubtitle')}
           action={
             <Button type="button" onClick={() => void completeLocation()}>
               <Check className="size-4" aria-hidden />
@@ -914,7 +940,7 @@ export function CaseFormationPage() {
           trackingCode={openCasePrompt.file.trackingCode}
           locale={locale}
           onResume={() => applyCase(openCasePrompt.person, openCasePrompt.file, true)}
-          onNew={() => applyFresh(openCasePrompt.person, false, false)}
+          onNew={() => applyFresh(openCasePrompt.person, false)}
           onClose={() => setOpenCasePrompt(null)}
         />
       ) : null}
