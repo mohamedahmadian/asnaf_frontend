@@ -12,6 +12,7 @@ export const FORMATION_STEPS = [
 
 export const PLACES_FORMATION_STEP = FORMATION_STEPS.indexOf('places')
 export const MANAGEMENT_FORMATION_STEP = FORMATION_STEPS.indexOf('managementReview')
+export const ISSUANCE_FORMATION_STEP = FORMATION_STEPS.indexOf('issuance')
 
 export const EDUCATION_LEVELS = [
   'ILLITERATE',
@@ -182,6 +183,7 @@ export type IdentityPerson = {
   educationLevel: EducationLevel | null
   citizenGroup: string | null
   jobId: string | null
+  caseId: string | null
   formationStep: number
   caseTrackingCode: string | null
 }
@@ -202,7 +204,7 @@ type ActivityDocumentSource = {
   isFixed?: boolean
 }
 
-function matchesActivityDocumentGender(
+export function matchesDocumentGender(
   gender: DocumentTypeRow['gender'],
   personGender: 'MALE' | 'FEMALE' | null | undefined,
 ) {
@@ -216,7 +218,7 @@ export function activityDocumentRows(
 ): DocumentTypeRow[] {
   const rows = new Map<string, DocumentTypeRow>()
   for (const item of catalog) {
-    if (!item.isFixed || !item.isRequired || !matchesActivityDocumentGender(item.gender, personGender)) continue
+    if (!item.isFixed || !item.isRequired || !matchesDocumentGender(item.gender, personGender)) continue
     rows.set(item.id, {
       id: item.id,
       code: null,
@@ -226,7 +228,7 @@ export function activityDocumentRows(
     })
   }
   for (const item of jobDocuments) {
-    if (rows.has(item.id) || !matchesActivityDocumentGender(item.gender, personGender)) continue
+    if (rows.has(item.id) || !matchesDocumentGender(item.gender, personGender)) continue
     rows.set(item.id, {
       id: item.id,
       code: null,
@@ -275,6 +277,7 @@ export function emptyPerson(nationalId: string): IdentityPerson {
     educationLevel: null,
     citizenGroup: '',
     jobId: '',
+    caseId: null,
     formationStep: 0,
     caseTrackingCode: null,
   }
@@ -302,6 +305,7 @@ export function fillPerson(person: IdentityPerson): IdentityPerson {
     email: person.email ?? '',
     citizenGroup: person.citizenGroup ?? '',
     jobId: person.jobId ?? '',
+    caseId: person.caseId ?? null,
     formationStep: person.formationStep ?? 0,
     caseTrackingCode: person.caseTrackingCode ?? null,
   }

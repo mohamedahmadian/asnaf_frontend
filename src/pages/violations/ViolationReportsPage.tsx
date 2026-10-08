@@ -63,11 +63,12 @@ function CountTooltip({
   locale,
 }: {
   active?: boolean
-  payload?: { value?: number }[]
+  payload?: ReadonlyArray<{ value?: unknown }>
   label?: string
   locale: string
 }) {
-  const value = payload?.[0]?.value
+  const raw = payload?.[0]?.value
+  const value = typeof raw === 'number' ? raw : null
   if (!active || value == null) return null
   return (
     <div
@@ -238,8 +239,8 @@ function TypeChart({
               content={(props) => (
                 <CountTooltip
                   active={props.active}
-                  payload={props.payload as { value?: number }[]}
-                  label={String((props.payload?.[0] as { payload?: { fullLabel?: string } } | undefined)?.payload?.fullLabel ?? props.label ?? '')}
+                  payload={props.payload}
+                  label={String(props.payload?.[0]?.payload?.fullLabel ?? props.label ?? '')}
                   locale={locale}
                 />
               )}

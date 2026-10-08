@@ -1,5 +1,10 @@
 import { getPageMeta } from "./page-meta";
-import { menuPathMatches, normalizeMenuPath, sidebarMenuPathname } from "./nav-path";
+import {
+  isCaseDetailsLocation,
+  menuPathMatches,
+  normalizeMenuPath,
+  sidebarMenuPathname,
+} from "./nav-path";
 
 export type BreadcrumbNavMenu = {
   path: string;
@@ -21,8 +26,8 @@ export type PageBreadcrumbItem = {
 const HOME_TITLE_KEY = "nav.home";
 const FALLBACK_TITLE_KEY = "menus.overview";
 
-function findLongestMenu(pathname: string, modules: BreadcrumbNavModule[]) {
-  const path = sidebarMenuPathname(pathname);
+function findLongestMenu(pathname: string, modules: BreadcrumbNavModule[], search = "") {
+  const path = sidebarMenuPathname(pathname, search);
   let best:
     | {
         moduleNameKey: string;
@@ -64,6 +69,7 @@ function pushUnique(crumbs: PageBreadcrumbItem[], next: PageBreadcrumbItem) {
 export function getPageBreadcrumbs(
   pathname: string,
   modules: BreadcrumbNavModule[] = [],
+  search = "",
 ): PageBreadcrumbItem[] {
   const path = normalizeMenuPath(pathname);
   if (path === "/" || path === "/dashboard") {
@@ -71,7 +77,8 @@ export function getPageBreadcrumbs(
   }
 
   const crumbs: PageBreadcrumbItem[] = [{ to: "/dashboard", titleKey: HOME_TITLE_KEY }];
-  const match = findLongestMenu(path, modules);
+  const details = isCaseDetailsLocation(path, search);
+  const match = findLongestMenu(path, modules, search);
 
   if (match) {
     if (match.moduleNameKey !== match.menuNameKey) {
@@ -89,10 +96,11 @@ export function getPageBreadcrumbs(
   for (let i = startLen + 1; i <= segments.length; i++) {
     const prefix = `/${segments.slice(0, i).join("/")}`;
     const meta = getPageMeta(prefix);
-    if (meta.titleKey === FALLBACK_TITLE_KEY) continue;
+    const titleKey = details && prefix === "/cases/formation" ? "cases.details" : meta.titleKey;
+    if (titleKey === FALLBACK_TITLE_KEY) continue;
     pushUnique(crumbs, {
       to: prefix === path ? undefined : prefix,
-      titleKey: meta.titleKey,
+      titleKey,
     });
   }
 

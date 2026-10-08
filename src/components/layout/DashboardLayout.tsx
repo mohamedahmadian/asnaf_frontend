@@ -421,7 +421,7 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
             >
               {modules.map((mod, index) => {
                 const moduleActive = mod.menus.some((item) =>
-                  isSidebarMenuActive(location.pathname, item.path, allMenuPaths),
+                  isSidebarMenuActive(location.pathname, item.path, allMenuPaths, location.search),
                 )
                 const mintTone = index % 2 === 1
                 const moduleExpanded = searching || !collapsedModules.includes(mod.code)
@@ -553,7 +553,7 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
                   <PanelLeftOpen className="size-5 rtl:-scale-x-100" aria-hidden />
                 </button>
               )}
-              <PageBreadcrumb pathname={location.pathname} modules={APP_NAV} />
+              <PageBreadcrumb pathname={location.pathname} search={location.search} modules={APP_NAV} />
               <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                 <HeaderToday />
                 <UserMenu />
@@ -587,8 +587,8 @@ function SidebarMenuLink({
   onHighlight?: () => void
 }) {
   const { t } = useTranslation()
-  const { pathname } = useLocation()
-  const isActive = isSidebarMenuActive(pathname, item.path, allMenuPaths)
+  const { pathname, search } = useLocation()
+  const isActive = isSidebarMenuActive(pathname, item.path, allMenuPaths, search)
   return (
     <Link
       id={sidebarMenuItemId(item.code)}

@@ -13,6 +13,7 @@ import {
   MapPinned,
   MessageCircle,
   Phone,
+  Send,
   Share2,
   Shield,
   ToggleRight,
@@ -24,6 +25,8 @@ import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { SendUserSmsModal } from '../../components/sms/SendUserSmsModal'
+import { ChangeUserPasswordModal } from '../../components/users/ChangeUserPasswordModal'
 import { CheckboxField } from '../../components/ui/CheckboxField'
 import { FileDropField } from '../../components/ui/FileDropField'
 import { SearchSelect } from '../../components/ui/SearchSelect'
@@ -184,6 +187,8 @@ export function UserForm({
   const [roleIds, setRoleIds] = useState<string[]>(initial?.roles?.map((role) => role.id) ?? [])
   const [uploading, setUploading] = useState<PhotoField>()
   const [saving, setSaving] = useState(false)
+  const [smsOpen, setSmsOpen] = useState(false)
+  const [passwordOpen, setPasswordOpen] = useState(false)
   const [checkingNationalId, setCheckingNationalId] = useState(false)
   const [nationalIdReady, setNationalIdReady] = useState(Boolean(initial?.nationalId))
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -519,11 +524,9 @@ export function UserForm({
       failField('account', 'username', t('users.usernameEnglish'))
       return
     }
-    if (requirePassword || password) {
-      if (password.length < 8) {
-        failField('account', 'password', t('users.passwordMin'))
-        return
-      }
+    if (!initial?.id && (requirePassword || password) && password.length < 8) {
+      failField('account', 'password', t('users.passwordMin'))
+      return
     }
     if (!(await checkNationalIdTaken())) {
       pendingFocusId.current = 'nationalId'
@@ -582,7 +585,7 @@ export function UserForm({
         workUnitId: emptyToNull(workUnitId),
         staffPostId: emptyToNull(staffPostId),
         roleIds,
-        ...(password ? { password } : {}),
+        ...(!initial?.id && password ? { password } : {}),
       })
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 409) {
@@ -865,7 +868,7 @@ export function UserForm({
                   }))}
                 />
               </FormField>
-              {hidePassword ? null : (
+              {hidePassword || isEdit ? null : (
                 <FormField icon={KeyRound} label={t('users.password')} htmlFor="password" error={fieldErrors.password}>
                   <input
                     id="password"
@@ -880,9 +883,6 @@ export function UserForm({
                     }}
                     autoComplete="new-password"
                   />
-                  {!requirePassword ? (
-                    <p className="text-xs text-ink-500">{t('users.passwordOptional')}</p>
-                  ) : null}
                 </FormField>
               )}
             </div>
@@ -1131,9 +1131,31 @@ export function UserForm({
             cancelLabel={t('users.cancel')}
             submitting={saving}
             onCancel={onCancel}
+            extraItems={
+              isEdit && !selfProfile && initial
+                ? [
+                    { icon: KeyRound, label: t('auth.changePassword'), onClick: () => setPasswordOpen(true) },
+                    { icon: Send, label: t('sms.send'), onClick: () => setSmsOpen(true) },
+                  ]
+                : undefined
+            }
           />
         </AppForm>
       </div>
+      {smsOpen ? (
+        <SendUserSmsModal
+          phone={initial?.phone}
+          recipientName={displayName}
+          onClose={() => setSmsOpen(false)}
+        />
+      ) : null}
+      {passwordOpen && initial ? (
+        <ChangeUserPasswordModal
+          userId={initial.id}
+          phone={initial.phone}
+          onClose={() => setPasswordOpen(false)}
+        />
+      ) : null}
     </FormCard>
   )
 }

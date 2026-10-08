@@ -16,6 +16,7 @@ import {
   MapPinned,
   MessageCircle,
   Phone,
+  Send,
   Share2,
   Shield,
   ToggleRight,
@@ -27,7 +28,10 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { OpenUserPanelButton } from '../../components/auth/OpenUserPanelButton'
+import { SendUserSmsModal } from '../../components/sms/SendUserSmsModal'
+import { ChangeUserPasswordModal } from '../../components/users/ChangeUserPasswordModal'
 import {
+  Button,
   DetailActions,
   EntityNameSubtitle,
   LoadingState,
@@ -71,6 +75,8 @@ export function UserDetailPage() {
   const geoName = useGeoName()
   const { confirmDelete } = useConfirmDelete()
   const [tab, setTab] = useState<UserDetailTab>('personal')
+  const [smsOpen, setSmsOpen] = useState(false)
+  const [passwordOpen, setPasswordOpen] = useState(false)
   const query = useQuery({
     queryKey: ['user', id],
     enabled: Boolean(id),
@@ -103,7 +109,19 @@ export function UserDetailPage() {
       <FormCard
         icon={UserRound}
         title={user.fullName}
-        action={<OpenUserPanelButton userId={user.id} status={user.status} />}
+        action={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button type="button" variant="soft" onClick={() => setPasswordOpen(true)}>
+              <KeyRound className="size-4" aria-hidden />
+              {t('auth.changePassword')}
+            </Button>
+            <Button type="button" variant="soft" onClick={() => setSmsOpen(true)}>
+              <Send className="size-4" aria-hidden />
+              {t('sms.send')}
+            </Button>
+            <OpenUserPanelButton userId={user.id} status={user.status} />
+          </div>
+        }
       >
         <nav className="flex flex-wrap gap-2 border-b border-line bg-cream-50/60 px-4 py-3 sm:px-5">
           {tabs.map((item) => {
@@ -383,6 +401,16 @@ export function UserDetailPage() {
             }
             extraItems={[
               {
+                icon: KeyRound,
+                label: t('auth.changePassword'),
+                onClick: () => setPasswordOpen(true),
+              },
+              {
+                icon: Send,
+                label: t('sms.send'),
+                onClick: () => setSmsOpen(true),
+              },
+              {
                 to: `/users/${user.id}/location`,
                 icon: MapPin,
                 label: t('location.register'),
@@ -391,6 +419,16 @@ export function UserDetailPage() {
           />
         </div>
       </FormCard>
+      {smsOpen ? (
+        <SendUserSmsModal
+          phone={user.phone}
+          recipientName={user.fullName}
+          onClose={() => setSmsOpen(false)}
+        />
+      ) : null}
+      {passwordOpen ? (
+        <ChangeUserPasswordModal userId={user.id} phone={user.phone} onClose={() => setPasswordOpen(false)} />
+      ) : null}
     </div>
   )
 }

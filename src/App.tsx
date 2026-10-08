@@ -16,7 +16,11 @@ import { ImpersonateEndedPage } from './pages/ImpersonateEndedPage'
 import { ImpersonateEntryPage } from './pages/ImpersonateEntryPage'
 import { LoginPage } from './pages/LoginPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { SmsSendPage } from './pages/sms/SmsSendPage'
+import { SmsSettingsPage } from './pages/sms/SmsSettingsPage'
 import { CaseFormationPage } from './pages/cases/CaseFormationPage'
+import { CaseHomePage } from './pages/cases/CaseHomePage'
+import { CaseLicensePage } from './pages/cases/CaseLicensePage'
 import { CaseInquiriesListPage } from './pages/cases/CaseInquiriesListPage'
 import { CaseInquiryDetailPage } from './pages/cases/CaseInquiryDetailPage'
 import { CaseInquiryLetterPage } from './pages/cases/CaseInquiryLetterPage'
@@ -162,6 +166,8 @@ export default function App() {
                   <Route path="/account" element={<AccountPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/settings/password" element={<ChangePasswordPage />} />
+                  <Route path="/sms/settings" element={<SmsSettingsPage />} />
+                  <Route path="/sms/send" element={<SmsSendPage />} />
                   <Route path="/users" element={<UsersListPage />} />
                   <Route path="/users/new" element={<UserCreatePage />} />
                   <Route path="/users/register" element={<UserRegisterPage />} />
@@ -272,6 +278,8 @@ export default function App() {
                   />
                   <Route path="/cases/reports" element={<CaseReportsPage />} />
                   <Route path="/cases/settings" element={<CaseSettingsPage />} />
+                  <Route path="/cases/:id/license" element={<CaseLicensePage />} />
+                  <Route path="/cases/:id" element={<CaseHomePage />} />
                   <Route path="/cases" element={<CaseManagementPage />} />
                   <Route path="/inspection/violation-types" element={<ViolationTypesListPage />} />
                   <Route path="/inspection/violation-types/new" element={<ViolationTypeCreatePage />} />

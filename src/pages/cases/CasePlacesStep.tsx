@@ -10,20 +10,22 @@ import { LoadingState } from '../../components/ui/LoadingState'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { MANAGEMENT_FORMATION_STEP } from './formation-types'
 import type { CaseInquiryRow } from './inquiry-types'
-import { InquiryCard, InquiryLetterModal, InquiryProgressChart } from './CaseInquiriesStep'
+import { InquiryCard, InquiryLetterModal } from './CaseInquiriesStep'
 
 export function CasePlacesStep({
-  userId,
+  caseId,
   item,
   loading,
   autoAdvance,
   onAdvanced,
+  onRewound,
 }: {
-  userId: string
+  caseId: string
   item: CaseInquiryRow | null
   loading: boolean
   autoAdvance: boolean
   onAdvanced: (formationStep: number) => void
+  onRewound: () => void
 }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
@@ -31,11 +33,12 @@ export function CasePlacesStep({
   const pending = !item || item.status === 'PENDING'
   const [printId, setPrintId] = useState<string | null>(null)
   const autoAdvanceStarted = useRef(false)
+  const sawPending = useRef(false)
 
   const advance = useMutation({
     mutationFn: async () => {
       const { data } = await api.post<{ formationStep: number }>('/cases/formation/step', {
-        userId,
+        caseId,
         step: MANAGEMENT_FORMATION_STEP,
       })
       return data.formationStep
@@ -48,27 +51,28 @@ export function CasePlacesStep({
   })
 
   useEffect(() => {
+    if (!loading && pending) sawPending.current = true
+  }, [loading, pending])
+
+  useEffect(() => {
     if (!autoAdvance || loading) return
     if (pending) {
       autoAdvanceStarted.current = false
       return
     }
-    if (autoAdvanceStarted.current || advance.isPending) return
+    if (!sawPending.current || autoAdvanceStarted.current || advance.isPending) return
     autoAdvanceStarted.current = true
     advance.mutate()
   }, [advance, autoAdvance, loading, pending])
 
   async function refresh() {
-    await queryClient.invalidateQueries({ queryKey: ['cases', 'formation-places', userId] })
+    await queryClient.invalidateQueries({ queryKey: ['cases', 'formation-places', caseId] })
   }
-
-  const done = item && item.status !== 'PENDING' ? 1 : 0
 
   return (
     <FormCard
       icon={Landmark}
       title={t('cases.steps.places')}
-      titleExtra={item ? <InquiryProgressChart done={done} total={1} locale={locale} /> : null}
       action={
         <Button type="button" disabled={loading || pending || advance.isPending} onClick={() => advance.mutate()}>
           <Check className="size-4" aria-hidden />
@@ -106,6 +110,7 @@ export function CasePlacesStep({
                 filesPath="/cases/places/files"
                 attachmentLabelKey="cases.placesAddAttachment"
                 onChanged={() => void refresh()}
+                onReopened={onRewound}
                 onPrint={() => setPrintId(item.id)}
               />
             </div>

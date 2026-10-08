@@ -33,17 +33,21 @@ const frame: Record<CaseInquiryRow['status'], string> = {
 const decisionButtonClassName = 'min-w-40 px-8 disabled:opacity-60'
 
 export function CaseInquiriesStep({
-  userId,
+  caseId,
   items,
   loading,
   autoAdvance,
+  documentsPending = false,
   onAdvanced,
+  onRewound,
 }: {
-  userId: string
+  caseId: string
   items: CaseInquiryRow[]
   loading: boolean
   autoAdvance: boolean
+  documentsPending?: boolean
   onAdvanced: (formationStep: number) => void
+  onRewound: () => void
 }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
@@ -53,11 +57,12 @@ export function CaseInquiriesStep({
   const [printId, setPrintId] = useState<string | null>(null)
   const activeId = items.some((item) => item.id === selectedId) ? selectedId : (items[0]?.id ?? '')
   const autoAdvanceStarted = useRef(false)
+  const sawPending = useRef(false)
 
   const advance = useMutation({
     mutationFn: async () => {
       const { data } = await api.post<{ formationStep: number }>('/cases/formation/step', {
-        userId,
+        caseId,
         step: PLACES_FORMATION_STEP,
       })
       return data.formationStep
@@ -70,18 +75,22 @@ export function CaseInquiriesStep({
   })
 
   useEffect(() => {
+    if (!loading && pending) sawPending.current = true
+  }, [loading, pending])
+
+  useEffect(() => {
     if (!autoAdvance || loading) return
     if (pending || items.length === 0) {
       autoAdvanceStarted.current = false
       return
     }
-    if (autoAdvanceStarted.current || advance.isPending) return
+    if (!sawPending.current || autoAdvanceStarted.current || advance.isPending) return
     autoAdvanceStarted.current = true
     advance.mutate()
   }, [advance, autoAdvance, items.length, loading, pending])
 
   async function refresh() {
-    await queryClient.invalidateQueries({ queryKey: ['cases', 'formation-inquiries', userId] })
+    await queryClient.invalidateQueries({ queryKey: ['cases', 'formation-inquiries', caseId] })
   }
 
   const doneCount = items.filter((item) => item.status !== 'PENDING').length
@@ -102,10 +111,17 @@ export function CaseInquiriesStep({
         ) : null
       }
       action={
-        <Button type="button" disabled={loading || pending || advance.isPending} onClick={() => advance.mutate()}>
-          <Check className="size-4" aria-hidden />
-          {t('cases.inquiriesContinue')}
-        </Button>
+        <div className="flex max-w-xs flex-col items-end gap-2">
+          <Button type="button" disabled={loading || pending || advance.isPending} onClick={() => advance.mutate()}>
+            <Check className="size-4" aria-hidden />
+            {t('cases.inquiriesContinue')}
+          </Button>
+          {documentsPending ? (
+            <p className="rounded-xl border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-start text-[11px] leading-5 text-orange-800">
+              {t('cases.inquiriesDocumentsHint')}
+            </p>
+          ) : null}
+        </div>
       }
     >
       {loading ? (
@@ -136,6 +152,7 @@ export function CaseInquiriesStep({
                   item={item}
                   locale={locale}
                   onChanged={() => void refresh()}
+                  onReopened={onRewound}
                   onPrint={() => setPrintId(item.id)}
                 />
               </div>
@@ -235,6 +252,7 @@ export function InquiryCard({
   item,
   locale,
   onChanged,
+  onReopened,
   onPrint,
   decisionUrl = `/cases/formation/inquiries/${item.id}/decision`,
   reopenUrl = `/cases/formation/inquiries/${item.id}/reopen`,
@@ -245,6 +263,7 @@ export function InquiryCard({
   item: CaseInquiryRow
   locale: string
   onChanged: () => void
+  onReopened?: () => void
   onPrint: () => void
   decisionUrl?: string
   reopenUrl?: string
@@ -278,6 +297,33 @@ export function InquiryCard({
     }
   }
 
+  const placesDecision = Boolean(decisionUrl?.includes('/places/'))
+
+  function askApprove() {
+    confirmToast({
+      title: t(placesDecision ? 'cases.placesApproveConfirm' : 'cases.inquiryApproveConfirm', {
+        name: item.center.name,
+      }),
+      confirmLabel: t('cases.inquiryApprove'),
+      cancelLabel: t('common.cancel'),
+      onConfirm: () => void decide('APPROVED'),
+    })
+  }
+
+  function askReject() {
+    if (!note.trim()) {
+      toast.error(t(placesDecision ? 'cases.placesRejectNote' : 'cases.inquiryRejectNote'))
+      return
+    }
+    confirmToast({
+      title: t(placesDecision ? 'cases.placesRejectConfirm' : 'cases.inquiryRejectConfirm'),
+      confirmLabel: t('cases.inquiryReject'),
+      cancelLabel: t('common.cancel'),
+      confirmVariant: 'danger',
+      onConfirm: () => void decide('REJECTED'),
+    })
+  }
+
   function askReopen() {
     confirmToast({
       title: t('cases.inquiryReopenConfirm'),
@@ -296,6 +342,7 @@ export function InquiryCard({
       setFile(null)
       setAttachmentOpen(false)
       onChanged()
+      onReopened?.()
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('cases.saveFailed')))
     } finally {
@@ -403,7 +450,7 @@ export function InquiryCard({
               type="button"
               className={decisionButtonClassName}
               disabled={saving}
-              onClick={() => void decide('APPROVED')}
+              onClick={askApprove}
             >
               <Check className="size-4" aria-hidden />
               {t('cases.inquiryApprove')}
@@ -413,15 +460,7 @@ export function InquiryCard({
               variant="ghost"
               className={decisionButtonClassName}
               disabled={saving}
-              onClick={() =>
-                confirmToast({
-                  title: t('cases.inquiryRejectConfirm'),
-                  confirmLabel: t('cases.inquiryReject'),
-                  cancelLabel: t('common.cancel'),
-                  confirmVariant: 'danger',
-                  onConfirm: () => void decide('REJECTED'),
-                })
-              }
+              onClick={askReject}
             >
               <X className="size-4" aria-hidden />
               {t('cases.inquiryReject')}

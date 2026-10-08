@@ -122,8 +122,8 @@ export function JobDocumentsPanel({
         <FormSectionTitle icon={FileText} className="mb-5">
           {t('jobCatalog.extraDocuments')}
         </FormSectionTitle>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+          <div className="w-full lg:w-1/3">
             <FormField icon={FileText} label={t('jobCatalog.addDocument')} htmlFor="jobDocumentAdd">
               <SearchSelect
                 id="jobDocumentAdd"
@@ -137,7 +137,7 @@ export function JobDocumentsPanel({
               />
             </FormField>
           </div>
-          <div className="w-full sm:w-44">
+          <div className="w-full lg:w-44">
             <FormField icon={ToggleRight} label={t('documents.isRequired')} htmlFor="jobDocumentRequired">
               <SearchSelect
                 id="jobDocumentRequired"
@@ -149,7 +149,7 @@ export function JobDocumentsPanel({
               />
             </FormField>
           </div>
-          <div className="w-full sm:w-52">
+          <div className="w-full lg:w-52">
             <FormField icon={Users} label={t('documents.gender')} htmlFor="jobDocumentGender">
               <SearchSelect
                 id="jobDocumentGender"
@@ -161,7 +161,7 @@ export function JobDocumentsPanel({
               />
             </FormField>
           </div>
-          <Button type="button" variant="soft" className="shrink-0" disabled={!pick || saving} onClick={add}>
+          <Button type="button" variant="soft" className="w-full shrink-0 lg:w-auto" disabled={!pick || saving} onClick={add}>
             <Plus className="size-4" aria-hidden />
             {t('jobCatalog.addDocumentAction')}
           </Button>

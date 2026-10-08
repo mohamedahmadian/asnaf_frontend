@@ -237,10 +237,32 @@ export const APP_NAV: NavModule[] = withManagementLast([
     ],
   },
   {
+    code: 'sms',
+    nameKey: 'modules.sms',
+    icon: 'message-square',
+    sortOrder: 6,
+    menus: [
+      {
+        code: 'sms.settings',
+        nameKey: 'menus.smsSettings',
+        path: '/sms/settings',
+        icon: 'settings',
+        sortOrder: 1,
+      },
+      {
+        code: 'sms.send',
+        nameKey: 'menus.smsSend',
+        path: '/sms/send',
+        icon: 'send',
+        sortOrder: 2,
+      },
+    ],
+  },
+  {
     code: 'management',
     nameKey: 'modules.management',
     icon: 'user-cog',
-    sortOrder: 6,
+    sortOrder: 7,
     menus: [
       {
         code: 'management.userRegister',

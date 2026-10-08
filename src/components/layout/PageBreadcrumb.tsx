@@ -9,15 +9,17 @@ import {
 
 export function PageBreadcrumb({
   pathname,
+  search = "",
   modules,
 }: {
   pathname: string;
+  search?: string;
   modules: BreadcrumbNavModule[];
 }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language.split("-")[0] ?? "fa";
   const year = formatNumber(currentPersianYear(), locale);
-  const crumbs = getPageBreadcrumbs(pathname, modules);
+  const crumbs = getPageBreadcrumbs(pathname, modules, search);
 
   return (
     <nav aria-label={t("nav.breadcrumb")} className="min-w-0 flex-1">

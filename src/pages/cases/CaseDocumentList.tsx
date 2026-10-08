@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { IdCard } from 'lucide-react'
+import { IdCard, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Button, FormField } from '../../components/ui/Form'
 import { FileDropField } from '../../components/ui/FileDropField'
-import { FormField } from '../../components/ui/Form'
+import { confirmToast } from '../../components/ui/confirmToast'
 import { api } from '../../lib/api'
 import type { DocumentTypeRow, StoredVersion } from './formation-types'
 
@@ -10,16 +11,20 @@ export function CaseDocumentList({
   items,
   stored,
   uploadingId,
+  removingId,
   disabled,
   framed = false,
   onFile,
+  onDelete,
 }: {
   items: DocumentTypeRow[]
   stored: { documentId: string; current: StoredVersion | null }[]
   uploadingId: string | null
+  removingId?: string | null
   disabled: boolean
   framed?: boolean
   onFile: (documentId: string, file: File) => void
+  onDelete?: (documentId: string) => void
 }) {
   const { t } = useTranslation()
 
@@ -34,9 +39,11 @@ export function CaseDocumentList({
             item={item}
             current={current}
             uploading={uploadingId === item.id}
+            removing={removingId === item.id}
             disabled={disabled}
             framed={framed}
             onFile={(file) => onFile(item.id, file)}
+            onDelete={onDelete ? () => onDelete(item.id) : undefined}
           />
         )
       })}
@@ -48,16 +55,20 @@ function DocumentUpload({
   item,
   current,
   uploading,
+  removing = false,
   disabled,
   framed,
   onFile,
+  onDelete,
 }: {
   item: DocumentTypeRow
   current: StoredVersion | null
   uploading: boolean
+  removing?: boolean
   disabled: boolean
   framed: boolean
   onFile: (file: File) => void
+  onDelete?: () => void
 }) {
   const { t } = useTranslation()
   const [previewUrl, setPreviewUrl] = useState<string>()
@@ -103,11 +114,32 @@ function DocumentUpload({
           accept="image/*,application/pdf"
           allowCamera
           previewUrl={previewUrl}
-          uploading={uploading}
+          uploading={uploading || removing}
           onFile={(file) => {
-            if (!disabled) onFile(file)
+            if (!disabled && !removing) onFile(file)
           }}
         />
+        {current && onDelete ? (
+          <div className="mt-3 flex justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={disabled || uploading || removing}
+              onClick={() =>
+                confirmToast({
+                  title: t('cases.documentRemoveConfirm'),
+                  confirmLabel: t('common.yesDelete'),
+                  cancelLabel: t('common.cancel'),
+                  confirmVariant: 'danger',
+                  onConfirm: () => onDelete(),
+                })
+              }
+            >
+              <Trash2 className="size-4" aria-hidden />
+              {t('cases.documentRemove')}
+            </Button>
+          </div>
+        ) : null}
       </FormField>
     </div>
   )

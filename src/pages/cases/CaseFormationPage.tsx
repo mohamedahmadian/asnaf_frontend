@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Briefcase,
   Check,
@@ -16,7 +17,7 @@ import {
 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   AppForm,
@@ -28,14 +29,17 @@ import {
 } from '../../components/ui/Form'
 import { CopyableDigits } from '../../components/ui/CopyableDigits'
 import { FormCard, FormEmptyHint, FormSectionTitle, formCardBodyClassName } from '../../components/ui/FormLayout'
-import { formatNumber } from '../../lib/datetime'
+import { formatNumber, localizeDigits } from '../../lib/datetime'
 import { useDoubleSaveShortcut } from '../../hooks/useEscapeLeave'
 import { api, getApiErrorMessage } from '../../lib/api'
+import { CASE_DETAILS_VIEW } from '../../lib/nav-path'
 import { isValidIranianNationalId, normalizeNationalId } from '../../lib/national-id'
 import { optimizeImageFile } from '../../lib/optimize-image'
 import type { City, CommercialComplex, Country, DocumentItem, Job, JobGroup, Paginated, RegistrationPlace } from '../../types/app'
+import { ActivityLicensePanel } from './ActivityLicensePanel'
 import { CaseActivityStep } from './CaseActivityStep'
 import { CaseInquiriesStep } from './CaseInquiriesStep'
+import { CaseManagementReviewStep, type CaseManagementApproverRow } from './CaseManagementReviewStep'
 import { CasePlacesStep } from './CasePlacesStep'
 import type { CaseInquiryRow } from './inquiry-types'
 import { CaseLocationStep } from './CaseLocationStep'
@@ -43,6 +47,7 @@ import { CaseDocumentList } from './CaseDocumentList'
 import { CaseIdentityFields } from './CaseIdentityFields'
 import {
   FORMATION_STEPS,
+  ISSUANCE_FORMATION_STEP,
   MANAGEMENT_FORMATION_STEP,
   PLACES_FORMATION_STEP,
   activityDocumentRows,
@@ -50,6 +55,7 @@ import {
   emptyPerson,
   fillPerson,
   locationFormFrom,
+  matchesDocumentGender,
   type CaseActivity,
   type CaseLocation,
   type DocumentTypeRow,
@@ -58,16 +64,39 @@ import {
   type StoredVersion,
 } from './formation-types'
 
+type FormationCase = {
+  id: string
+  formationStep: number
+  trackingCode: string | null
+  activity: CaseActivity | null
+  location: CaseLocation | null
+}
+
 export function CaseFormationPage() {
   const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
   const requestedNationalId = normalizeNationalId(searchParams.get('nationalId') ?? '')
+  const requestedCaseId = searchParams.get('caseId') ?? ''
+  const detailsView = searchParams.get('view') === CASE_DETAILS_VIEW
+
+  useEffect(() => {
+    if (detailsView && requestedCaseId) {
+      navigate(`/cases/${requestedCaseId}`, { replace: true })
+    }
+  }, [detailsView, navigate, requestedCaseId])
   const [nationalId, setNationalId] = useState(() =>
     isValidIranianNationalId(requestedNationalId) ? requestedNationalId : '2280283972',
   )
   const [lookup, setLookup] = useState<'idle' | 'found' | 'missing'>('idle')
   const [person, setPerson] = useState<IdentityPerson | null>(null)
+  const [caseId, setCaseId] = useState<string | null>(null)
+  const [startNew, setStartNew] = useState(false)
+  const [openCasePrompt, setOpenCasePrompt] = useState<{
+    person: IdentityPerson
+    file: FormationCase
+  } | null>(null)
   const [tab, setTab] = useState<'identity' | 'documents'>('identity')
   const [step, setStep] = useState(0)
   const [reached, setReached] = useState(0)
@@ -78,6 +107,7 @@ export function CaseFormationPage() {
   const [posCount, setPosCount] = useState('')
   const [location, setLocation] = useState<LocationForm>(emptyLocationForm)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
+  const [removingId, setRemovingId] = useState<string | null>(null)
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const formOpen = lookup !== 'idle'
 
@@ -134,18 +164,26 @@ export function CaseFormationPage() {
       ).data,
   })
   const caseInquiries = useQuery({
-    queryKey: ['cases', 'formation-inquiries', person?.id],
-    enabled: Boolean(person?.id) && (step >= FORMATION_STEPS.indexOf('inquiries') || reached >= FORMATION_STEPS.indexOf('inquiries')),
+    queryKey: ['cases', 'formation-inquiries', caseId],
+    enabled: Boolean(caseId) && (step >= FORMATION_STEPS.indexOf('inquiries') || reached >= FORMATION_STEPS.indexOf('inquiries')),
     queryFn: async () =>
-      (await api.get<CaseInquiryRow[]>('/cases/formation/inquiries', { params: { userId: person?.id } })).data,
+      (await api.get<CaseInquiryRow[]>('/cases/formation/inquiries', { params: { caseId } })).data,
   })
   const casePlaces = useQuery({
-    queryKey: ['cases', 'formation-places', person?.id],
-    enabled:
-      Boolean(person?.id) &&
-      (step >= PLACES_FORMATION_STEP || reached >= PLACES_FORMATION_STEP),
+    queryKey: ['cases', 'formation-places', caseId],
+    enabled: Boolean(caseId) && (step >= PLACES_FORMATION_STEP || reached >= PLACES_FORMATION_STEP),
     queryFn: async () =>
-      (await api.get<CaseInquiryRow | null>('/cases/formation/places', { params: { userId: person?.id } })).data,
+      (await api.get<CaseInquiryRow | null>('/cases/formation/places', { params: { caseId } })).data,
+  })
+  const managementApprovers = useQuery({
+    queryKey: ['cases', 'formation-management-approvers', caseId],
+    enabled: Boolean(caseId) && (step >= MANAGEMENT_FORMATION_STEP || reached >= MANAGEMENT_FORMATION_STEP),
+    queryFn: async () =>
+      (
+        await api.get<CaseManagementApproverRow[]>('/cases/formation/management-approvers', {
+          params: { caseId },
+        })
+      ).data,
   })
 
   useEffect(() => {
@@ -165,7 +203,7 @@ export function CaseFormationPage() {
   }
 
   const visibleDocuments = useMemo(() => {
-    return (documentTypes.data ?? []).filter((item) => item.gender !== 'MALE' || person?.gender !== 'FEMALE')
+    return (documentTypes.data ?? []).filter((item) => matchesDocumentGender(item.gender, person?.gender))
   }, [documentTypes.data, person?.gender])
 
   const activityDocuments = useMemo(() => {
@@ -180,6 +218,23 @@ export function CaseFormationPage() {
     return caseInquiries.data.every((item) => item.status !== 'PENDING')
   }, [caseInquiries.data, caseInquiries.isLoading, reached, step])
 
+  const identityDocumentsReady = useMemo(() => {
+    if (documentTypes.isLoading) return null
+    if (person?.id && storedDocuments.isLoading) return null
+    const uploaded = new Set(
+      (storedDocuments.data ?? []).filter((row) => row.current).map((row) => row.documentId),
+    )
+    return visibleDocuments.every((item) => !item.isRequired || uploaded.has(item.id))
+  }, [documentTypes.isLoading, person?.id, storedDocuments.data, storedDocuments.isLoading, visibleDocuments])
+
+  const activityDocsMissing = useMemo(() => {
+    if (!activityJobId || documentCatalog.isLoading || storedDocuments.isLoading) return false
+    const uploaded = new Set(
+      (storedDocuments.data ?? []).filter((row) => row.current).map((row) => row.documentId),
+    )
+    return activityDocuments.some((item) => item.isRequired && !uploaded.has(item.id))
+  }, [activityDocuments, activityJobId, documentCatalog.isLoading, storedDocuments.data, storedDocuments.isLoading])
+
   const activityDocumentsReady = useMemo(() => {
     if (!activityJobId) return false
     if (documentCatalog.isLoading || storedDocuments.isLoading) return null
@@ -189,7 +244,47 @@ export function CaseFormationPage() {
     return activityDocuments.every((item) => !item.isRequired || uploaded.has(item.id))
   }, [activityDocuments, activityJobId, documentCatalog.isLoading, storedDocuments.data, storedDocuments.isLoading])
 
-  async function lookupPerson(raw = nationalId, notify = true) {
+  function applyCase(nextPerson: IdentityPerson, file: FormationCase, notify: boolean) {
+    const filled = fillPerson({
+      ...nextPerson,
+      formationStep: file.formationStep,
+      caseTrackingCode: file.trackingCode,
+      caseId: file.id,
+    })
+    const resume = Math.min(Math.max(filled.formationStep, 0), FORMATION_STEPS.length - 1)
+    setPerson(filled)
+    setCaseId(file.id)
+    setStartNew(false)
+    applyActivity(file.activity)
+    setLocation(locationFormFrom(file.location))
+    setLookup('found')
+    setReached(resume)
+    setStep(resume)
+    setOpenCasePrompt(null)
+    if (notify) toast.success(t('cases.found'))
+  }
+
+  function applyFresh(nextPerson: IdentityPerson, notify: boolean, issued: boolean) {
+    const filled = fillPerson({
+      ...nextPerson,
+      formationStep: 0,
+      caseTrackingCode: null,
+      caseId: null,
+    })
+    setPerson(filled)
+    setCaseId(null)
+    setStartNew(true)
+    applyActivity(null)
+    setLocation(emptyLocationForm())
+    setLookup('found')
+    setReached(0)
+    setStep(0)
+    setOpenCasePrompt(null)
+    if (notify && issued) toast.message(t('cases.newCaseFromIssuance'))
+    else if (notify) toast.success(t('cases.found'))
+  }
+
+  async function lookupPerson(raw = nationalId, notify = true, openCaseId?: string) {
     const normalized = normalizeNationalId(raw)
     if (!isValidIranianNationalId(normalized)) {
       if (notify) toast.error(t('users.nationalIdInvalid'))
@@ -199,24 +294,28 @@ export function CaseFormationPage() {
       const { data } = await api.get<{
         found: boolean
         person: IdentityPerson | null
-        activity: CaseActivity | null
-        location: CaseLocation | null
-      }>('/cases/formation/identity', { params: { nationalId: normalized } })
+        openCase: FormationCase | null
+        requestedCase: FormationCase | null
+        hasIssuedCase: boolean
+      }>('/cases/formation/identity', {
+        params: { nationalId: normalized, caseId: openCaseId || undefined },
+      })
       if (data.found && data.person) {
-        const filled = fillPerson(data.person)
-        const resume = Math.min(
-          Math.max(filled.formationStep, 0),
-          FORMATION_STEPS.length - 1,
-        )
-        setPerson(filled)
-        applyActivity(data.activity)
-        setLocation(locationFormFrom(data.location))
-        setLookup('found')
-        setReached(resume)
-        setStep(resume)
-        if (notify) toast.success(t('cases.found'))
+        if (data.requestedCase) applyCase(data.person, data.requestedCase, notify)
+        else if (data.openCase) {
+          setOpenCasePrompt({ person: fillPerson(data.person), file: data.openCase })
+          setPerson(null)
+          setCaseId(null)
+          setStartNew(false)
+          setLookup('idle')
+          setReached(0)
+          setStep(0)
+        } else applyFresh(data.person, notify, data.hasIssuedCase)
       } else {
+        setOpenCasePrompt(null)
         setPerson(emptyPerson(normalized))
+        setCaseId(null)
+        setStartNew(true)
         applyActivity(null)
         setLocation(emptyLocationForm())
         setLookup('missing')
@@ -235,8 +334,8 @@ export function CaseFormationPage() {
 
   useEffect(() => {
     if (!isValidIranianNationalId(requestedNationalId)) return
-    void lookupRef.current(requestedNationalId, false)
-  }, [requestedNationalId])
+    void lookupRef.current(requestedNationalId, false, requestedCaseId || undefined)
+  }, [requestedCaseId, requestedNationalId])
 
   const save = useMutation({
     mutationFn: async () => {
@@ -267,11 +366,15 @@ export function CaseFormationPage() {
         educationLevel: person.educationLevel || null,
         citizenGroup: person.citizenGroup || null,
         jobId: person.jobId || null,
+        caseId: startNew ? null : caseId,
+        startNew,
       })
       return data
     },
     onSuccess: (data) => {
       setPerson(fillPerson(data))
+      setCaseId(data.caseId)
+      setStartNew(false)
       setLookup('found')
       toast.success(t('cases.saved'))
       setReached((current) => Math.max(current, data.formationStep ?? 1, 1))
@@ -280,6 +383,13 @@ export function CaseFormationPage() {
     },
     onError: (error) => toast.error(getApiErrorMessage(error, t('cases.saveFailed'))),
   })
+
+  function rewindTo(index: number) {
+    setPerson((current) => (current ? { ...current, formationStep: index } : current))
+    setReached(index)
+    setStep(index)
+    void queryClient.invalidateQueries({ queryKey: ['cases', 'list'] })
+  }
 
   function goToStep(index: number) {
     if (index > reached) return
@@ -318,13 +428,13 @@ export function CaseFormationPage() {
       toast.error(t('cases.activityJobRequired'))
       return
     }
-    if (!person?.id) {
+    if (!caseId) {
       toast.message(t('cases.saveBeforeDocuments'))
       return
     }
     try {
       const { data } = await api.post<{ formationStep: number; activity: CaseActivity }>('/cases/formation/activity', {
-        userId: person.id,
+        caseId,
         businessUnitTitle: unitTitle.trim(),
         jobGroupId: activityGroupId || null,
         jobId: activityJobId,
@@ -360,7 +470,7 @@ export function CaseFormationPage() {
       toast.error(t('cases.locationOwnershipRequired'))
       return
     }
-    if (!person?.id) {
+    if (!caseId) {
       toast.message(t('cases.saveBeforeDocuments'))
       return
     }
@@ -368,7 +478,7 @@ export function CaseFormationPage() {
       const { data } = await api.post<{ formationStep: number; location: CaseLocation }>(
         '/cases/formation/location',
         {
-          userId: person.id,
+          caseId,
           cityId: location.cityId,
           establishment: location.establishment,
           complexId: residentialComplex ? location.complexId : null,
@@ -435,6 +545,20 @@ export function CaseFormationPage() {
     }
   }
 
+  async function removeDocument(documentId: string) {
+    if (!person?.id) return
+    setRemovingId(documentId)
+    try {
+      await api.delete(`/cases/formation/documents/${documentId}`, { params: { userId: person.id } })
+      toast.success(t('cases.documentRemoved'))
+      await queryClient.invalidateQueries({ queryKey: ['cases', 'documents', person.id] })
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, t('cases.saveFailed')))
+    } finally {
+      setRemovingId(null)
+    }
+  }
+
   const pastIdentity = reached >= 1 && person != null
   const fullName = person ? `${person.firstName} ${person.lastName}`.replace(/\s+/g, ' ').trim() : ''
   const activityJobTitle = (jobs.data ?? []).find((item) => item.id === activityJobId)?.title ?? ''
@@ -446,8 +570,9 @@ export function CaseFormationPage() {
   return (
     <div className={caseShellClassName}>
       <PageHeader
-        icon={FilePlus}
-        title={t('menus.caseFormation')}
+        icon={detailsView ? Files : FilePlus}
+        title={detailsView ? t('cases.details') : t('menus.caseFormation')}
+        backTo={requestedCaseId ? `/cases/${requestedCaseId}` : undefined}
         titleExtra={
           <FormationStepRing
             currentLabel={formatNumber(stepCurrent, locale)}
@@ -508,11 +633,17 @@ export function CaseFormationPage() {
         {FORMATION_STEPS.map((item, index) => {
           const done = index < reached
           const current = index === reached
-          const tone = done
-            ? 'cursor-pointer border-emerald-400 bg-white text-ink-800'
-            : current
-              ? 'case-step-done-pulse cursor-pointer border-emerald-500 bg-white text-ink-800'
-              : 'cursor-default border-line bg-white text-ink-400'
+          const identityDocsMissing = Boolean(person?.id) && identityDocumentsReady === false
+          const docsMissing =
+            (done || current) &&
+            ((index === 0 && identityDocsMissing) || (index === 1 && activityDocsMissing))
+          const tone = docsMissing
+            ? 'cursor-pointer border-orange-400 bg-white text-ink-800'
+            : done
+              ? 'cursor-pointer border-emerald-400 bg-white text-ink-800'
+              : current
+                ? 'case-step-done-pulse cursor-pointer border-emerald-500 bg-white text-ink-800'
+                : 'cursor-default border-line bg-white text-ink-400'
           return (
             <li key={item}>
               <button
@@ -528,16 +659,23 @@ export function CaseFormationPage() {
                 ) : null}
                 <span
                   className={`inline-flex size-6 shrink-0 items-center justify-center rounded-full border-2 text-xs ${
-                    current
-                      ? 'case-step-num-pulse border-emerald-500 bg-emerald-500 text-white'
-                      : done
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                        : 'border-transparent bg-cream-100 text-ink-700'
+                    docsMissing
+                      ? 'border-orange-300 bg-orange-50 text-orange-700'
+                      : current
+                        ? 'case-step-num-pulse border-emerald-500 bg-emerald-500 text-white'
+                        : done
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : 'border-transparent bg-cream-100 text-ink-700'
                   }`}
                 >
                   {formatNumber(index + 1, locale)}
                 </span>
                 <span className="text-center leading-5">{t(`cases.steps.${item}`)}</span>
+                {docsMissing ? (
+                  <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium leading-4 text-orange-700 ring-1 ring-orange-200">
+                    {t('cases.requiredDocumentsPending')}
+                  </span>
+                ) : null}
               </button>
             </li>
           )
@@ -623,13 +761,18 @@ export function CaseFormationPage() {
                     }
                     onSubmit={() => save.mutate()}
                   />
+                ) : documentTypes.isLoading ? null : visibleDocuments.length === 0 ? (
+                  <FormEmptyHint>{t('cases.identityDocumentsEmpty')}</FormEmptyHint>
                 ) : (
                   <CaseDocumentList
                     items={visibleDocuments}
                     stored={storedDocuments.data ?? []}
                     uploadingId={uploadingId}
+                    removingId={removingId}
                     disabled={!person.id}
+                    framed
                     onFile={(documentId, file) => void upload(documentId, file)}
+                    onDelete={(documentId) => void removeDocument(documentId)}
                   />
                 )}
               </div>
@@ -678,9 +821,11 @@ export function CaseFormationPage() {
                     items={activityDocuments}
                     stored={storedDocuments.data ?? []}
                     uploadingId={uploadingId}
+                    removingId={removingId}
                     disabled={!person?.id}
                     framed
                     onFile={(documentId, file) => void upload(documentId, file, activityJobId)}
+                    onDelete={(documentId) => void removeDocument(documentId)}
                   />
                 )}
               </section>
@@ -716,12 +861,14 @@ export function CaseFormationPage() {
         </FormCard>
       ) : null}
 
-      {step === FORMATION_STEPS.indexOf('inquiries') && person?.id ? (
+      {step === FORMATION_STEPS.indexOf('inquiries') && caseId ? (
         <CaseInquiriesStep
-          userId={person.id}
+          caseId={caseId}
           items={caseInquiries.data ?? []}
           loading={caseInquiries.isLoading}
           autoAdvance={reached < PLACES_FORMATION_STEP}
+          documentsPending={identityDocumentsReady === false || activityDocsMissing}
+          onRewound={() => rewindTo(FORMATION_STEPS.indexOf('inquiries'))}
           onAdvanced={(formationStep) => {
             setPerson((current) => (current ? { ...current, formationStep } : current))
             setReached((current) => Math.max(current, formationStep))
@@ -730,21 +877,108 @@ export function CaseFormationPage() {
         />
       ) : null}
 
-      {step === PLACES_FORMATION_STEP && person?.id ? (
+      {step === PLACES_FORMATION_STEP && caseId ? (
         <CasePlacesStep
-          userId={person.id}
+          caseId={caseId}
           item={casePlaces.data ?? null}
           loading={casePlaces.isLoading}
           autoAdvance={reached < MANAGEMENT_FORMATION_STEP}
+          onRewound={() => rewindTo(PLACES_FORMATION_STEP)}
           onAdvanced={(formationStep) => {
             setPerson((current) => (current ? { ...current, formationStep } : current))
             setReached((current) => Math.max(current, formationStep))
             setStep(formationStep)
           }}
+        />
+      ) : null}
+
+      {step === MANAGEMENT_FORMATION_STEP && caseId ? (
+        <CaseManagementReviewStep
+          caseId={caseId}
+          items={managementApprovers.data ?? []}
+          loading={managementApprovers.isLoading}
+          autoAdvance={reached < ISSUANCE_FORMATION_STEP}
+          onRewound={() => rewindTo(MANAGEMENT_FORMATION_STEP)}
+          onAdvanced={(formationStep) => {
+            setPerson((current) => (current ? { ...current, formationStep } : current))
+            setReached((current) => Math.max(current, formationStep))
+            setStep(formationStep)
+          }}
+        />
+      ) : null}
+
+      {step === ISSUANCE_FORMATION_STEP && caseId ? <ActivityLicensePanel caseId={caseId} /> : null}
+
+      {openCasePrompt ? (
+        <OpenCaseModal
+          trackingCode={openCasePrompt.file.trackingCode}
+          locale={locale}
+          onResume={() => applyCase(openCasePrompt.person, openCasePrompt.file, true)}
+          onNew={() => applyFresh(openCasePrompt.person, false, false)}
+          onClose={() => setOpenCasePrompt(null)}
         />
       ) : null}
 
     </div>
+  )
+}
+
+function OpenCaseModal({
+  trackingCode,
+  locale,
+  onResume,
+  onNew,
+  onClose,
+}: {
+  trackingCode: string | null
+  locale: string
+  onResume: () => void
+  onNew: () => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.repeat) return
+      event.preventDefault()
+      onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [onClose])
+
+  const resumeLabel = trackingCode
+    ? t('cases.resumePrevious', { code: localizeDigits(trackingCode, locale) })
+    : t('cases.resumePreviousNoCode')
+
+  return createPortal(
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-ink-900/30 p-4" role="dialog" aria-modal="true" aria-labelledby="open-case-title">
+      <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-[0_16px_40px_rgba(20,40,40,0.16)]">
+        <h2 id="open-case-title" className="text-lg font-semibold text-ink-900">
+          {t('cases.openCaseTitle')}
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-ink-600">{t('cases.openCaseHint')}</p>
+        <div className="mt-5 flex flex-col gap-2">
+          <Button type="button" onClick={onResume}>
+            <Hash className="size-4" aria-hidden />
+            {resumeLabel}
+          </Button>
+          <Button type="button" variant="soft" onClick={onNew}>
+            <FilePlus className="size-4" aria-hidden />
+            {t('cases.startNewCase')}
+          </Button>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
 

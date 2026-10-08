@@ -65,7 +65,7 @@ function IdentitySection({
   title: string
   children: ReactNode
 }) {
-  const items = Children.toArray(children).filter((child) => child != null && child !== false)
+  const items = Children.toArray(children)
   if (!items.length) return null
   return (
     <section className="space-y-3">

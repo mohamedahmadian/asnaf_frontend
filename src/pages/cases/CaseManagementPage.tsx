@@ -1,37 +1,102 @@
-import { Briefcase, Files, GraduationCap, IdCard, ListOrdered, UserRound } from 'lucide-react'
+import { BadgeCheck, Briefcase, Files, GraduationCap, IdCard, ListOrdered, UserRound } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
 import { FormField, PageHeader, caseShellClassName } from '../../components/ui/Form'
-import { PaginationBar, SearchBar, SortableTh, TableCard } from '../../components/ui/ListControls'
+import {
+  ActionsTh,
+  EntityRowActions,
+  PaginationBar,
+  SearchBar,
+  SortableTh,
+  TableCard,
+  actionsColClassName,
+} from '../../components/ui/ListControls'
 import { SearchSelect } from '../../components/ui/SearchSelect'
+import { useConfirmDelete } from '../../hooks/useConfirmDelete'
 import { useListParams } from '../../hooks/useListParams'
 import { useListSort } from '../../hooks/useListSort'
 import { api } from '../../lib/api'
-import { localizeDigits } from '../../lib/datetime'
-import type { Job, Paginated, UserGender } from '../../types/app'
-import { EDUCATION_LEVELS, FORMATION_STEPS, type EducationLevel } from './formation-types'
+import { DateText } from '../../components/ui/DateText'
+import { formatNumber, localizeDigits } from '../../lib/datetime'
+import type { Job, Paginated } from '../../types/app'
+import { EDUCATION_LEVELS, FORMATION_STEPS } from './formation-types'
 
 type CaseRow = {
   id: string
   fullName: string
-  fatherName: string | null
   nationalId: string | null
-  gender: UserGender | null
   phone: string | null
-  residencyStatus: 'RESIDENT' | 'NON_RESIDENT' | null
-  educationLevel: EducationLevel | null
   formationStep: number
+  licenseNumber: string | null
+  licenseIssuedAt: string | null
+  licenseExpiresAt: string | null
   job: { id: string; title: string } | null
+  jobTitle: string | null
 }
 
-function stepLabel(step: number) {
-  return FORMATION_STEPS[step] ?? FORMATION_STEPS[0]
+function CaseNationalIdBadge({ value, locale }: { value: string; locale: string }) {
+  return (
+    <span
+      dir="ltr"
+      className="inline-flex rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-ink-800 ring-1 ring-teal-200"
+    >
+      {localizeDigits(value, locale)}
+    </span>
+  )
+}
+
+function CaseStepCell({
+  step,
+  locale,
+  licenseNumber,
+  licenseExpiresAt,
+}: {
+  step: number
+  locale: string
+  licenseNumber: string | null
+  licenseExpiresAt: string | null
+}) {
+  const { t } = useTranslation()
+  if (licenseNumber) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-medium text-teal-900 ring-1 ring-teal-200">
+          <BadgeCheck className="size-3.5" aria-hidden />
+          <span dir="ltr">{localizeDigits(licenseNumber, locale)}</span>
+        </span>
+        {licenseExpiresAt ? (
+          <span className="text-[11px] text-ink-500">
+            {t('cases.licenseExpires')}: <DateText value={licenseExpiresAt} />
+          </span>
+        ) : null}
+      </div>
+    )
+  }
+  const current = FORMATION_STEPS[step] ?? FORMATION_STEPS[0]
+  const onLastStep = step >= FORMATION_STEPS.length - 1
+  const next = onLastStep ? null : FORMATION_STEPS[step + 1]
+
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 py-0.5 ps-1 pe-2.5 text-xs font-medium text-teal-900 ring-1 ring-teal-200">
+        <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-teal-500 px-1 text-[10px] font-semibold text-white">
+          {formatNumber(step + 1, locale)}
+        </span>
+        {t(`cases.steps.${current}`)}
+      </span>
+      {next ? (
+        <span className="inline-flex rounded-full bg-mint-500 bg-[linear-gradient(to_inline-end,var(--color-mint-500),var(--color-teal-500))] px-2.5 py-0.5 text-[10px] font-medium text-white shadow-[0_4px_10px_rgba(63,214,190,0.32)]">
+          {t('cases.listStepNext')}: {t(`cases.steps.${next}`)}
+        </span>
+      ) : null}
+    </div>
+  )
 }
 
 export function CaseManagementPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
+  const { confirmDelete } = useConfirmDelete()
   const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams } = useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const gender = searchParams.get('gender') ?? ''
@@ -161,67 +226,53 @@ export function CaseManagementPage() {
           <thead className="bg-cream-50 text-ink-700">
             <tr>
               <SortableTh column="fullName" label={t('users.fullName')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-              <SortableTh column="fatherName" label={t('cases.fatherName')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="nationalId" label={t('users.nationalId')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-              <SortableTh column="gender" label={t('users.gender')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="phone" label={t('users.phone')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-              <SortableTh
-                column="residencyStatus"
-                label={t('cases.residency')}
-                sortBy={sortBy}
-                sortDir={sortDir}
-                onSort={onSort}
-              />
               <SortableTh column="job" label={t('cases.job')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-              <SortableTh
-                column="educationLevel"
-                label={t('cases.education')}
-                sortBy={sortBy}
-                sortDir={sortDir}
-                onSort={onSort}
-              />
+              <SortableTh column="jobTitle" label={t('cases.listJobTitle')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh
                 column="formationStep"
                 label={t('cases.listStep')}
                 sortBy={sortBy}
                 sortDir={sortDir}
                 onSort={onSort}
+                align="center"
               />
+              <ActionsTh />
             </tr>
           </thead>
           <tbody>
             {rows.map((item) => (
               <tr key={item.id} className="border-t border-line">
+                <td className="px-4 py-3">{item.fullName || '—'}</td>
                 <td className="px-4 py-3">
-                  {item.nationalId ? (
-                    <Link
-                      to={`/cases/formation?nationalId=${encodeURIComponent(item.nationalId)}`}
-                      data-row-view
-                      className="sr-only"
-                    >
-                      {item.fullName}
-                    </Link>
-                  ) : null}
-                  {item.fullName || '—'}
+                  {item.nationalId ? <CaseNationalIdBadge value={item.nationalId} locale={locale} /> : '—'}
                 </td>
-                <td className="px-4 py-3">{item.fatherName || '—'}</td>
-                <td className="px-4 py-3">
-                  {item.nationalId ? localizeDigits(item.nationalId, locale) : '—'}
-                </td>
-                <td className="px-4 py-3">{item.gender ? t(`userGenders.${item.gender}`) : '—'}</td>
                 <td className="px-4 py-3">{item.phone ? localizeDigits(item.phone, locale) : '—'}</td>
-                <td className="px-4 py-3">
-                  {item.residencyStatus === 'RESIDENT'
-                    ? t('cases.resident')
-                    : item.residencyStatus === 'NON_RESIDENT'
-                      ? t('cases.nonResident')
-                      : '—'}
-                </td>
                 <td className="px-4 py-3">{item.job?.title || '—'}</td>
-                <td className="px-4 py-3">
-                  {item.educationLevel ? t(`cases.educationLevels.${item.educationLevel}`) : '—'}
+                <td className="px-4 py-3">{item.jobTitle || '—'}</td>
+                <td className="px-4 py-3 text-center">
+                  <CaseStepCell
+                    step={item.formationStep}
+                    locale={locale}
+                    licenseNumber={item.licenseNumber}
+                    licenseExpiresAt={item.licenseExpiresAt}
+                  />
                 </td>
-                <td className="px-4 py-3">{t(`cases.steps.${stepLabel(item.formationStep)}`)}</td>
+                <td className={actionsColClassName}>
+                  <EntityRowActions
+                    rowOpensView
+                    viewTo={`/cases/${item.id}`}
+                    onDelete={() =>
+                      confirmDelete({
+                        message: t('cases.confirmDelete'),
+                        successMessage: t('cases.deleted'),
+                        path: `/cases/${item.id}`,
+                        queryKey: ['cases', 'list'],
+                      })
+                    }
+                  />
+                </td>
               </tr>
             ))}
           </tbody>

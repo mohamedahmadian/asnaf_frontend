@@ -1,4 +1,5 @@
-import { Plus, Users } from 'lucide-react'
+import { Plus, Send, Users } from 'lucide-react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -11,6 +12,7 @@ import {
   SortableTh,
   actionsColClassName,
 } from '../../components/ui/ListControls'
+import { SendUserSmsModal } from '../../components/sms/SendUserSmsModal'
 import { Button, PageHeader, listShellClassName } from '../../components/ui/Form'
 import { SearchSelect } from '../../components/ui/SearchSelect'
 import { useConfirmDelete } from '../../hooks/useConfirmDelete'
@@ -30,6 +32,7 @@ export function UsersListPage() {
     useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const { confirmDelete } = useConfirmDelete()
+  const [smsUser, setSmsUser] = useState<ManagedUser | null>(null)
   const status = searchParams.get('status') ?? ''
   const roleId = searchParams.get('roleId') ?? ''
 
@@ -145,6 +148,12 @@ export function UsersListPage() {
                   <EntityRowActions
                     viewTo={`/users/${item.id}`}
                     editTo={`/users/${item.id}/edit`}
+                    extra={
+                      <Button type="button" variant="soft" onClick={() => setSmsUser(item)}>
+                        <Send className="size-4" aria-hidden />
+                        {t('sms.send')}
+                      </Button>
+                    }
                     onDelete={() =>
                       confirmDelete({
                         message: t('users.confirmDelete'),
@@ -166,6 +175,13 @@ export function UsersListPage() {
           pageSize={query.data.pageSize}
           total={query.data.total}
           onPageChange={setPage}
+        />
+      ) : null}
+      {smsUser ? (
+        <SendUserSmsModal
+          phone={smsUser.phone}
+          recipientName={smsUser.fullName}
+          onClose={() => setSmsUser(null)}
         />
       ) : null}
     </div>

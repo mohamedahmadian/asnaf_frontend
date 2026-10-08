@@ -1,4 +1,4 @@
-import { FileText, Plus, Trash2 } from 'lucide-react'
+import { FileText, Plus, Trash2, Users } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,7 +17,7 @@ import { useConfirmDelete } from '../../hooks/useConfirmDelete'
 import { useListParams } from '../../hooks/useListParams'
 import { useListSort } from '../../hooks/useListSort'
 import { api, getApiErrorMessage } from '../../lib/api'
-import type { DocumentGender, Paginated } from '../../types/app'
+import { documentGenders, type DocumentGender, type Paginated } from '../../types/app'
 import { DocumentFlag } from '../documents/DocumentFlag'
 
 type IdentityDocumentRow = {
@@ -31,6 +31,7 @@ type IdentityDocumentRow = {
 type DocumentOption = {
   id: string
   title: string
+  gender: DocumentGender
 }
 
 export function CaseIdentityDocumentsPanel() {
@@ -40,6 +41,7 @@ export function CaseIdentityDocumentsPanel() {
   const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams } = useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const [pick, setPick] = useState('')
+  const [gender, setGender] = useState<DocumentGender>(documentGenders.BOTH)
   const [saving, setSaving] = useState(false)
 
   const query = useQuery({
@@ -60,15 +62,26 @@ export function CaseIdentityDocumentsPanel() {
   })
 
   const rows = query.data?.items ?? []
-  const options = (optionsQuery.data ?? []).map((item) => ({ value: item.id, label: item.title }))
+  const optionRows = optionsQuery.data ?? []
+  const options = optionRows.map((item) => ({ value: item.id, label: item.title }))
+  const genderOptions = Object.values(documentGenders).map((item) => ({
+    value: item,
+    label: t(`documents.genders.${item}`),
+  }))
+
+  function onPick(id: string) {
+    setPick(id)
+    setGender(optionRows.find((item) => item.id === id)?.gender ?? documentGenders.BOTH)
+  }
 
   async function add() {
     if (!pick || saving) return
     setSaving(true)
     try {
-      await api.post('/cases/settings/identity-documents', { documentId: pick })
+      await api.post('/cases/settings/identity-documents', { documentId: pick, gender })
       toast.success(t('cases.settingsIdentityAdded'))
       setPick('')
+      setGender(documentGenders.BOTH)
       await queryClient.invalidateQueries({ queryKey: ['cases', 'settings', 'identity-documents'] })
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('common.error')))
@@ -79,13 +92,13 @@ export function CaseIdentityDocumentsPanel() {
 
   return (
     <div className="space-y-4">
-      <FormField icon={FileText} label={t('cases.settingsIdentityAdd')} htmlFor="case-identity-document-add">
-        <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+        <div className="w-full lg:w-1/3">
+          <FormField icon={FileText} label={t('cases.settingsIdentityAdd')} htmlFor="case-identity-document-add">
             <SearchSelect
               id="case-identity-document-add"
               value={pick}
-              onChange={setPick}
+              onChange={onPick}
               placeholder={
                 options.length === 0
                   ? t('cases.settingsIdentityNoneToAdd')
@@ -94,13 +107,25 @@ export function CaseIdentityDocumentsPanel() {
               disabled={saving || optionsQuery.isLoading || options.length === 0}
               options={options}
             />
-          </div>
-          <Button type="button" variant="soft" className="shrink-0" disabled={!pick || saving} onClick={() => void add()}>
-            <Plus className="size-4" aria-hidden />
-            {t('cases.settingsIdentityAddAction')}
-          </Button>
+          </FormField>
         </div>
-      </FormField>
+        <div className="w-full lg:w-52">
+          <FormField icon={Users} label={t('documents.gender')} htmlFor="case-identity-document-gender">
+            <SearchSelect
+              id="case-identity-document-gender"
+              value={gender}
+              onChange={(next) => setGender(next as DocumentGender)}
+              placeholder={t('documents.selectGender')}
+              disabled={saving}
+              options={genderOptions}
+            />
+          </FormField>
+        </div>
+        <Button type="button" variant="soft" className="w-full shrink-0 lg:w-auto" disabled={!pick || saving} onClick={() => void add()}>
+          <Plus className="size-4" aria-hidden />
+          {t('cases.settingsIdentityAddAction')}
+        </Button>
+      </div>
       <SearchBar
         term={term}
         onTermChange={setTerm}

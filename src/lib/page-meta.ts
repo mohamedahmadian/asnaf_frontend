@@ -377,8 +377,20 @@ export function getPageMeta(pathname: string): {
   if (pathname.startsWith('/cases/settings')) {
     return { titleKey: 'menus.caseSettings', subtitleKey: 'cases.settingsSubtitle' }
   }
+  if (/^\/cases\/[^/]+\/license$/.test(pathname)) {
+    return { titleKey: 'cases.licenseTitle', subtitleKey: 'cases.licenseTitle' }
+  }
+  if (/^\/cases\/[^/]+$/.test(pathname)) {
+    return { titleKey: 'cases.details', subtitleKey: 'cases.requestsTitle' }
+  }
   if (pathname.startsWith('/cases')) {
     return { titleKey: 'menus.caseManagement', subtitleKey: 'cases.managementSubtitle' }
+  }
+  if (pathname.startsWith('/sms/settings')) {
+    return { titleKey: 'menus.smsSettings', subtitleKey: 'sms.settingsSubtitle' }
+  }
+  if (pathname.startsWith('/sms/send')) {
+    return { titleKey: 'menus.smsSend', subtitleKey: 'sms.sendSubtitle' }
   }
   if (pathname === '/dashboard') {
     return { titleKey: 'dashboard.title', subtitleKey: 'dashboard.subtitle' }
