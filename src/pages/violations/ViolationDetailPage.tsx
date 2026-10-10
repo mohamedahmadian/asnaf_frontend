@@ -71,9 +71,9 @@ export function ViolationDetailPage() {
               value={
                 item.caseFile
                   ? [
-                      item.caseFile.caseTrackingCode
-                        ? localizeDigits(item.caseFile.caseTrackingCode, locale)
-                        : t('violations.caseNoCode'),
+                      item.caseFile.licenseNumber
+                        ? localizeDigits(item.caseFile.licenseNumber, locale)
+                        : '—',
                       item.caseFile.businessUnitTitle,
                       item.caseFile.jobGroupTitle,
                       item.caseFile.jobTitle,

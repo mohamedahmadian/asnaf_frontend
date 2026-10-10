@@ -1,4 +1,4 @@
-import { CalendarRange, ChartColumn, ShieldAlert, Tag } from 'lucide-react'
+import { CalendarRange, ChartColumn, ShieldAlert, Tag, Users } from 'lucide-react'
 import { useId, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { DateObject } from 'react-multi-date-picker'
@@ -247,6 +247,9 @@ function TypeChart({
               cursor={{ fill: 'rgba(46,189,182,0.07)' }}
             />
             <Bar dataKey="count" fill={`url(#${fillId})`} radius={[12, 12, 6, 6]} maxBarSize={42}>
+              {data.map((item, index) => (
+                <Cell key={`${item.fullLabel}-${index}`} fill={`url(#${fillId})`} />
+              ))}
               <CountLabels locale={locale} />
             </Bar>
           </BarChart>
@@ -386,6 +389,24 @@ export function ViolationReportsPage() {
                 }))}
               />
             </>
+          ) : report ? (
+            <FormEmptyHint>{t('violations.reportEmpty')}</FormEmptyHint>
+          ) : null}
+
+          <FormSectionTitle icon={Users}>{t('violations.reportByPerson')}</FormSectionTitle>
+          {report?.byPerson?.length ? (
+            <TypeChart
+              locale={locale}
+              data={report.byPerson.map((item) => {
+                const nationalId = localizeDigits(item.nationalId, locale)
+                const name = item.fullName?.trim() || nationalId
+                return {
+                  label: name.length > 18 ? `${name.slice(0, 18)}…` : name,
+                  fullLabel: item.fullName?.trim() ? `${item.fullName.trim()} — ${nationalId}` : nationalId,
+                  count: item.count,
+                }
+              })}
+            />
           ) : report ? (
             <FormEmptyHint>{t('violations.reportEmpty')}</FormEmptyHint>
           ) : null}

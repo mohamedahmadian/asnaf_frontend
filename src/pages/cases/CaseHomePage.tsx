@@ -1,20 +1,29 @@
 import {
   BadgeCheck,
+  Ban,
   Briefcase,
   CalendarClock,
   CalendarDays,
+  CirclePause,
   Eye,
   Files,
   FolderKanban,
   Gavel,
+  HandHeart,
+  IdCard,
   MapPin,
+  MapPinned,
+  MapPinPlus,
   Plus,
   RefreshCw,
+  ShieldAlert,
   UserRound,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -32,6 +41,8 @@ import { LoadingState } from '../../components/ui/LoadingState'
 import { api } from '../../lib/api'
 import { formatNumber, localizeDigits } from '../../lib/datetime'
 import { useGeoName } from '../../lib/geo'
+import { violationCreatePath, violationPath } from '../../lib/paths/violations'
+import type { Violation } from '../../types/app'
 import { FORMATION_STEPS } from './formation-types'
 
 type CaseRequestRow = {
@@ -52,6 +63,7 @@ type CaseHome = {
   licenseNumber: string | null
   licenseIssuedAt: string | null
   licenseExpiresAt: string | null
+  violationCount: number
   city: { nameFa: string; nameEn: string } | null
   job: { id: string; title: string; group: { id: string; title: string } | null } | null
   person: {
@@ -78,6 +90,44 @@ const LATER_REQUESTS = [
   { type: 'AUCTION', icon: Gavel },
 ] as const
 
+const CASE_OPERATIONS = [
+  { key: 'renewLicense', icon: RefreshCw, tone: 'teal' },
+  { key: 'issueAuction', icon: Gavel, tone: 'teal' },
+  { key: 'issueStewardship', icon: IdCard, tone: 'teal' },
+  { key: 'changeLocation', icon: MapPinned, tone: 'teal' },
+  { key: 'renewWithLocation', icon: MapPinPlus, tone: 'teal' },
+  { key: 'issueServiceCard', icon: HandHeart, tone: 'teal' },
+] as const
+
+const CASE_SENSITIVE_OPERATIONS = [
+  { key: 'suspend', icon: CirclePause, tone: 'amber' },
+  { key: 'registerViolation', icon: ShieldAlert, tone: 'orange' },
+  { key: 'revoke', icon: Ban, tone: 'rose' },
+] as const
+
+const OPERATION_TONES = {
+  teal: {
+    button:
+      'border-teal-200 bg-white text-ink-800 shadow-[0_3px_10px_rgba(46,189,182,0.12)] hover:border-teal-400 hover:bg-teal-50',
+    icon: 'bg-teal-50 text-teal-600',
+  },
+  amber: {
+    button:
+      'border-amber-200 bg-amber-50/80 text-amber-900 shadow-[0_3px_10px_rgba(217,119,6,0.1)] hover:border-amber-300 hover:bg-amber-50',
+    icon: 'bg-amber-100 text-amber-700',
+  },
+  orange: {
+    button:
+      'border-orange-200 bg-orange-50/80 text-orange-900 shadow-[0_3px_10px_rgba(234,88,12,0.1)] hover:border-orange-300 hover:bg-orange-50',
+    icon: 'bg-orange-100 text-orange-700',
+  },
+  rose: {
+    button:
+      'border-red-200 bg-red-50/80 text-red-800 shadow-[0_3px_10px_rgba(220,38,38,0.1)] hover:border-red-300 hover:bg-red-50',
+    icon: 'bg-red-100 text-red-700',
+  },
+} as const
+
 function caseRequestPath(caseId: string, nationalId: string | null) {
   return `/cases/formation?nationalId=${encodeURIComponent(nationalId ?? '')}&caseId=${encodeURIComponent(caseId)}`
 }
@@ -90,6 +140,7 @@ export function CaseHomePage() {
   const geoName = useGeoName()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const [picking, setPicking] = useState(false)
+  const [violationsOpen, setViolationsOpen] = useState(false)
   const showHome = searchParams.get('stay') === '1'
   const query = useQuery({
     queryKey: ['cases', 'home', id],
@@ -156,12 +207,22 @@ export function CaseHomePage() {
               ) : undefined
             }
             action={
-              <RemainingDaysBadge
-                issuedAt={item.licenseIssuedAt}
-                expiresAt={item.licenseExpiresAt}
-                label={t('cases.daysRemaining')}
-                locale={locale}
-              />
+              <div className="flex items-center gap-2">
+                {item.violationCount > 0 && item.person.nationalId ? (
+                  <ViolationCountBadge
+                    count={item.violationCount}
+                    label={t('cases.violationCount')}
+                    locale={locale}
+                    onClick={() => setViolationsOpen(true)}
+                  />
+                ) : null}
+                <RemainingDaysBadge
+                  issuedAt={item.licenseIssuedAt}
+                  expiresAt={item.licenseExpiresAt}
+                  label={t('cases.daysRemaining')}
+                  locale={locale}
+                />
+              </div>
             }
           >
             <div className={formCardBodyClassName}>
@@ -185,6 +246,25 @@ export function CaseHomePage() {
                   empty={!item.city}
                 />
               </div>
+              <CaseOperations
+                licenseTo={item.licenseNumber ? `/cases/${item.id}/license` : null}
+                violationTo={
+                  item.person.nationalId
+                    ? `${violationCreatePath()}?${new URLSearchParams({
+                        nationalId: item.person.nationalId,
+                        caseId: item.id,
+                      }).toString()}`
+                    : null
+                }
+                onPick={() => toast.message(t('cases.requestTypeLater'))}
+              />
+              {violationsOpen && item.person.nationalId ? (
+                <PersonViolationsModal
+                  nationalId={item.person.nationalId}
+                  name={item.person.fullName}
+                  onClose={() => setViolationsOpen(false)}
+                />
+              ) : null}
             </div>
           </FormCard>
 
@@ -291,6 +371,85 @@ export function CaseHomePage() {
   )
 }
 
+function CaseOperations({
+  onPick,
+  licenseTo,
+  violationTo,
+}: {
+  onPick: () => void
+  licenseTo: string | null
+  violationTo: string | null
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="space-y-3 border-t border-teal-100 pt-4">
+      <div className="flex flex-wrap justify-center gap-2">
+        {licenseTo ? (
+          <CaseOperationButton icon={BadgeCheck} tone="teal" label={t('cases.viewLicense')} to={licenseTo} />
+        ) : null}
+        {CASE_OPERATIONS.map((operation) => (
+          <CaseOperationButton
+            key={operation.key}
+            icon={operation.icon}
+            tone={operation.tone}
+            label={t(`cases.operations.${operation.key}`)}
+            onClick={onPick}
+          />
+        ))}
+      </div>
+      <div className="flex flex-wrap justify-center gap-2 border-t border-dashed border-red-100 pt-3">
+        {CASE_SENSITIVE_OPERATIONS.map((operation) => (
+          <CaseOperationButton
+            key={operation.key}
+            icon={operation.icon}
+            tone={operation.tone}
+            label={t(`cases.operations.${operation.key}`)}
+            to={operation.key === 'registerViolation' ? violationTo ?? undefined : undefined}
+            onClick={onPick}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CaseOperationButton({
+  icon: Icon,
+  label,
+  tone,
+  onClick,
+  to,
+}: {
+  icon: LucideIcon
+  label: string
+  tone: keyof typeof OPERATION_TONES
+  onClick?: () => void
+  to?: string
+}) {
+  const styles = OPERATION_TONES[tone]
+  const className = `inline-flex cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300 ${styles.button}`
+  const content = (
+    <>
+      <span className={`flex size-7 shrink-0 items-center justify-center rounded-xl ${styles.icon}`}>
+        <Icon className="size-3.5" aria-hidden />
+      </span>
+      {label}
+    </>
+  )
+  if (to) {
+    return (
+      <Link to={to} className={className}>
+        {content}
+      </Link>
+    )
+  }
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {content}
+    </button>
+  )
+}
+
 function RequestBadge({
   children,
   tone = 'teal',
@@ -342,6 +501,134 @@ function licenseSpan(issuedAt: string | null, expiresAt: string | null) {
   const total = start == null ? null : Math.round((end - start) / 86_400_000)
   const ratio = total == null || total <= 0 ? (remaining > 0 ? 1 : 0) : Math.min(1, remaining / total)
   return { remaining, ratio }
+}
+
+function ViolationCountBadge({
+  count,
+  label,
+  locale,
+  onClick,
+}: {
+  count: number
+  label: string
+  locale: string
+  onClick: () => void
+}) {
+  const text = formatNumber(count, locale)
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex cursor-pointer items-center gap-2 rounded-2xl bg-white/80 px-2.5 py-1.5 ring-1 ring-orange-200 transition hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"
+      aria-label={`${label}: ${text}`}
+    >
+      <span className="flex size-[3.25rem] shrink-0 items-center justify-center rounded-full bg-orange-50 ring-[5px] ring-orange-200">
+        <span className="text-sm font-semibold leading-none text-orange-800">{text}</span>
+      </span>
+      <span className="flex max-w-16 flex-col items-start gap-0.5">
+        <ShieldAlert className="size-3.5 text-orange-600" aria-hidden />
+        <span className="text-[11px] font-medium leading-4 text-ink-500">{label}</span>
+      </span>
+    </button>
+  )
+}
+
+function PersonViolationsModal({
+  nationalId,
+  name,
+  onClose,
+}: {
+  nationalId: string
+  name: string
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const query = useQuery({
+    queryKey: ['violations', 'person', nationalId],
+    queryFn: async () =>
+      (
+        await api.get<Violation[]>('/violations', {
+          params: { nationalId, sortBy: 'occurredAt', sortDir: 'desc' },
+        })
+      ).data,
+  })
+  const items = query.data ?? []
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.repeat) return
+      event.preventDefault()
+      event.stopPropagation()
+      onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [onClose])
+
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex items-start justify-center bg-ink-900/30 p-4 pt-[10vh]" data-nested-dialog>
+      <button type="button" className="absolute inset-0 cursor-default" aria-label={t('common.close')} onClick={onClose} />
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="case-person-violations-title"
+        className="relative z-10 flex max-h-[min(36rem,80dvh)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-xl"
+      >
+        <header className="relative shrink-0 overflow-hidden bg-gradient-to-e from-orange-50 via-white to-amber-50 px-5 py-4">
+          <div className="relative flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-[0_8px_16px_rgba(234,88,12,0.28)]">
+                <ShieldAlert className="size-5" aria-hidden />
+              </span>
+              <h2 id="case-person-violations-title" className="truncate text-sm font-semibold text-ink-900">
+                {t('cases.personViolations', { name: name || t('cases.details') })}
+              </h2>
+            </div>
+            <button
+              type="button"
+              className="cursor-pointer rounded-xl p-2 text-ink-500 hover:bg-white"
+              onClick={onClose}
+              aria-label={t('common.close')}
+            >
+              <X className="size-4" aria-hidden />
+            </button>
+          </div>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          {query.isLoading ? <LoadingState /> : null}
+          {!query.isLoading && items.length === 0 ? <FormEmptyHint>{t('violations.empty')}</FormEmptyHint> : null}
+          <ul className="space-y-2">
+            {items.map((item) => (
+              <li key={item.id}>
+                <Link
+                  to={violationPath(item.id)}
+                  onClick={onClose}
+                  className="flex cursor-pointer flex-col gap-1.5 rounded-2xl border border-orange-100 bg-white px-3 py-3 transition hover:border-orange-300 hover:bg-orange-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate text-sm font-medium text-ink-900">{item.violationType.title}</span>
+                    <span className="shrink-0 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 ring-1 ring-orange-200">
+                      {t(`violationStatuses.${item.status}`)}
+                    </span>
+                  </span>
+                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500">
+                    <DateText value={item.occurredAt} />
+                    {item.caseFile?.businessUnitTitle ? <span className="truncate">{item.caseFile.businessUnitTitle}</span> : null}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+    </div>,
+    document.body,
+  )
 }
 
 function RemainingDaysBadge({

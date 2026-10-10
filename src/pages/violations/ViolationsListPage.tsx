@@ -1,4 +1,5 @@
-import { CalendarDays, Gavel, Plus, ShieldAlert, Tag } from 'lucide-react'
+import { CalendarDays, ClipboardList, Gavel, Plus, ShieldAlert, Tag } from 'lucide-react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -20,9 +21,44 @@ import { useListParams } from '../../hooks/useListParams'
 import { useListSort } from '../../hooks/useListSort'
 import { api } from '../../lib/api'
 import { localizeDigits } from '../../lib/datetime'
-import { violationCreatePath, violationEditPath, violationPath } from '../../lib/paths/violations'
+import { violationCreatePath, violationEditPath } from '../../lib/paths/violations'
 import type { Paginated, Violation, ViolationStatus, ViolationType } from '../../types/app'
 import { VIOLATION_STATUSES } from './constants'
+import { ProceedingsModal } from './ProceedingsModal'
+
+function TradeInfoCell({
+  unit,
+  license,
+  locale,
+}: {
+  unit?: string | null
+  license?: string | null
+  locale: string
+}) {
+  const title = unit?.trim()
+  const number = license?.trim()
+  if (!title && !number) return '—'
+  return (
+    <div className="flex flex-col items-center gap-1">
+      {title ? <span className="font-medium text-ink-900">{title}</span> : null}
+      {number ? (
+        <span className="inline-flex rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 ring-1 ring-teal-200">
+          {localizeDigits(number, locale)}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+const statusBadgeClass: Record<ViolationStatus, string> = {
+  REGISTERED: 'bg-teal-50 text-teal-800 ring-teal-200',
+  UNDER_REVIEW: 'bg-mint-50 text-teal-900 ring-mint-200',
+  NOTICE: 'bg-amber-50 text-amber-800 ring-amber-200',
+  REFERRED: 'bg-cream-50 text-ink-700 ring-line',
+  VERDICT_ISSUED: 'bg-teal-100 text-teal-900 ring-teal-300',
+  CLOSED: 'bg-mint-100 text-teal-900 ring-mint-300',
+  DISMISSED: 'bg-red-50 text-red-700 ring-red-200',
+}
 
 export function ViolationsListPage() {
   const { t, i18n } = useTranslation()
@@ -59,6 +95,7 @@ export function ViolationsListPage() {
 
   const rows = query.data?.items ?? []
   const filtered = Boolean(status || violationTypeId || from || to)
+  const [proceedings, setProceedings] = useState<Violation | null>(null)
 
   return (
     <div className={listShellClassName}>
@@ -151,11 +188,12 @@ export function ViolationsListPage() {
                 onSort={onSort}
               />
               <SortableTh
-                column="caseTrackingCode"
-                label={t('violations.caseFile')}
+                column="licenseNumber"
+                label={t('violations.tradeInfo')}
                 sortBy={sortBy}
                 sortDir={sortDir}
                 onSort={onSort}
+                align="center"
               />
               <SortableTh
                 column="occurredAt"
@@ -170,6 +208,7 @@ export function ViolationsListPage() {
                 sortBy={sortBy}
                 sortDir={sortDir}
                 onSort={onSort}
+                align="center"
               />
               <ActionsTh />
             </tr>
@@ -184,18 +223,33 @@ export function ViolationsListPage() {
                   ) : null}
                 </td>
                 <td className="px-4 py-3">{item.violationType.title}</td>
-                <td className="px-4 py-3">
-                  {item.caseFile?.caseTrackingCode
-                    ? localizeDigits(item.caseFile.caseTrackingCode, locale)
-                    : '—'}
+                <td className="px-4 py-3 text-center">
+                  <TradeInfoCell
+                    unit={item.caseFile?.businessUnitTitle}
+                    license={item.caseFile?.licenseNumber}
+                    locale={locale}
+                  />
                 </td>
                 <td className="px-4 py-3">
                   <DateText value={item.occurredAt} />
                 </td>
-                <td className="px-4 py-3">{t(`violationStatuses.${item.status as ViolationStatus}`)}</td>
+                <td className="px-4 py-3 text-center">
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${statusBadgeClass[item.status]}`}
+                  >
+                    {t(`violationStatuses.${item.status}`)}
+                  </span>
+                </td>
                 <td className={actionsColClassName}>
                   <EntityRowActions
-                    viewTo={violationPath(item.id)}
+                    viewTo={violationEditPath(item.id)}
+                    showView={false}
+                    extra={
+                      <Button type="button" variant="ghost" onClick={() => setProceedings(item)}>
+                        <ClipboardList className="size-4" aria-hidden />
+                        {t('violations.proceedingsAction')}
+                      </Button>
+                    }
                     editTo={violationEditPath(item.id)}
                     onDelete={() =>
                       confirmDelete({
@@ -218,6 +272,14 @@ export function ViolationsListPage() {
           pageSize={query.data.pageSize}
           total={query.data.total}
           onPageChange={setPage}
+        />
+      ) : null}
+      {proceedings ? (
+        <ProceedingsModal
+          violationId={proceedings.id}
+          personName={proceedings.person?.fullName ?? null}
+          nationalId={proceedings.nationalId}
+          onClose={() => setProceedings(null)}
         />
       ) : null}
     </div>

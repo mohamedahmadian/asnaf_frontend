@@ -1246,6 +1246,7 @@ export type ViolationAttachment = {
   kind: 'IMAGE' | 'FILE';
   originalName: string | null;
   sortOrder: number;
+  mimeType?: string | null;
 };
 
 export type ViolationPerson = {
@@ -1257,10 +1258,32 @@ export type ViolationCaseFile = {
   id: string;
   fullName: string;
   caseTrackingCode: string | null;
+  licenseNumber: string | null;
   businessUnitTitle: string | null;
   jobGroupTitle: string | null;
   jobTitle: string | null;
   formationStep: number;
+  violationCount?: number;
+};
+
+export type ViolationPersonLookup = {
+  nationalId: string;
+  found: boolean;
+  firstName: string | null;
+  lastName: string | null;
+  fullName: string | null;
+  birthPlace: string | null;
+  identityCertificateNo: string | null;
+  photoId: string | null;
+  cases: ViolationCaseFile[];
+};
+
+export type CaseViolationSummary = {
+  id: string;
+  occurredAt: string;
+  description: string | null;
+  status: ViolationStatus;
+  violationType: { id: string; title: string };
 };
 
 export type Violation = {
@@ -1299,6 +1322,7 @@ export type ViolationReport = {
   total: number;
   byStatus: { status: ViolationStatus; count: number }[];
   byType: { id: string; title: string; count: number }[];
+  byPerson: { nationalId: string; fullName: string | null; count: number }[];
   monthly: { month: number; count: number }[];
   yearly: { year: number; count: number }[];
   years: number[];
