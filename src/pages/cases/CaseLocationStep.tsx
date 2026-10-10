@@ -61,7 +61,12 @@ function ChoicePills({
   onChange: (value: string) => void
 }) {
   return (
-    <div id={id} role="radiogroup" className="flex min-h-10 w-full flex-wrap gap-1 rounded-2xl border border-line bg-cream-50 p-1">
+    <div
+      id={id}
+      tabIndex={-1}
+      role="radiogroup"
+      className="flex min-h-10 w-full flex-wrap gap-1 rounded-2xl border border-line bg-cream-50 p-1"
+    >
       {options.map((option) => {
         const active = value === option.value
         return (
@@ -162,6 +167,7 @@ export function CaseLocationStep({
         <FormField icon={MapPin} label={t('cases.premiseAddress')} htmlFor="case-premise-address">
           <textarea
             id="case-premise-address"
+            required
             rows={2}
             className={inputClassName()}
             value={value.address}
@@ -213,6 +219,74 @@ export function CaseLocationStep({
           </FormField>
         </div>
       </LocationSection>
+
+      <LocationSection icon={KeyRound} title={t('cases.locationSections.ownership')} className="grid items-end gap-4 sm:grid-cols-3">
+        <FormField icon={KeyRound} label={t('cases.ownership')} htmlFor="case-ownership">
+          <ChoicePills
+            id="case-ownership"
+            value={value.ownership}
+            onChange={(next) => onChange({ ownership: next })}
+            options={PREMISE_OWNERSHIPS.map((item) => ({
+              value: item,
+              label: t(`cases.ownerships.${item}`),
+            }))}
+          />
+        </FormField>
+        <FormField icon={Ruler} label={t('cases.buildingArea')} htmlFor="case-area">
+          <input
+            id="case-area"
+            required
+            type="number"
+            min={0}
+            className={`${inputClassName()} digit-field`}
+            value={value.area}
+            onChange={(event) => onChange({ area: event.target.value })}
+          />
+        </FormField>
+        <FormField icon={FileText} label={t('cases.deedNo')} htmlFor="case-deed-no">
+          <input
+            id="case-deed-no"
+            className={`${inputClassName()} digit-field`}
+            value={value.deedNo}
+            onChange={(event) => onChange({ deedNo: event.target.value })}
+          />
+        </FormField>
+      </LocationSection>
+
+      {rented ? (
+        <LocationSection icon={FileText} title={t('cases.locationSections.lease')}>
+          <FormField icon={CalendarDays} label={t('cases.leaseIssuedAt')} htmlFor="case-lease-issued">
+            <PersianDateField
+              id="case-lease-issued"
+              value={value.leaseIssuedAt || undefined}
+              onChange={(next) => onChange({ leaseIssuedAt: next ?? '' })}
+            />
+          </FormField>
+          <FormField icon={CalendarDays} label={t('cases.leaseExpiresAt')} htmlFor="case-lease-expires">
+            <PersianDateField
+              id="case-lease-expires"
+              value={value.leaseExpiresAt || undefined}
+              onChange={(next) => onChange({ leaseExpiresAt: next ?? '' })}
+            />
+          </FormField>
+          <FormField icon={Store} label={t('cases.leaseAgency')} htmlFor="case-lease-agency">
+            <input
+              id="case-lease-agency"
+              className={inputClassName()}
+              value={value.leaseAgency}
+              onChange={(event) => onChange({ leaseAgency: event.target.value })}
+            />
+          </FormField>
+          <FormField icon={Users} label={t('cases.ownerName')} htmlFor="case-owner-name">
+            <input
+              id="case-owner-name"
+              className={inputClassName()}
+              value={value.ownerName}
+              onChange={(event) => onChange({ ownerName: event.target.value })}
+            />
+          </FormField>
+        </LocationSection>
+      ) : null}
 
       <LocationSection icon={Phone} title={t('cases.locationSections.contact')} className="grid gap-4 sm:grid-cols-3">
         <FormField icon={Phone} label={t('cases.premisePhone')} htmlFor="case-premise-phone">
@@ -280,77 +354,6 @@ export function CaseLocationStep({
           />
         </FormField>
       </LocationSection>
-
-      <LocationSection icon={KeyRound} title={t('cases.locationSections.ownership')} className="grid items-end gap-4 sm:grid-cols-3">
-        <FormField icon={KeyRound} label={t('cases.ownership')} htmlFor="case-ownership">
-          <SearchSelect
-            id="case-ownership"
-            value={value.ownership}
-            onChange={(next) => onChange({ ownership: next })}
-            placeholder={t('users.selectOptional')}
-            options={[
-              { value: '', label: t('users.selectOptional') },
-              ...PREMISE_OWNERSHIPS.map((item) => ({
-                value: item,
-                label: t(`cases.ownerships.${item}`),
-              })),
-            ]}
-          />
-        </FormField>
-        <FormField icon={Ruler} label={t('cases.buildingArea')} htmlFor="case-area">
-          <input
-            id="case-area"
-            type="number"
-            min={0}
-            className={`${inputClassName()} digit-field`}
-            value={value.area}
-            onChange={(event) => onChange({ area: event.target.value })}
-          />
-        </FormField>
-        <FormField icon={FileText} label={t('cases.deedNo')} htmlFor="case-deed-no">
-          <input
-            id="case-deed-no"
-            className={`${inputClassName()} digit-field`}
-            value={value.deedNo}
-            onChange={(event) => onChange({ deedNo: event.target.value })}
-          />
-        </FormField>
-      </LocationSection>
-
-      {rented ? (
-        <LocationSection icon={FileText} title={t('cases.locationSections.lease')}>
-          <FormField icon={CalendarDays} label={t('cases.leaseIssuedAt')} htmlFor="case-lease-issued">
-            <PersianDateField
-              id="case-lease-issued"
-              value={value.leaseIssuedAt || undefined}
-              onChange={(next) => onChange({ leaseIssuedAt: next ?? '' })}
-            />
-          </FormField>
-          <FormField icon={CalendarDays} label={t('cases.leaseExpiresAt')} htmlFor="case-lease-expires">
-            <PersianDateField
-              id="case-lease-expires"
-              value={value.leaseExpiresAt || undefined}
-              onChange={(next) => onChange({ leaseExpiresAt: next ?? '' })}
-            />
-          </FormField>
-          <FormField icon={Store} label={t('cases.leaseAgency')} htmlFor="case-lease-agency">
-            <input
-              id="case-lease-agency"
-              className={inputClassName()}
-              value={value.leaseAgency}
-              onChange={(event) => onChange({ leaseAgency: event.target.value })}
-            />
-          </FormField>
-          <FormField icon={Users} label={t('cases.ownerName')} htmlFor="case-owner-name">
-            <input
-              id="case-owner-name"
-              className={inputClassName()}
-              value={value.ownerName}
-              onChange={(event) => onChange({ ownerName: event.target.value })}
-            />
-          </FormField>
-        </LocationSection>
-      ) : null}
     </AppForm>
   )
 }

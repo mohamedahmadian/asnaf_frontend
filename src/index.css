@@ -1978,6 +1978,21 @@ th {
   animation: loading-pulse 1.4s ease-in-out infinite;
 }
 
+@keyframes issuing-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.28;
+  }
+}
+
+.animate-issuing-blink {
+  animation: issuing-blink 1.15s ease-in-out infinite;
+}
+
 @keyframes singard-step-in {
   from {
     opacity: 0;
@@ -2103,6 +2118,7 @@ th {
   .admin-footer-open-btn,
   .animate-loading-spin,
   .animate-loading-pulse,
+  .animate-issuing-blink,
   .eskan-project-pin-pulse .eskan-project-pin-pulse-ring,
   .board-stage-pulse-ring,
   .live-board-map-ring,

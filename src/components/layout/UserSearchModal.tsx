@@ -10,6 +10,8 @@ import { useGeoName } from '../../lib/geo'
 import type { ManagedUser, Paginated } from '../../types/app'
 import { AppForm, fieldClassName } from '../ui/Form'
 
+const MIN_SEARCH_LENGTH = 3
+
 export function UserSearchModal({
   open,
   onClose,
@@ -25,18 +27,21 @@ export function UserSearchModal({
   const [highlighted, setHighlighted] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const searchTerm = term.trim()
+  const canSearch = searchTerm.length >= MIN_SEARCH_LENGTH
+
   const query = useQuery({
-    queryKey: ['users', 'quick-search', term],
-    enabled: open && term.trim().length >= 1,
+    queryKey: ['users', 'quick-search', searchTerm],
+    enabled: open && canSearch,
     queryFn: async () => {
       const { data } = await api.get<Paginated<ManagedUser>>('/users', {
-        params: { q: term.trim(), page: 1, pageSize: 12, sortBy: 'fullName', sortDir: 'asc' },
+        params: { q: searchTerm, page: 1, pageSize: 12, sortBy: 'fullName', sortDir: 'asc' },
       })
       return data
     },
   })
 
-  const items = query.data?.items ?? []
+  const items = canSearch ? (query.data?.items ?? []) : []
 
   useEffect(() => {
     if (!open) return
@@ -50,6 +55,18 @@ export function UserSearchModal({
     setHighlighted(0)
   }, [term])
 
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.repeat) return
+      event.preventDefault()
+      event.stopPropagation()
+      onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
   const selected = items[Math.min(highlighted, Math.max(items.length - 1, 0))]
 
   const hint = useMemo(() => t('quickTools.searchInfoHint'), [t])
@@ -58,7 +75,7 @@ export function UserSearchModal({
 
   function openUser(id: string) {
     onClose()
-    navigate(`/users/${id}`)
+    navigate(`/users/${id}/dossier`)
   }
 
   return createPortal(
@@ -108,10 +125,6 @@ export function UserSearchModal({
                 event.preventDefault()
                 setHighlighted((current) => (current - 1 + items.length) % items.length)
               }
-              if (event.key === 'Escape') {
-                event.preventDefault()
-                onClose()
-              }
             }}
             className={fieldClassName}
             placeholder={t('users.searchPlaceholder')}
@@ -149,8 +162,11 @@ export function UserSearchModal({
                 </button>
               </li>
             ))}
-            {term.trim() && !query.isLoading && items.length === 0 ? (
+            {canSearch && query.isFetched && !query.isFetching && items.length === 0 ? (
               <li className="px-3 py-6 text-center text-sm text-ink-400">{t('users.noResults')}</li>
+            ) : null}
+            {searchTerm.length > 0 && !canSearch ? (
+              <li className="px-3 py-6 text-center text-sm text-ink-400">{t('quickTools.searchMinHint')}</li>
             ) : null}
           </ul>
         </AppForm>

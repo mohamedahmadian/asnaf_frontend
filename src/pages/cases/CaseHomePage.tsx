@@ -7,19 +7,20 @@ import {
   Files,
   FolderKanban,
   Gavel,
+  MapPin,
   Plus,
   RefreshCw,
   UserRound,
   type LucideIcon,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button, EntityNameSubtitle, PageHeader, caseShellClassName } from '../../components/ui/Form'
 import { CopyableDigits } from '../../components/ui/CopyableDigits'
-import { FormCard, FormEmptyHint, FormFactTile, formCardBodyClassName, formToneClass } from '../../components/ui/FormLayout'
+import { FormCard, FormEmptyHint, FormFactTile, formCardBodyClassName } from '../../components/ui/FormLayout'
 import {
   ActionsTh,
   EntityRowActions,
@@ -30,6 +31,7 @@ import { DateText } from '../../components/ui/DateText'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { api } from '../../lib/api'
 import { formatNumber, localizeDigits } from '../../lib/datetime'
+import { useGeoName } from '../../lib/geo'
 import { FORMATION_STEPS } from './formation-types'
 
 type CaseRequestRow = {
@@ -50,6 +52,7 @@ type CaseHome = {
   licenseNumber: string | null
   licenseIssuedAt: string | null
   licenseExpiresAt: string | null
+  city: { nameFa: string; nameEn: string } | null
   job: { id: string; title: string; group: { id: string; title: string } | null } | null
   person: {
     id: string
@@ -75,11 +78,19 @@ const LATER_REQUESTS = [
   { type: 'AUCTION', icon: Gavel },
 ] as const
 
+function caseRequestPath(caseId: string, nationalId: string | null) {
+  return `/cases/formation?nationalId=${encodeURIComponent(nationalId ?? '')}&caseId=${encodeURIComponent(caseId)}`
+}
+
 export function CaseHomePage() {
   const { id = '' } = useParams()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { t, i18n } = useTranslation()
+  const geoName = useGeoName()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const [picking, setPicking] = useState(false)
+  const showHome = searchParams.get('stay') === '1'
   const query = useQuery({
     queryKey: ['cases', 'home', id],
     enabled: Boolean(id),
@@ -88,6 +99,14 @@ export function CaseHomePage() {
   const item = query.data
   const openRequest = item?.requests.some((request) => request.status === 'OPEN') ?? false
   const canStart = Boolean(item?.licenseNumber) && !openRequest
+  const continueRequestId =
+    item?.requests.find((request) => request.type === 'ISSUANCE' && request.status === 'OPEN')?.id ?? null
+  const redirecting = Boolean(item && !showHome && continueRequestId)
+
+  useEffect(() => {
+    if (!item || showHome || !continueRequestId) return
+    navigate(caseRequestPath(item.id, item.person.nationalId), { replace: true })
+  }, [item, showHome, continueRequestId, navigate])
 
   return (
     <div className={caseShellClassName}>
@@ -118,8 +137,8 @@ export function CaseHomePage() {
           ) : null
         }
       />
-      {query.isLoading ? <LoadingState /> : null}
-      {item ? (
+      {query.isLoading || redirecting ? <LoadingState /> : null}
+      {item && !redirecting ? (
         <div className="space-y-4">
           <FormCard
             icon={Briefcase}
@@ -136,6 +155,14 @@ export function CaseHomePage() {
                 </>
               ) : undefined
             }
+            action={
+              <RemainingDaysBadge
+                issuedAt={item.licenseIssuedAt}
+                expiresAt={item.licenseExpiresAt}
+                label={t('cases.daysRemaining')}
+                locale={locale}
+              />
+            }
           >
             <div className={formCardBodyClassName}>
               <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
@@ -151,11 +178,11 @@ export function CaseHomePage() {
                   value={item.licenseExpiresAt ? <DateText value={item.licenseExpiresAt} /> : '—'}
                   empty={!item.licenseExpiresAt}
                 />
-                <RemainingDaysTile
-                  issuedAt={item.licenseIssuedAt}
-                  expiresAt={item.licenseExpiresAt}
-                  label={t('cases.daysRemaining')}
-                  locale={locale}
+                <FormFactTile
+                  icon={MapPin}
+                  label={t('geo.city')}
+                  value={item.city ? geoName(item.city) : '—'}
+                  empty={!item.city}
                 />
               </div>
             </div>
@@ -202,7 +229,7 @@ export function CaseHomePage() {
                           : request.type === 'ISSUANCE'
                             ? t(`cases.steps.${stepKey}`)
                             : t('cases.requestStatus.OPEN')
-                        const requestTo = `/cases/formation?nationalId=${encodeURIComponent(item.person.nationalId ?? '')}&caseId=${encodeURIComponent(item.id)}`
+                        const requestTo = caseRequestPath(item.id, item.person.nationalId)
                         const licenseTo = `/cases/${item.id}/license`
                         const TypeIcon = REQUEST_TYPE_ICONS[request.type]
                         const issuedOn =
@@ -232,16 +259,16 @@ export function CaseHomePage() {
                             <td className={actionsColClassName}>
                               {request.type === 'ISSUANCE' ? (
                                 <EntityRowActions
-                                  viewTo={issued ? licenseTo : requestTo}
-                                  viewLabel={issued ? t('cases.viewLicense') : t('cases.continueRequest')}
-                                  viewIcon={issued ? BadgeCheck : Eye}
+                                  viewTo={requestTo}
+                                  viewLabel={issued ? t('cases.viewRequest') : t('cases.continueRequest')}
+                                  viewIcon={Eye}
                                   rowOpensView
                                   extra={
                                     issued ? (
-                                      <Link to={requestTo}>
+                                      <Link to={licenseTo}>
                                         <Button type="button" variant="ghost">
-                                          <Eye className="size-4" aria-hidden />
-                                          {t('cases.viewRequest')}
+                                          <BadgeCheck className="size-4" aria-hidden />
+                                          {t('cases.viewLicense')}
                                         </Button>
                                       </Link>
                                     ) : null
@@ -317,7 +344,7 @@ function licenseSpan(issuedAt: string | null, expiresAt: string | null) {
   return { remaining, ratio }
 }
 
-function RemainingDaysTile({
+function RemainingDaysBadge({
   issuedAt,
   expiresAt,
   label,
@@ -329,23 +356,21 @@ function RemainingDaysTile({
   locale: string
 }) {
   const span = licenseSpan(issuedAt, expiresAt)
-  const size = 72
-  const stroke = 7
+  const size = 52
+  const stroke = 5
   const radius = (size - stroke) / 2
   const circ = 2 * Math.PI * radius
   const ratio = span?.ratio ?? 0
   const dash = circ * ratio
   const daysLabel = span ? formatNumber(span.remaining, locale) : '—'
   return (
-    <article
-      className={`relative z-10 flex min-w-0 items-center gap-3 overflow-hidden rounded-2xl border px-3 py-3 ${formToneClass.mint.wrap}`}
+    <div
+      className="flex items-center gap-2 rounded-2xl bg-white/80 px-2.5 py-1.5 ring-1 ring-mint-100"
+      role="img"
+      aria-label={span ? `${label}: ${daysLabel}` : label}
     >
-      <div
-        className="relative size-[4.5rem] shrink-0"
-        role="img"
-        aria-label={span ? `${label}: ${daysLabel}` : label}
-      >
-        <svg viewBox={`0 0 ${size} ${size}`} className="size-[4.5rem] -rotate-90" aria-hidden>
+      <div className="relative size-[3.25rem] shrink-0">
+        <svg viewBox={`0 0 ${size} ${size}`} className="size-[3.25rem] -rotate-90" aria-hidden>
           <circle cx={size / 2} cy={size / 2} r={radius} fill="none" className="stroke-mint-100" strokeWidth={stroke} />
           {dash > 0 ? (
             <circle
@@ -360,11 +385,11 @@ function RemainingDaysTile({
             />
           ) : null}
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold leading-none text-ink-900" aria-hidden>
+        <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold leading-none text-ink-900" aria-hidden>
           {daysLabel}
         </span>
       </div>
-      <p className="min-w-0 text-[11px] font-medium leading-5 text-ink-500">{label}</p>
-    </article>
+      <p className="max-w-20 text-[11px] font-medium leading-4 text-ink-500">{label}</p>
+    </div>
   )
 }

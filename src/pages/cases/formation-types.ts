@@ -42,7 +42,9 @@ export type PreviousOccupation = (typeof PREVIOUS_OCCUPATIONS)[number]
 export type CaseActivity = {
   businessUnitTitle: string | null
   jobGroupId: string | null
+  jobGroupTitle: string | null
   jobId: string | null
+  jobTitle: string | null
   previousOccupation: PreviousOccupation | null
   posDeviceCount: number | null
 }
@@ -50,7 +52,7 @@ export type CaseActivity = {
 export const PREMISE_ESTABLISHMENTS = ['COMMERCIAL_COMPLEX', 'INDEPENDENT', 'RESIDENTIAL_COMPLEX'] as const
 export const PREMISE_GEO_POSITIONS = ['MAIN_FRONTAGE', 'SIDE_FRONTAGE', 'ALLEY'] as const
 export const PREMISE_PUBLIC_ACCESSES = ['MEN', 'WOMEN', 'PUBLIC', 'SEPARATE'] as const
-export const PREMISE_OWNERSHIPS = ['OWNED', 'RENTED'] as const
+export const PREMISE_OWNERSHIPS = ['RENTED', 'OWNED'] as const
 
 export type PremiseEstablishment = (typeof PREMISE_ESTABLISHMENTS)[number]
 export type PremiseOwnership = (typeof PREMISE_OWNERSHIPS)[number]
@@ -119,10 +121,10 @@ export function emptyLocationForm(): LocationForm {
     postalCode: '',
     phone: '',
     fax: '',
-    geoPosition: '',
-    publicAccess: '',
+    geoPosition: 'MAIN_FRONTAGE',
+    publicAccess: 'PUBLIC',
     registrationPlaceId: '',
-    ownership: '',
+    ownership: 'RENTED',
     deedNo: '',
     area: '',
     leaseIssuedAt: '',
@@ -147,10 +149,10 @@ export function locationFormFrom(location: CaseLocation | null): LocationForm {
     postalCode: location?.postalCode ?? '',
     phone: location?.phone ?? '',
     fax: location?.fax ?? '',
-    geoPosition: location?.geoPosition ?? '',
-    publicAccess: location?.publicAccess ?? '',
+    geoPosition: location?.geoPosition || 'MAIN_FRONTAGE',
+    publicAccess: location?.publicAccess || 'PUBLIC',
     registrationPlaceId: location?.registrationPlaceId ?? '',
-    ownership: location?.ownership ?? '',
+    ownership: location?.ownership || 'RENTED',
     deedNo: location?.deedNo ?? '',
     area: location?.area ?? '',
     leaseIssuedAt: location?.leaseIssuedAt ?? '',

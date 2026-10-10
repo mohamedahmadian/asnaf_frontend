@@ -37,6 +37,7 @@ export function RegistrationPlaceEditPage() {
           title: query.data.title,
           description: query.data.description ?? '',
           isActive: query.data.isActive,
+          isDefault: query.data.isDefault,
         }}
         onSubmit={async (payload) => {
           await api.patch(`/registration-places/${id}`, payload)

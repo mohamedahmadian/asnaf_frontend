@@ -131,6 +131,9 @@ export function getPageMeta(pathname: string): {
   if (pathname === '/users/new') {
     return { titleKey: 'users.create', subtitleKey: 'users.createSubtitle' }
   }
+  if (/^\/users\/[^/]+\/dossier$/.test(pathname)) {
+    return { titleKey: 'users.dossier', subtitleKey: 'users.dossierSubtitle' }
+  }
   if (pathname.endsWith('/edit') && pathname.startsWith('/users/')) {
     return { titleKey: 'users.edit', subtitleKey: 'users.editSubtitle' }
   }

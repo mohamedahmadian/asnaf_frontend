@@ -123,6 +123,7 @@ import { RolesListPage } from './pages/roles/RolesListPage'
 import { UserCreatePage } from './pages/users/UserCreatePage'
 import { UserRegisterPage } from './pages/users/UserRegisterPage'
 import { UserDetailPage } from './pages/users/UserDetailPage'
+import { UserDossierPage } from './pages/users/UserDossierPage'
 import { UserEditPage } from './pages/users/UserEditPage'
 import { UserLocationHistoryPage } from './pages/users/UserLocationHistoryPage'
 import { UserLocationPage } from './pages/users/UserLocationPage'
@@ -171,6 +172,7 @@ export default function App() {
                   <Route path="/users" element={<UsersListPage />} />
                   <Route path="/users/new" element={<UserCreatePage />} />
                   <Route path="/users/register" element={<UserRegisterPage />} />
+                  <Route path="/users/:id/dossier" element={<UserDossierPage />} />
                   <Route path="/users/:id" element={<UserDetailPage />} />
                   <Route path="/users/:id/edit" element={<UserEditPage />} />
                   <Route path="/users/:id/location" element={<UserLocationPage />} />

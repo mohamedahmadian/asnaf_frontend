@@ -1,9 +1,10 @@
-import { IdCard, Landmark, Settings, ShieldCheck } from 'lucide-react'
+import { IdCard, Landmark, Settings, ShieldCheck, SlidersHorizontal } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageHeader, caseShellClassName } from '../../components/ui/Form'
 import { FormCard } from '../../components/ui/FormLayout'
 import { FormTabs } from '../../components/ui/FormTabs'
+import { CaseGeneralSettingsPanel } from './CaseGeneralSettingsPanel'
 import { CaseIdentityDocumentsPanel } from './CaseIdentityDocumentsPanel'
 import { CasePlacesOfficePanel } from './CasePlacesOfficePanel'
 import { CaseManagementApproversPanel } from './CaseManagementApproversPanel'
@@ -39,6 +40,11 @@ export function CaseSettingsPage() {
               label: t('cases.settingsManagementTab'),
               icon: ShieldCheck,
             },
+            {
+              id: 'general',
+              label: t('cases.settingsGeneralTab'),
+              icon: SlidersHorizontal,
+            },
           ]}
         />
         <div
@@ -47,6 +53,7 @@ export function CaseSettingsPage() {
           aria-labelledby={`form-tab-${tab}`}
           className="space-y-4 p-5 sm:p-6"
         >
+          {tab === 'general' ? <CaseGeneralSettingsPanel /> : null}
           {tab === 'identity' ? <CaseIdentityDocumentsPanel /> : null}
           {tab === 'places' ? <CasePlacesOfficePanel /> : null}
           {tab === 'management' ? <CaseManagementApproversPanel /> : null}

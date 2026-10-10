@@ -55,6 +55,7 @@ export function FormCard({
   headerClassName,
   editTo,
   onDoubleClick,
+  onClick,
 }: {
   icon: LucideIcon
   title: ReactNode
@@ -68,17 +69,35 @@ export function FormCard({
   /** دابل‌کلیک کارت جزئیات → ویرایش؛ اگر نیاید از `DetailActions` خوانده می‌شود */
   editTo?: string
   onDoubleClick?: () => void
+  /** کلیک روی بدنهٔ کارت؛ دکمه، لینک و کپی از آن جدا هستند */
+  onClick?: () => void
 }) {
   const navigate = useNavigate()
   return (
     <section
-      className={`${cardClassName} overflow-hidden ${className}`}
+      className={`${cardClassName} overflow-hidden ${
+        onClick
+          ? 'cursor-pointer transition hover:ring-2 hover:ring-teal-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300'
+          : ''
+      } ${className}`}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={(event) => {
+        if (!onClick || isFormCardInteractiveTarget(event.target)) return
+        onClick()
+      }}
+      onKeyDown={(event) => {
+        if (!onClick || event.target !== event.currentTarget) return
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        onClick()
+      }}
       onDoubleClick={(event) => {
         if (isFormCardInteractiveTarget(event.target)) return
         if (onDoubleClick) {
           onDoubleClick()
           return
         }
+        if (onClick) return
         const to = editTo ?? peekDetailEditTo()
         if (to) navigate(to)
       }}
@@ -192,7 +211,7 @@ export function FormMetaChip({
 export function FormSectionTitle({
   icon: Icon,
   children,
-  className = 'mb-2.5',
+  className = 'mb-4',
 }: {
   icon: LucideIcon
   children: ReactNode
@@ -200,12 +219,12 @@ export function FormSectionTitle({
 }) {
   return (
     <h3
-      className={`inline-flex items-center gap-2 text-xs font-semibold text-ink-600 ${className}`}
+      className={`flex w-full items-center gap-3 border-b-2 border-teal-200 pb-3 text-base font-bold leading-6 text-ink-900 ${className}`}
     >
-      <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
-        <Icon className="size-3.5" aria-hidden />
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-teal-500 text-white shadow-[0_6px_14px_rgba(46,189,182,0.32)]">
+        <Icon className="size-5" aria-hidden />
       </span>
-      {children}
+      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">{children}</span>
     </h3>
   )
 }
@@ -240,6 +259,7 @@ export function FormFactTile({
       className={`relative z-10 flex min-w-0 items-start overflow-hidden rounded-2xl border ${colors.wrap} ${
         compact ? 'gap-2 px-2.5 py-1.5' : 'gap-3 px-3 py-3'
       } ${canCopy ? 'cursor-pointer' : ''} ${className}`}
+      data-enter-ignore={canCopy ? '' : undefined}
       onClick={canCopy ? () => copyDigits(copyValue) : undefined}
     >
       <span

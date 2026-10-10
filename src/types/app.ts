@@ -1218,6 +1218,7 @@ export type RegistrationPlace = {
   title: string;
   description: string | null;
   isActive: boolean;
+  isDefault: boolean;
   createdAt: string;
   updatedAt: string;
 };

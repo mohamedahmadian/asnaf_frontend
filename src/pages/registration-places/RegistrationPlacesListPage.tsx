@@ -17,7 +17,7 @@ import { useListParams } from '../../hooks/useListParams'
 import { useListSort } from '../../hooks/useListSort'
 import { api } from '../../lib/api'
 import type { Paginated, RegistrationPlace } from '../../types/app'
-import { GeoStatus } from '../geo/GeoShared'
+import { GeoStatus, GeoYesNo } from '../geo/GeoShared'
 
 export function RegistrationPlacesListPage() {
   const { t } = useTranslation()
@@ -81,6 +81,13 @@ export function RegistrationPlacesListPage() {
                 onSort={onSort}
               />
               <SortableTh
+                column="isDefault"
+                label={t('registrationPlaces.isDefault')}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={onSort}
+              />
+              <SortableTh
                 column="isActive"
                 label={t('registrationPlaces.isActive')}
                 sortBy={sortBy}
@@ -95,6 +102,9 @@ export function RegistrationPlacesListPage() {
               <tr key={item.id} className="border-t border-line">
                 <td className="px-4 py-3">{item.title}</td>
                 <td className="px-4 py-3">{item.description || '—'}</td>
+                <td className="px-4 py-3">
+                  <GeoYesNo value={item.isDefault} />
+                </td>
                 <td className="px-4 py-3">
                   <GeoStatus active={item.isActive} />
                 </td>

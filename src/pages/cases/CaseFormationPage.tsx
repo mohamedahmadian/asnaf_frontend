@@ -6,7 +6,6 @@ import {
   FilePlus,
   Files,
   Fingerprint,
-  FolderKanban,
   Hash,
   IdCard,
   Info,
@@ -30,7 +29,7 @@ import {
 } from '../../components/ui/Form'
 import { CopyableDigits } from '../../components/ui/CopyableDigits'
 import { FormCard, FormEmptyHint, FormSectionTitle, formCardBodyClassName } from '../../components/ui/FormLayout'
-import { formatNumber, localizeDigits } from '../../lib/datetime'
+import { formatNumber } from '../../lib/datetime'
 import { useDoubleSaveShortcut } from '../../hooks/useEscapeLeave'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { CASE_DETAILS_VIEW } from '../../lib/nav-path'
@@ -64,6 +63,13 @@ import {
   type IdentityPerson,
   type StoredVersion,
 } from './formation-types'
+
+function focusRequiredField(id: string) {
+  const el = document.getElementById(id)
+  if (!(el instanceof HTMLElement)) return
+  el.focus({ preventScroll: true, focusVisible: true })
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+}
 
 type FormationCase = {
   id: string
@@ -99,6 +105,7 @@ export function CaseFormationPage() {
     file: FormationCase
   } | null>(null)
   const [tab, setTab] = useState<'identity' | 'documents'>('identity')
+  const pendingFocusId = useRef<string | null>(null)
   const [step, setStep] = useState(0)
   const [reached, setReached] = useState(0)
   const [unitTitle, setUnitTitle] = useState('')
@@ -107,6 +114,8 @@ export function CaseFormationPage() {
   const [previousOccupation, setPreviousOccupation] = useState('')
   const [posCount, setPosCount] = useState('')
   const [location, setLocation] = useState<LocationForm>(emptyLocationForm)
+  const [locationEpoch, setLocationEpoch] = useState(0)
+  const registrationPlaceTouched = useRef(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
   const locale = i18n.language.split('-')[0] ?? 'fa'
@@ -164,6 +173,17 @@ export function CaseFormationPage() {
         })
       ).data,
   })
+  const storedActivityDocuments = useQuery({
+    queryKey: ['cases', 'activity-documents', caseId],
+    enabled: Boolean(caseId),
+    queryFn: async () =>
+      (
+        await api.get<{ documentId: string; current: StoredVersion | null }[]>(
+          '/cases/formation/activity-documents',
+          { params: { caseId } },
+        )
+      ).data,
+  })
   const caseInquiries = useQuery({
     queryKey: ['cases', 'formation-inquiries', caseId],
     enabled: Boolean(caseId) && (step >= FORMATION_STEPS.indexOf('inquiries') || reached >= FORMATION_STEPS.indexOf('inquiries')),
@@ -194,6 +214,21 @@ export function CaseFormationPage() {
     if (!qeshm) return
     setLocation((current) => (current.cityId ? current : { ...current, cityId: qeshm.id }))
   }, [cities.data, location.cityId])
+
+  function assignLocation(next: LocationForm) {
+    registrationPlaceTouched.current = false
+    setLocation(next)
+    setLocationEpoch((value) => value + 1)
+  }
+
+  useEffect(() => {
+    if (registrationPlaceTouched.current) return
+    const place = (registrationPlaces.data ?? []).find((item) => item.isDefault && item.isActive)
+    if (!place) return
+    setLocation((current) =>
+      current.registrationPlaceId ? current : { ...current, registrationPlaceId: place.id },
+    )
+  }, [registrationPlaces.data, locationEpoch])
 
   function applyActivity(activity: CaseActivity | null) {
     setUnitTitle(activity?.businessUnitTitle ?? '')
@@ -229,21 +264,35 @@ export function CaseFormationPage() {
   }, [documentTypes.isLoading, person?.id, storedDocuments.data, storedDocuments.isLoading, visibleDocuments])
 
   const activityDocsMissing = useMemo(() => {
-    if (!activityJobId || documentCatalog.isLoading || storedDocuments.isLoading) return false
+    if (!activityJobId || !caseId || documentCatalog.isLoading || storedActivityDocuments.isLoading) return false
     const uploaded = new Set(
-      (storedDocuments.data ?? []).filter((row) => row.current).map((row) => row.documentId),
+      (storedActivityDocuments.data ?? []).filter((row) => row.current).map((row) => row.documentId),
     )
     return activityDocuments.some((item) => item.isRequired && !uploaded.has(item.id))
-  }, [activityDocuments, activityJobId, documentCatalog.isLoading, storedDocuments.data, storedDocuments.isLoading])
+  }, [
+    activityDocuments,
+    activityJobId,
+    caseId,
+    documentCatalog.isLoading,
+    storedActivityDocuments.data,
+    storedActivityDocuments.isLoading,
+  ])
 
   const activityDocumentsReady = useMemo(() => {
-    if (!activityJobId) return false
-    if (documentCatalog.isLoading || storedDocuments.isLoading) return null
+    if (!activityJobId || !caseId) return false
+    if (documentCatalog.isLoading || storedActivityDocuments.isLoading) return null
     const uploaded = new Set(
-      (storedDocuments.data ?? []).filter((row) => row.current).map((row) => row.documentId),
+      (storedActivityDocuments.data ?? []).filter((row) => row.current).map((row) => row.documentId),
     )
     return activityDocuments.every((item) => !item.isRequired || uploaded.has(item.id))
-  }, [activityDocuments, activityJobId, documentCatalog.isLoading, storedDocuments.data, storedDocuments.isLoading])
+  }, [
+    activityDocuments,
+    activityJobId,
+    caseId,
+    documentCatalog.isLoading,
+    storedActivityDocuments.data,
+    storedActivityDocuments.isLoading,
+  ])
 
   function applyCase(nextPerson: IdentityPerson, file: FormationCase, notify: boolean) {
     const filled = fillPerson({
@@ -257,7 +306,7 @@ export function CaseFormationPage() {
     setCaseId(file.id)
     setStartNew(false)
     applyActivity(file.activity)
-    setLocation(locationFormFrom(file.location))
+    assignLocation(locationFormFrom(file.location))
     setLookup('found')
     setReached(resume)
     setStep(resume)
@@ -276,7 +325,7 @@ export function CaseFormationPage() {
     setCaseId(null)
     setStartNew(true)
     applyActivity(null)
-    setLocation(emptyLocationForm())
+    assignLocation(emptyLocationForm())
     setLookup('found')
     setReached(0)
     setStep(0)
@@ -317,7 +366,7 @@ export function CaseFormationPage() {
         setCaseId(null)
         setStartNew(true)
         applyActivity(null)
-        setLocation(emptyLocationForm())
+        assignLocation(emptyLocationForm())
         setLookup('missing')
         setReached(0)
         setStep(0)
@@ -336,6 +385,25 @@ export function CaseFormationPage() {
     if (!isValidIranianNationalId(requestedNationalId)) return
     void lookupRef.current(requestedNationalId, false, requestedCaseId || undefined)
   }, [requestedCaseId, requestedNationalId])
+
+  useEffect(() => {
+    const id = pendingFocusId.current
+    if (!id) return
+    pendingFocusId.current = null
+    const frame = requestAnimationFrame(() => focusRequiredField(id))
+    return () => cancelAnimationFrame(frame)
+  }, [tab])
+
+  function rejectRequired(id: string, message: string) {
+    toast.error(message)
+    const onHiddenIdentity = tab !== 'identity' && (id === 'case-first-name' || id === 'case-last-name')
+    if (onHiddenIdentity) {
+      pendingFocusId.current = id
+      setTab('identity')
+      return
+    }
+    focusRequiredField(id)
+  }
 
   const save = useMutation({
     mutationFn: async () => {
@@ -419,13 +487,26 @@ export function CaseFormationPage() {
     }
   }, [activityDocumentsReady, inquiriesReady, step, t])
 
+  function submitIdentity() {
+    if (!person) return
+    if (!person.firstName.trim()) {
+      rejectRequired('case-first-name', t('cases.firstNameRequired'))
+      return
+    }
+    if (!person.lastName.trim()) {
+      rejectRequired('case-last-name', t('cases.lastNameRequired'))
+      return
+    }
+    save.mutate()
+  }
+
   async function completeActivity() {
     if (!unitTitle.trim()) {
-      toast.error(t('cases.unitTitleRequired'))
+      rejectRequired('case-unit-title', t('cases.unitTitleRequired'))
       return
     }
     if (!activityJobId) {
-      toast.error(t('cases.activityJobRequired'))
+      rejectRequired('case-activity-job', t('cases.activityJobRequired'))
       return
     }
     if (!caseId) {
@@ -454,20 +535,28 @@ export function CaseFormationPage() {
 
   async function completeLocation() {
     if (!location.cityId) {
-      toast.error(t('cases.locationCityRequired'))
+      rejectRequired('case-premise-city', t('cases.locationCityRequired'))
       return
     }
     if (!location.establishment) {
-      toast.error(t('cases.locationEstablishmentRequired'))
+      rejectRequired('case-establishment', t('cases.locationEstablishmentRequired'))
       return
     }
     const commercialComplex = location.establishment === 'COMMERCIAL_COMPLEX'
     if (commercialComplex && !location.complexId) {
-      toast.error(t('cases.locationComplexRequired'))
+      rejectRequired('case-complex', t('cases.locationComplexRequired'))
+      return
+    }
+    if (!location.address.trim()) {
+      rejectRequired('case-premise-address', t('cases.locationAddressRequired'))
+      return
+    }
+    if (location.area.trim() === '' || Number.isNaN(Number(location.area))) {
+      rejectRequired('case-area', t('cases.locationAreaRequired'))
       return
     }
     if (!location.ownership) {
-      toast.error(t('cases.locationOwnershipRequired'))
+      rejectRequired('case-ownership', t('cases.locationOwnershipRequired'))
       return
     }
     if (!caseId) {
@@ -517,14 +606,14 @@ export function CaseFormationPage() {
   useDoubleSaveShortcut(
     (step === 0 && Boolean(person) && !save.isPending) || step === 1 || step === 2,
     () => {
-      if (step === 0) save.mutate()
+      if (step === 0) submitIdentity()
       else if (step === 1) void completeActivity()
       else void completeLocation()
     },
   )
 
-  async function upload(documentId: string, file: File, jobId?: string) {
-    if (!person?.id) {
+  async function upload(documentId: string, file: File, activity?: { caseId: string; jobId: string }) {
+    if (!person?.id || (activity && !activity.caseId)) {
       toast.message(t('cases.saveBeforeDocuments'))
       return
     }
@@ -534,11 +623,18 @@ export function CaseFormationPage() {
       const body = new FormData()
       body.append('userId', person.id)
       body.append('documentId', documentId)
-      if (jobId) body.append('jobId', jobId)
+      if (activity) {
+        body.append('caseId', activity.caseId)
+        body.append('jobId', activity.jobId)
+      }
       body.append('file', prepared)
       await api.post('/cases/formation/documents', body)
       toast.success(t('cases.documentUploaded'))
-      await queryClient.invalidateQueries({ queryKey: ['cases', 'documents', person.id] })
+      await queryClient.invalidateQueries({
+        queryKey: activity
+          ? ['cases', 'activity-documents', activity.caseId]
+          : ['cases', 'documents', person.id],
+      })
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('cases.saveFailed')))
     } finally {
@@ -546,13 +642,19 @@ export function CaseFormationPage() {
     }
   }
 
-  async function removeDocument(documentId: string) {
+  async function removeDocument(documentId: string, activityCaseId?: string) {
     if (!person?.id) return
     setRemovingId(documentId)
     try {
-      await api.delete(`/cases/formation/documents/${documentId}`, { params: { userId: person.id } })
+      await api.delete(`/cases/formation/documents/${documentId}`, {
+        params: activityCaseId ? { userId: person.id, caseId: activityCaseId } : { userId: person.id },
+      })
       toast.success(t('cases.documentRemoved'))
-      await queryClient.invalidateQueries({ queryKey: ['cases', 'documents', person.id] })
+      await queryClient.invalidateQueries({
+        queryKey: activityCaseId
+          ? ['cases', 'activity-documents', activityCaseId]
+          : ['cases', 'documents', person.id],
+      })
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('cases.saveFailed')))
     } finally {
@@ -563,8 +665,6 @@ export function CaseFormationPage() {
   const pastIdentity = reached >= 1 && person != null
   const fullName = person ? `${person.firstName} ${person.lastName}`.replace(/\s+/g, ' ').trim() : ''
   const activityJobTitle = (jobs.data ?? []).find((item) => item.id === activityJobId)?.title ?? ''
-  const activityGroupTitle =
-    (jobGroups.data ?? []).find((item) => item.id === activityGroupId)?.title ?? ''
   const stepTotal = FORMATION_STEPS.length
   const stepCurrent = Math.min(reached + 1, stepTotal)
 
@@ -573,7 +673,7 @@ export function CaseFormationPage() {
       <PageHeader
         icon={detailsView ? Files : FilePlus}
         title={detailsView ? t('cases.details') : t('menus.caseFormation')}
-        backTo={requestedCaseId ? `/cases/${requestedCaseId}` : undefined}
+        backTo={requestedCaseId ? `/cases/${requestedCaseId}?stay=1` : undefined}
         titleExtra={
           <FormationStepRing
             currentLabel={formatNumber(stepCurrent, locale)}
@@ -603,12 +703,6 @@ export function CaseFormationPage() {
                 <HeaderBadge icon={Fingerprint}>
                   <span className="text-ink-500">{t('users.nationalId')}</span>
                   <CopyableDigits value={person.nationalId} />
-                </HeaderBadge>
-              ) : null}
-              {activityGroupTitle ? (
-                <HeaderBadge icon={FolderKanban}>
-                  <span className="text-ink-500">{t('cases.activityGroup')}</span>
-                  <span>{activityGroupTitle}</span>
                 </HeaderBadge>
               ) : null}
               {activityJobTitle ? (
@@ -689,7 +783,7 @@ export function CaseFormationPage() {
         title={t('cases.steps.identity')}
         action={
           person ? (
-            <Button type="button" disabled={save.isPending} onClick={() => save.mutate()}>
+            <Button type="button" disabled={save.isPending} onClick={submitIdentity}>
               <Check className="size-4" aria-hidden />
               {t('cases.saveIdentity')}
             </Button>
@@ -760,7 +854,7 @@ export function CaseFormationPage() {
                     onChange={(key, value) =>
                       setPerson((current) => (current ? { ...current, [key]: value } : current))
                     }
-                    onSubmit={() => save.mutate()}
+                    onSubmit={submitIdentity}
                   />
                 ) : documentTypes.isLoading ? null : visibleDocuments.length === 0 ? (
                   <FormEmptyHint>{t('cases.identityDocumentsEmpty')}</FormEmptyHint>
@@ -844,13 +938,19 @@ export function CaseFormationPage() {
                 ) : (
                   <CaseDocumentList
                     items={activityDocuments}
-                    stored={storedDocuments.data ?? []}
+                    stored={storedActivityDocuments.data ?? []}
                     uploadingId={uploadingId}
                     removingId={removingId}
-                    disabled={!person?.id}
+                    disabled={!caseId}
                     framed
-                    onFile={(documentId, file) => void upload(documentId, file, activityJobId)}
-                    onDelete={(documentId) => void removeDocument(documentId)}
+                    onFile={(documentId, file) => {
+                      if (!caseId) return
+                      void upload(documentId, file, { caseId, jobId: activityJobId })
+                    }}
+                    onDelete={(documentId) => {
+                      if (!caseId) return
+                      void removeDocument(documentId, caseId)
+                    }}
                   />
                 )}
               </section>
@@ -880,7 +980,10 @@ export function CaseFormationPage() {
                 (item) => item.isActive || item.id === location.registrationPlaceId,
               )}
               locale={locale}
-              onChange={(patch) => setLocation((current) => ({ ...current, ...patch }))}
+              onChange={(patch) => {
+                if ('registrationPlaceId' in patch) registrationPlaceTouched.current = true
+                setLocation((current) => ({ ...current, ...patch }))
+              }}
               onSubmit={() => void completeLocation()}
             />
           </div>
@@ -937,7 +1040,9 @@ export function CaseFormationPage() {
 
       {openCasePrompt ? (
         <OpenCaseModal
-          trackingCode={openCasePrompt.file.trackingCode}
+          jobGroupTitle={openCasePrompt.file.activity?.jobGroupTitle ?? null}
+          jobTitle={openCasePrompt.file.activity?.jobTitle ?? null}
+          unitTitle={openCasePrompt.file.activity?.businessUnitTitle ?? null}
           locale={locale}
           onResume={() => applyCase(openCasePrompt.person, openCasePrompt.file, true)}
           onNew={() => applyFresh(openCasePrompt.person, false)}
@@ -949,14 +1054,27 @@ export function CaseFormationPage() {
   )
 }
 
+function OpenCaseFact({ label, value }: { label: string; value: string | null }) {
+  return (
+    <p className="min-w-0 text-sm leading-6 text-ink-800">
+      <span className="text-ink-500">{label} : </span>
+      <span>{value?.trim() || '—'}</span>
+    </p>
+  )
+}
+
 function OpenCaseModal({
-  trackingCode,
+  jobGroupTitle,
+  jobTitle,
+  unitTitle,
   locale,
   onResume,
   onNew,
   onClose,
 }: {
-  trackingCode: string | null
+  jobGroupTitle: string | null
+  jobTitle: string | null
+  unitTitle: string | null
   locale: string
   onResume: () => void
   onNew: () => void
@@ -978,28 +1096,48 @@ function OpenCaseModal({
     }
   }, [onClose])
 
-  const resumeLabel = trackingCode
-    ? t('cases.resumePrevious', { code: localizeDigits(trackingCode, locale) })
-    : t('cases.resumePreviousNoCode')
-
   return createPortal(
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-ink-900/30 p-4" role="dialog" aria-modal="true" aria-labelledby="open-case-title">
-      <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-[0_16px_40px_rgba(20,40,40,0.16)]">
+      <div className="max-h-[min(42rem,calc(100dvh-2rem))] w-full max-w-xl overflow-y-auto rounded-3xl bg-white p-6 shadow-[0_16px_40px_rgba(20,40,40,0.16)]">
         <h2 id="open-case-title" className="text-lg font-semibold text-ink-900">
           {t('cases.openCaseTitle')}
         </h2>
-        <p className="mt-2 text-sm leading-6 text-ink-600">{t('cases.openCaseHint')}</p>
-        <div className="mt-5 flex flex-col gap-2">
-          <Button type="button" onClick={onResume}>
-            <Hash className="size-4" aria-hidden />
-            {resumeLabel}
+        <p className="mt-2 text-sm leading-7 text-ink-600">{t('cases.openCaseHint')}</p>
+        <p className="mt-4 text-sm font-medium text-ink-800">{t('cases.openCaseChoose')}</p>
+        <div className="mt-3 space-y-3">
+          <section className="rounded-2xl border border-teal-200 bg-cream-50 p-4">
+            <h3 className="text-sm font-semibold text-ink-900">
+              <span className="text-teal-700">{formatNumber(1, locale)}. </span>
+              {t('cases.resumePreviousTitle')}
+            </h3>
+            <div className="mt-3 grid gap-1 sm:grid-cols-2">
+              <OpenCaseFact label={t('cases.activityGroup')} value={jobGroupTitle} />
+              <OpenCaseFact label={t('cases.activityJob')} value={jobTitle} />
+              <div className="sm:col-span-2">
+                <OpenCaseFact label={t('cases.openCaseUnitLabel')} value={unitTitle} />
+              </div>
+            </div>
+            <Button type="button" className="mt-4 w-full" onClick={onResume}>
+              <Check className="size-4" aria-hidden />
+              {t('cases.resumePreviousAction')}
+            </Button>
+          </section>
+          <Button type="button" variant="soft" className="h-auto w-full whitespace-normal py-3" onClick={onNew}>
+            <span className="flex w-full flex-col items-start gap-1 text-start">
+              <span className="inline-flex items-center gap-2 font-semibold">
+                <FilePlus className="size-4 shrink-0" aria-hidden />
+                {formatNumber(2, locale)}. {t('cases.startNewCase')}
+              </span>
+              <span className="text-xs font-normal leading-6 text-white/90">{t('cases.startNewCaseHint')}</span>
+            </span>
           </Button>
-          <Button type="button" variant="soft" onClick={onNew}>
-            <FilePlus className="size-4" aria-hidden />
-            {t('cases.startNewCase')}
-          </Button>
-          <Button type="button" variant="ghost" onClick={onClose}>
-            {t('common.cancel')}
+          <Button type="button" variant="ghost" className="h-auto w-full whitespace-normal py-3" onClick={onClose}>
+            <span className="flex w-full flex-col items-start gap-1 text-start">
+              <span className="font-semibold">
+                {formatNumber(3, locale)}. {t('common.cancel')}
+              </span>
+              <span className="text-xs font-normal leading-6 text-ink-600">{t('cases.openCaseCancelHint')}</span>
+            </span>
           </Button>
         </div>
       </div>

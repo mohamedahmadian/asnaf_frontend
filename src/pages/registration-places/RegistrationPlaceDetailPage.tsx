@@ -1,4 +1,4 @@
-import { FileText, MapPinned, ToggleRight, Type } from 'lucide-react'
+import { FileText, MapPinned, Star, ToggleRight, Type } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -13,7 +13,7 @@ import { FormCard, FormFactTile, FormSectionTitle } from '../../components/ui/Fo
 import { useConfirmDelete } from '../../hooks/useConfirmDelete'
 import { api } from '../../lib/api'
 import type { RegistrationPlace } from '../../types/app'
-import { GeoStatus } from '../geo/GeoShared'
+import { GeoStatus, GeoYesNo } from '../geo/GeoShared'
 
 export function RegistrationPlaceDetailPage() {
   const { t } = useTranslation()
@@ -46,6 +46,12 @@ export function RegistrationPlaceDetailPage() {
           <FormSectionTitle icon={MapPinned}>{t('registrationPlaces.details')}</FormSectionTitle>
           <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
             <FormFactTile icon={Type} label={t('registrationPlaces.title')} value={item.title} tone="teal" />
+            <FormFactTile
+              icon={Star}
+              label={t('registrationPlaces.isDefault')}
+              value={<GeoYesNo value={item.isDefault} />}
+              tone="teal"
+            />
             <FormFactTile
               icon={ToggleRight}
               label={t('registrationPlaces.isActive')}
