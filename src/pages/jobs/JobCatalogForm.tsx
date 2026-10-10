@@ -11,6 +11,7 @@ import { SearchSelect } from '../../components/ui/SearchSelect'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { parseGroupedAmount, toLatinDigits } from '../../lib/datetime'
 import type { InquiryCenter, JobDocumentRef, JobGroup, JobInquiryCenterRef, JobType, Paginated } from '../../types/app'
+import { JobProcessRequirements } from '../cases/CaseRequirementsPanel'
 import { InquiryCenterPicker } from './InquiryCenterPanels'
 import { JobDocumentsPanel } from './JobDocumentPanels'
 
@@ -291,11 +292,14 @@ export function JobCatalogForm({
         ) : (
           <div role="tabpanel" id="form-panel-documents" aria-labelledby="form-tab-documents">
             {jobId ? (
-              <JobDocumentsPanel
-                jobId={jobId}
-                documents={initial?.documents ?? []}
-                queryKey={['jobs-catalog', jobId]}
-              />
+              <div className="space-y-10">
+                <JobDocumentsPanel
+                  jobId={jobId}
+                  documents={initial?.documents ?? []}
+                  queryKey={['jobs-catalog', jobId]}
+                />
+                <JobProcessRequirements jobId={jobId} />
+              </div>
             ) : null}
           </div>
         )}

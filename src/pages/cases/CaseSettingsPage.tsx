@@ -1,4 +1,4 @@
-import { IdCard, Landmark, Settings, ShieldCheck, SlidersHorizontal } from 'lucide-react'
+import { BadgeCheck, IdCard, Landmark, MapPinned, RefreshCw, Settings, ShieldCheck, SlidersHorizontal } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageHeader, caseShellClassName } from '../../components/ui/Form'
@@ -8,6 +8,7 @@ import { CaseGeneralSettingsPanel } from './CaseGeneralSettingsPanel'
 import { CaseIdentityDocumentsPanel } from './CaseIdentityDocumentsPanel'
 import { CasePlacesOfficePanel } from './CasePlacesOfficePanel'
 import { CaseManagementApproversPanel } from './CaseManagementApproversPanel'
+import { CaseRequirementsPanel } from './CaseRequirementsPanel'
 
 export function CaseSettingsPage() {
   const { t } = useTranslation()
@@ -45,6 +46,21 @@ export function CaseSettingsPage() {
               label: t('cases.settingsGeneralTab'),
               icon: SlidersHorizontal,
             },
+            {
+              id: 'issuance',
+              label: t('cases.settingsIssuanceTab'),
+              icon: BadgeCheck,
+            },
+            {
+              id: 'renewal',
+              label: t('cases.settingsRenewalTab'),
+              icon: RefreshCw,
+            },
+            {
+              id: 'location',
+              label: t('cases.settingsLocationTab'),
+              icon: MapPinned,
+            },
           ]}
         />
         <div
@@ -57,6 +73,9 @@ export function CaseSettingsPage() {
           {tab === 'identity' ? <CaseIdentityDocumentsPanel /> : null}
           {tab === 'places' ? <CasePlacesOfficePanel /> : null}
           {tab === 'management' ? <CaseManagementApproversPanel /> : null}
+          {tab === 'issuance' ? <CaseRequirementsPanel requestType="ISSUANCE" /> : null}
+          {tab === 'renewal' ? <CaseRequirementsPanel requestType="RENEWAL" /> : null}
+          {tab === 'location' ? <CaseRequirementsPanel requestType="LOCATION_CHANGE" /> : null}
         </div>
       </FormCard>
     </div>

@@ -35,7 +35,7 @@ import { api, getApiErrorMessage } from '../../lib/api'
 import { CASE_DETAILS_VIEW } from '../../lib/nav-path'
 import { isValidIranianNationalId, normalizeNationalId } from '../../lib/national-id'
 import { optimizeImageFile } from '../../lib/optimize-image'
-import type { City, CommercialComplex, Country, DocumentItem, Job, JobGroup, Paginated, RegistrationPlace } from '../../types/app'
+import type { City, CommercialComplex, Country, Job, JobGroup, RegistrationPlace } from '../../types/app'
 import { ActivityLicensePanel } from './ActivityLicensePanel'
 import { CaseActivityStep } from './CaseActivityStep'
 import { CaseInquiriesStep } from './CaseInquiriesStep'
@@ -50,7 +50,6 @@ import {
   ISSUANCE_FORMATION_STEP,
   MANAGEMENT_FORMATION_STEP,
   PLACES_FORMATION_STEP,
-  activityDocumentRows,
   emptyLocationForm,
   emptyPerson,
   fillPerson,
@@ -155,14 +154,6 @@ export function CaseFormationPage() {
     queryKey: ['cases', 'document-types'],
     queryFn: async () => (await api.get<DocumentTypeRow[]>('/cases/formation/document-types')).data,
   })
-  const documentCatalog = useQuery({
-    queryKey: ['documents', 'lookup'],
-    enabled: Boolean(activityJobId),
-    queryFn: async () => {
-      const { data } = await api.get<DocumentItem[] | Paginated<DocumentItem>>('/documents')
-      return Array.isArray(data) ? data : data.items
-    },
-  })
   const storedDocuments = useQuery({
     queryKey: ['cases', 'documents', person?.id],
     enabled: Boolean(person?.id),
@@ -242,10 +233,17 @@ export function CaseFormationPage() {
     return (documentTypes.data ?? []).filter((item) => matchesDocumentGender(item.gender, person?.gender))
   }, [documentTypes.data, person?.gender])
 
-  const activityDocuments = useMemo(() => {
-    const job = (jobs.data ?? []).find((item) => item.id === activityJobId)
-    return activityDocumentRows(job?.documents ?? [], documentCatalog.data ?? [], person?.gender)
-  }, [activityJobId, documentCatalog.data, jobs.data, person?.gender])
+  const activityRequirements = useQuery({
+    queryKey: ['cases', 'activity-requirements', caseId, activityJobId],
+    enabled: Boolean(caseId),
+    queryFn: async () =>
+      (
+        await api.get<DocumentTypeRow[]>('/cases/formation/activity-requirements', {
+          params: { caseId, jobId: activityJobId || undefined },
+        })
+      ).data,
+  })
+  const activityDocuments = activityRequirements.data ?? []
 
   const inquiriesReady = useMemo(() => {
     if (reached < PLACES_FORMATION_STEP && step < PLACES_FORMATION_STEP) return true
@@ -264,7 +262,7 @@ export function CaseFormationPage() {
   }, [documentTypes.isLoading, person?.id, storedDocuments.data, storedDocuments.isLoading, visibleDocuments])
 
   const activityDocsMissing = useMemo(() => {
-    if (!activityJobId || !caseId || documentCatalog.isLoading || storedActivityDocuments.isLoading) return false
+    if (!activityJobId || !caseId || activityRequirements.isLoading || storedActivityDocuments.isLoading) return false
     const uploaded = new Set(
       (storedActivityDocuments.data ?? []).filter((row) => row.current).map((row) => row.documentId),
     )
@@ -273,14 +271,14 @@ export function CaseFormationPage() {
     activityDocuments,
     activityJobId,
     caseId,
-    documentCatalog.isLoading,
+    activityRequirements.isLoading,
     storedActivityDocuments.data,
     storedActivityDocuments.isLoading,
   ])
 
   const activityDocumentsReady = useMemo(() => {
     if (!activityJobId || !caseId) return false
-    if (documentCatalog.isLoading || storedActivityDocuments.isLoading) return null
+    if (activityRequirements.isLoading || storedActivityDocuments.isLoading) return null
     const uploaded = new Set(
       (storedActivityDocuments.data ?? []).filter((row) => row.current).map((row) => row.documentId),
     )
@@ -289,7 +287,7 @@ export function CaseFormationPage() {
     activityDocuments,
     activityJobId,
     caseId,
-    documentCatalog.isLoading,
+    activityRequirements.isLoading,
     storedActivityDocuments.data,
     storedActivityDocuments.isLoading,
   ])
@@ -932,7 +930,7 @@ export function CaseFormationPage() {
                   </div>
                 ) : null}
                 {activityDocuments.length === 0 ? (
-                  documentCatalog.isLoading || jobs.isLoading ? null : (
+                  activityRequirements.isLoading || jobs.isLoading ? null : (
                     <FormEmptyHint>{t('cases.activityDocumentsEmpty')}</FormEmptyHint>
                   )
                 ) : (

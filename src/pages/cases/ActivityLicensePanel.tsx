@@ -1,4 +1,4 @@
-import { Download, Printer } from 'lucide-react'
+import { BadgeCheck, Download, Printer } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -103,7 +103,7 @@ export function ActivityLicenseSheet({ view }: { view: LicenseView }) {
 
 export function ActivityLicensePanel({ caseId }: { caseId: string }) {
   const { t } = useTranslation()
-  const [busy, setBusy] = useState<'print' | 'download' | null>(null)
+  const [busy, setBusy] = useState<'print' | 'download' | 'issue' | null>(null)
   const query = useQuery({
     queryKey: ['cases', 'license', caseId],
     queryFn: async () => (await api.get<ActivityLicense>(`/cases/${caseId}/license`)).data,
@@ -125,9 +125,30 @@ export function ActivityLicensePanel({ caseId }: { caseId: string }) {
     }
   }
 
+  async function issue() {
+    setBusy('issue')
+    try {
+      await api.post('/cases/formation/complete', { caseId, step: 6 })
+      toast.success(t('cases.issueLicenseDone'))
+      await query.refetch()
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, t('cases.saveFailed')))
+    } finally {
+      setBusy(null)
+    }
+  }
+
   if (query.isLoading) return <LoadingState />
   if (query.isError || !query.data) {
-    return <FormEmptyHint>{getApiErrorMessage(query.error, t('cases.licenseNotIssued'))}</FormEmptyHint>
+    return (
+      <div className="space-y-4">
+        <FormEmptyHint>{t('cases.licenseNotIssued')}</FormEmptyHint>
+        <Button type="button" disabled={busy != null} onClick={() => void issue()}>
+          <BadgeCheck className="size-4" aria-hidden />
+          {t('cases.issueLicense')}
+        </Button>
+      </div>
+    )
   }
 
   const view = buildLicenseView(

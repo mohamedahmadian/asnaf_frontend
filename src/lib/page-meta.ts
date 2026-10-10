@@ -380,6 +380,18 @@ export function getPageMeta(pathname: string): {
   if (pathname.startsWith('/cases/settings')) {
     return { titleKey: 'menus.caseSettings', subtitleKey: 'cases.settingsSubtitle' }
   }
+  if (/^\/cases\/[^/]+\/auction\/new$/.test(pathname)) {
+    return { titleKey: 'cases.auction.create', subtitleKey: 'cases.auction.createSubtitle' }
+  }
+  if (/^\/cases\/[^/]+\/auction\/[^/]+\/edit$/.test(pathname)) {
+    return { titleKey: 'cases.auction.edit', subtitleKey: 'cases.auction.editSubtitle' }
+  }
+  if (/^\/cases\/[^/]+\/auction\/[^/]+$/.test(pathname)) {
+    return { titleKey: 'cases.auction.details', subtitleKey: 'cases.auction.detailsSubtitle' }
+  }
+  if (/^\/cases\/[^/]+\/auction$/.test(pathname)) {
+    return { titleKey: 'cases.auction.title', subtitleKey: 'cases.auction.createSubtitle' }
+  }
   if (/^\/cases\/[^/]+\/license$/.test(pathname)) {
     return { titleKey: 'cases.licenseTitle', subtitleKey: 'cases.licenseTitle' }
   }

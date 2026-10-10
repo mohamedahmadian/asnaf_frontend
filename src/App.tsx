@@ -18,8 +18,11 @@ import { LoginPage } from './pages/LoginPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { SmsSendPage } from './pages/sms/SmsSendPage'
 import { SmsSettingsPage } from './pages/sms/SmsSettingsPage'
+import { CaseAuctionDetailPage } from './pages/cases/CaseAuctionDetailPage'
+import { CaseAuctionFormPage } from './pages/cases/CaseAuctionFormPage'
 import { CaseFormationPage } from './pages/cases/CaseFormationPage'
 import { CaseHomePage } from './pages/cases/CaseHomePage'
+import { CaseProcessPage } from './pages/cases/CaseProcessPage'
 import { CaseLicensePage } from './pages/cases/CaseLicensePage'
 import { CaseInquiriesListPage } from './pages/cases/CaseInquiriesListPage'
 import { CaseInquiryDetailPage } from './pages/cases/CaseInquiryDetailPage'
@@ -280,7 +283,11 @@ export default function App() {
                   />
                   <Route path="/cases/reports" element={<CaseReportsPage />} />
                   <Route path="/cases/settings" element={<CaseSettingsPage />} />
+                  <Route path="/cases/:id/auction/new" element={<CaseAuctionFormPage />} />
+                  <Route path="/cases/:id/auction/:requestId/edit" element={<CaseAuctionFormPage />} />
+                  <Route path="/cases/:id/auction/:requestId" element={<CaseAuctionDetailPage />} />
                   <Route path="/cases/:id/license" element={<CaseLicensePage />} />
+                  <Route path="/cases/:id/process" element={<CaseProcessPage />} />
                   <Route path="/cases/:id" element={<CaseHomePage />} />
                   <Route path="/cases" element={<CaseManagementPage />} />
                   <Route path="/inspection/violation-types" element={<ViolationTypesListPage />} />

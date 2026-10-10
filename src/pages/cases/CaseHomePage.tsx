@@ -29,7 +29,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button, EntityNameSubtitle, PageHeader, caseShellClassName } from '../../components/ui/Form'
 import { CopyableDigits } from '../../components/ui/CopyableDigits'
-import { FormCard, FormEmptyHint, FormFactTile, formCardBodyClassName } from '../../components/ui/FormLayout'
+import { FormCard, FormEmptyHint, FormFactTile, FormSectionTitle, formCardBodyClassName } from '../../components/ui/FormLayout'
 import {
   ActionsTh,
   EntityRowActions,
@@ -38,8 +38,8 @@ import {
 } from '../../components/ui/ListControls'
 import { DateText } from '../../components/ui/DateText'
 import { LoadingState } from '../../components/ui/LoadingState'
-import { api } from '../../lib/api'
-import { formatNumber, localizeDigits } from '../../lib/datetime'
+import { api, getApiErrorMessage } from '../../lib/api'
+import { formatNumber } from '../../lib/datetime'
 import { useGeoName } from '../../lib/geo'
 import { violationCreatePath, violationPath } from '../../lib/paths/violations'
 import type { Violation } from '../../types/app'
@@ -48,11 +48,84 @@ import { FORMATION_STEPS } from './formation-types'
 type CaseRequestRow = {
   id: string
   number: string
-  type: 'ISSUANCE' | 'RENEWAL' | 'STEWARDSHIP' | 'AUCTION'
-  status: 'OPEN' | 'ISSUED'
+  type: 'ISSUANCE' | 'RENEWAL' | 'LOCATION_CHANGE' | 'STEWARDSHIP' | 'AUCTION'
+  status: 'OPEN' | 'ISSUED' | 'COMPLETED' | 'REJECTED' | 'CANCELLED'
   formationStep: number
   completedAt: string | null
   createdAt: string
+}
+
+function requestDone(status: CaseRequestRow['status']) {
+  return status === 'ISSUED' || status === 'COMPLETED'
+}
+
+function PremiseHistoryBlock({
+  title,
+  place,
+  endedAt,
+}: {
+  title: string
+  place: PremisePlace
+  endedAt?: string | null
+}) {
+  const { t } = useTranslation()
+  const geoName = useGeoName()
+  return (
+    <section className="space-y-3">
+      <FormSectionTitle icon={MapPinned}>{title}</FormSectionTitle>
+      <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+        <FormFactTile
+          icon={MapPin}
+          label={t('cases.premiseAddress')}
+          value={place.address || '—'}
+          empty={!place.address}
+          className="sm:col-span-2"
+          tone="teal"
+        />
+        <FormFactTile
+          icon={MapPin}
+          label={t('geo.city')}
+          value={place.city ? geoName(place.city) : '—'}
+          empty={!place.city}
+        />
+        <FormFactTile
+          icon={MapPin}
+          label={t('cases.plaque')}
+          value={place.plaque || '—'}
+          empty={!place.plaque}
+        />
+        <FormFactTile
+          icon={MapPinned}
+          label={t('cases.ownership')}
+          value={place.ownership ? t(`cases.ownerships.${place.ownership}`) : '—'}
+          empty={!place.ownership}
+          tone="mint"
+        />
+        <FormFactTile
+          icon={CalendarDays}
+          label={t('cases.premiseHistoryFrom')}
+          value={place.startedAt ? <DateText value={place.startedAt} /> : '—'}
+          empty={!place.startedAt}
+        />
+        {endedAt !== undefined ? (
+          <FormFactTile
+            icon={CalendarClock}
+            label={t('cases.premiseHistoryUntil')}
+            value={endedAt ? <DateText value={endedAt} /> : '—'}
+            empty={!endedAt}
+          />
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
+type PremisePlace = {
+  address: string | null
+  plaque: string | null
+  ownership: 'OWNED' | 'RENTED' | null
+  city: { nameFa: string; nameEn: string } | null
+  startedAt: string | null
 }
 
 type CaseHome = {
@@ -65,6 +138,8 @@ type CaseHome = {
   licenseExpiresAt: string | null
   violationCount: number
   city: { nameFa: string; nameEn: string } | null
+  premise: PremisePlace | null
+  premiseHistory: (PremisePlace & { id: string; endedAt: string | null })[]
   job: { id: string; title: string; group: { id: string; title: string } | null } | null
   person: {
     id: string
@@ -80,14 +155,18 @@ type CaseHome = {
 const REQUEST_TYPE_ICONS = {
   ISSUANCE: BadgeCheck,
   RENEWAL: RefreshCw,
+  LOCATION_CHANGE: MapPinned,
   STEWARDSHIP: UserRound,
   AUCTION: Gavel,
 } as const
 
 const LATER_REQUESTS = [
-  { type: 'RENEWAL', icon: RefreshCw },
   { type: 'STEWARDSHIP', icon: UserRound },
-  { type: 'AUCTION', icon: Gavel },
+] as const
+
+const PROCESS_REQUESTS = [
+  { type: 'RENEWAL', icon: RefreshCw },
+  { type: 'LOCATION_CHANGE', icon: MapPinned },
 ] as const
 
 const CASE_OPERATIONS = [
@@ -148,16 +227,50 @@ export function CaseHomePage() {
     queryFn: async () => (await api.get<CaseHome>(`/cases/${id}`)).data,
   })
   const item = query.data
-  const openRequest = item?.requests.some((request) => request.status === 'OPEN') ?? false
+  const openRequest = item?.requests.find((request) => request.status === 'OPEN') ?? null
   const canStart = Boolean(item?.licenseNumber) && !openRequest
-  const continueRequestId =
-    item?.requests.find((request) => request.type === 'ISSUANCE' && request.status === 'OPEN')?.id ?? null
-  const redirecting = Boolean(item && !showHome && continueRequestId)
+  const redirecting = Boolean(item && !showHome && openRequest)
+
+  async function startRequest(type: 'RENEWAL' | 'LOCATION_CHANGE') {
+    try {
+      await api.post(`/cases/${id}/requests`, { type })
+      navigate(`/cases/${id}/process`)
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, t('common.error')))
+    }
+  }
+
+  function openAuction() {
+    if (!item?.licenseNumber) {
+      toast.error(t('cases.auction.licenseRequired'))
+      return
+    }
+    const open = item.requests.find((request) => request.status === 'OPEN')
+    if (open?.type === 'AUCTION') {
+      navigate(`/cases/${item.id}/auction/${open.id}`)
+      return
+    }
+    if (open) {
+      toast.error(t('cases.auction.openRequest'))
+      return
+    }
+    navigate(`/cases/${item.id}/auction/new`)
+  }
 
   useEffect(() => {
-    if (!item || showHome || !continueRequestId) return
-    navigate(caseRequestPath(item.id, item.person.nationalId), { replace: true })
-  }, [item, showHome, continueRequestId, navigate])
+    if (!item || showHome || !openRequest) return
+    if (openRequest.type === 'ISSUANCE') {
+      navigate(caseRequestPath(item.id, item.person.nationalId), { replace: true })
+      return
+    }
+    if (openRequest.type === 'RENEWAL' || openRequest.type === 'LOCATION_CHANGE') {
+      navigate(`/cases/${item.id}/process`, { replace: true })
+      return
+    }
+    if (openRequest.type === 'AUCTION') {
+      navigate(`/cases/${item.id}/auction/${openRequest.id}`, { replace: true })
+    }
+  }, [item, showHome, openRequest, navigate])
 
   return (
     <div className={caseShellClassName}>
@@ -256,7 +369,12 @@ export function CaseHomePage() {
                       }).toString()}`
                     : null
                 }
-                onPick={() => toast.message(t('cases.requestTypeLater'))}
+                onPick={(key) => {
+                  if (key === 'renewLicense') void startRequest('RENEWAL')
+                  else if (key === 'changeLocation') void startRequest('LOCATION_CHANGE')
+                  else if (key === 'issueAuction') openAuction()
+                  else toast.message(t('cases.requestTypeLater'))
+                }}
               />
               {violationsOpen && item.person.nationalId ? (
                 <PersonViolationsModal
@@ -268,10 +386,43 @@ export function CaseHomePage() {
             </div>
           </FormCard>
 
+          {item.premise || item.premiseHistory.length > 0 ? (
+            <FormCard icon={MapPinned} title={t('cases.premiseHistoryTitle')}>
+              <div className={formCardBodyClassName}>
+                {item.premiseHistory.map((place) => (
+                  <PremiseHistoryBlock
+                    key={place.id}
+                    title={t('cases.premiseHistoryPrevious')}
+                    place={place}
+                    endedAt={place.endedAt}
+                  />
+                ))}
+                {item.premise ? (
+                  <PremiseHistoryBlock title={t('cases.premiseHistoryCurrent')} place={item.premise} />
+                ) : null}
+              </div>
+            </FormCard>
+          ) : null}
+
           <FormCard icon={Files} title={t('cases.requestsTitle')}>
             <div className={formCardBodyClassName}>
               {picking ? (
                 <div className="mb-4 flex flex-wrap gap-2">
+                  {PROCESS_REQUESTS.map(({ type, icon: Icon }) => (
+                    <Button
+                      key={type}
+                      type="button"
+                      variant="ghost"
+                      onClick={() => void startRequest(type)}
+                    >
+                      <Icon className="size-4" aria-hidden />
+                      {t(`cases.requestTypes.${type}`)}
+                    </Button>
+                  ))}
+                  <Button type="button" variant="ghost" onClick={openAuction}>
+                    <Gavel className="size-4" aria-hidden />
+                    {t('cases.requestTypes.AUCTION')}
+                  </Button>
                   {LATER_REQUESTS.map(({ type, icon: Icon }) => (
                     <Button
                       key={type}
@@ -292,24 +443,27 @@ export function CaseHomePage() {
                   <table className="w-full text-sm">
                     <thead className="bg-cream-50 text-ink-700">
                       <tr>
-                        <th className="px-4 py-3 text-start font-medium">{t('cases.requestNumber')}</th>
+                        <th className="px-4 py-3 text-start font-medium">{t('cases.requestDate')}</th>
                         <th className="px-4 py-3 text-start font-medium">{t('cases.requestType')}</th>
                         <th className="px-4 py-3 text-start font-medium">{t('cases.listStep')}</th>
-                        <th className="px-4 py-3 text-start font-medium">{t('cases.requestDate')}</th>
                         <th className="px-4 py-3 text-start font-medium">{t('cases.licenseIssued')}</th>
                         <ActionsTh />
                       </tr>
                     </thead>
                     <tbody>
                       {item.requests.map((request) => {
-                        const issued = request.status === 'ISSUED'
+                        const issued = requestDone(request.status)
                         const stepKey = FORMATION_STEPS[request.formationStep] ?? FORMATION_STEPS[0]
-                        const status = issued
-                          ? t('cases.issuedStatus')
-                          : request.type === 'ISSUANCE'
+                        const status =
+                          request.status === 'OPEN' && request.type === 'ISSUANCE'
                             ? t(`cases.steps.${stepKey}`)
-                            : t('cases.requestStatus.OPEN')
-                        const requestTo = caseRequestPath(item.id, item.person.nationalId)
+                            : t(`cases.requestStatus.${request.status}`)
+                        const requestTo =
+                          request.type === 'ISSUANCE'
+                            ? caseRequestPath(item.id, item.person.nationalId)
+                            : request.status === 'OPEN'
+                              ? `/cases/${item.id}/process`
+                              : `/cases/${item.id}?stay=1`
                         const licenseTo = `/cases/${item.id}/license`
                         const TypeIcon = REQUEST_TYPE_ICONS[request.type]
                         const issuedOn =
@@ -318,8 +472,8 @@ export function CaseHomePage() {
                             : request.completedAt
                         return (
                           <tr key={request.id} className="border-t border-line">
-                            <td className="px-4 py-3" dir="ltr">
-                              {localizeDigits(request.number, locale)}
+                            <td className="px-4 py-3">
+                              <DateText value={request.createdAt} />
                             </td>
                             <td className="px-4 py-3">
                               <RequestBadge>
@@ -331,13 +485,18 @@ export function CaseHomePage() {
                               <RequestBadge tone={issued ? 'mint' : 'teal'}>{status}</RequestBadge>
                             </td>
                             <td className="px-4 py-3">
-                              <DateText value={request.createdAt} />
-                            </td>
-                            <td className="px-4 py-3">
                               {issuedOn ? <DateText value={issuedOn} /> : '—'}
                             </td>
                             <td className={actionsColClassName}>
-                              {request.type === 'ISSUANCE' ? (
+                              {request.type === 'AUCTION' ? (
+                                <EntityRowActions
+                                  viewTo={`/cases/${item.id}/auction/${request.id}`}
+                                  viewLabel={request.status === 'OPEN' ? t('cases.continueRequest') : t('cases.viewRequest')}
+                                  viewIcon={Eye}
+                                  editTo={request.status === 'OPEN' ? `/cases/${item.id}/auction/${request.id}/edit` : undefined}
+                                  rowOpensView={request.status !== 'OPEN'}
+                                />
+                              ) : request.type === 'ISSUANCE' || request.type === 'RENEWAL' || request.type === 'LOCATION_CHANGE' ? (
                                 <EntityRowActions
                                   viewTo={requestTo}
                                   viewLabel={issued ? t('cases.viewRequest') : t('cases.continueRequest')}
@@ -376,7 +535,7 @@ function CaseOperations({
   licenseTo,
   violationTo,
 }: {
-  onPick: () => void
+  onPick: (key: string) => void
   licenseTo: string | null
   violationTo: string | null
 }) {
@@ -393,7 +552,7 @@ function CaseOperations({
             icon={operation.icon}
             tone={operation.tone}
             label={t(`cases.operations.${operation.key}`)}
-            onClick={onPick}
+            onClick={() => onPick(operation.key)}
           />
         ))}
       </div>
@@ -405,7 +564,7 @@ function CaseOperations({
             tone={operation.tone}
             label={t(`cases.operations.${operation.key}`)}
             to={operation.key === 'registerViolation' ? violationTo ?? undefined : undefined}
-            onClick={onPick}
+            onClick={() => onPick(operation.key)}
           />
         ))}
       </div>

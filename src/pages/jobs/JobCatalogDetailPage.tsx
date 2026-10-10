@@ -19,6 +19,7 @@ import { jobCatalogApi, jobCatalogEditPath, jobsCatalogPath } from '../../lib/pa
 import type { Job } from '../../types/app'
 import { GeoStatus } from '../geo/GeoShared'
 import { InquiryCenterList } from './InquiryCenterPanels'
+import { JobProcessRequirements } from '../cases/CaseRequirementsPanel'
 import { JobDocumentsPanel } from './JobDocumentPanels'
 
 export function JobCatalogDetailPage() {
@@ -113,11 +114,14 @@ export function JobCatalogDetailPage() {
             </div>
           ) : (
             <div role="tabpanel" id="form-panel-documents" aria-labelledby="form-tab-documents">
-              <JobDocumentsPanel
-                jobId={item.id}
-                documents={item.documents ?? []}
-                queryKey={['jobs-catalog', item.id]}
-              />
+              <div className="space-y-10">
+                <JobDocumentsPanel
+                  jobId={item.id}
+                  documents={item.documents ?? []}
+                  queryKey={['jobs-catalog', item.id]}
+                />
+                <JobProcessRequirements jobId={item.id} />
+              </div>
             </div>
           )}
           <DetailActions
