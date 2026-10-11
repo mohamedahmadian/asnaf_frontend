@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CalendarDays,
   CirclePause,
+  ClipboardList,
   Eye,
   Files,
   FolderKanban,
@@ -21,15 +22,18 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { confirmToast } from '../../components/ui/confirmToast'
 import { Button, EntityNameSubtitle, PageHeader, caseShellClassName } from '../../components/ui/Form'
+import { isAdmin } from '../../lib/roles'
+import { useAuth } from '../../auth/AuthProvider'
 import { CopyableDigits } from '../../components/ui/CopyableDigits'
-import { FormCard, FormEmptyHint, FormFactTile, FormSectionTitle, formCardBodyClassName } from '../../components/ui/FormLayout'
+import { FormCard, FormEmptyHint, FormFactTile, formCardBodyClassName } from '../../components/ui/FormLayout'
 import {
   ActionsTh,
   EntityRowActions,
@@ -41,9 +45,11 @@ import { LoadingState } from '../../components/ui/LoadingState'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { formatNumber } from '../../lib/datetime'
 import { useGeoName } from '../../lib/geo'
-import { violationCreatePath, violationPath } from '../../lib/paths/violations'
-import type { Violation } from '../../types/app'
+import { violationCreatePath, violationsPath } from '../../lib/paths/violations'
+import type { Violation, ViolationAttachment } from '../../types/app'
+import { isAudioAttachment } from '../violations/files'
 import { FORMATION_STEPS } from './formation-types'
+import { CaseRevokeDialog, CaseSuspendDialog, CaseSuspensionsDialog, SuspensionCountBadge } from './CaseSuspensions'
 
 type CaseRequestRow = {
   id: string
@@ -53,79 +59,14 @@ type CaseRequestRow = {
   formationStep: number
   completedAt: string | null
   createdAt: string
+  issuedAt: string | null
+  expiresAt: string | null
+  auctionStartsAt: string | null
+  auctionEndsAt: string | null
 }
 
 function requestDone(status: CaseRequestRow['status']) {
   return status === 'ISSUED' || status === 'COMPLETED'
-}
-
-function PremiseHistoryBlock({
-  title,
-  place,
-  endedAt,
-}: {
-  title: string
-  place: PremisePlace
-  endedAt?: string | null
-}) {
-  const { t } = useTranslation()
-  const geoName = useGeoName()
-  return (
-    <section className="space-y-3">
-      <FormSectionTitle icon={MapPinned}>{title}</FormSectionTitle>
-      <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
-        <FormFactTile
-          icon={MapPin}
-          label={t('cases.premiseAddress')}
-          value={place.address || '—'}
-          empty={!place.address}
-          className="sm:col-span-2"
-          tone="teal"
-        />
-        <FormFactTile
-          icon={MapPin}
-          label={t('geo.city')}
-          value={place.city ? geoName(place.city) : '—'}
-          empty={!place.city}
-        />
-        <FormFactTile
-          icon={MapPin}
-          label={t('cases.plaque')}
-          value={place.plaque || '—'}
-          empty={!place.plaque}
-        />
-        <FormFactTile
-          icon={MapPinned}
-          label={t('cases.ownership')}
-          value={place.ownership ? t(`cases.ownerships.${place.ownership}`) : '—'}
-          empty={!place.ownership}
-          tone="mint"
-        />
-        <FormFactTile
-          icon={CalendarDays}
-          label={t('cases.premiseHistoryFrom')}
-          value={place.startedAt ? <DateText value={place.startedAt} /> : '—'}
-          empty={!place.startedAt}
-        />
-        {endedAt !== undefined ? (
-          <FormFactTile
-            icon={CalendarClock}
-            label={t('cases.premiseHistoryUntil')}
-            value={endedAt ? <DateText value={endedAt} /> : '—'}
-            empty={!endedAt}
-          />
-        ) : null}
-      </div>
-    </section>
-  )
-}
-
-type PremisePlace = {
-  address: string | null
-  plaque: string | null
-  ownership: 'OWNED' | 'RENTED' | null
-  city: { nameFa: string; nameEn: string } | null
-  startedAt: string | null
 }
 
 type CaseHome = {
@@ -137,9 +78,18 @@ type CaseHome = {
   licenseIssuedAt: string | null
   licenseExpiresAt: string | null
   violationCount: number
+  status: 'ACTIVE' | 'SUSPENDED' | 'REVOKED'
+  revokeReason: string | null
+  revokedAt: string | null
+  suspensionCount: number
+  suspensions: {
+    id: string
+    reason: string
+    startsAt: string
+    endsAt: string
+    active: boolean
+  }[]
   city: { nameFa: string; nameEn: string } | null
-  premise: PremisePlace | null
-  premiseHistory: (PremisePlace & { id: string; endedAt: string | null })[]
   job: { id: string; title: string; group: { id: string; title: string } | null } | null
   person: {
     id: string
@@ -216,10 +166,16 @@ export function CaseHomePage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { t, i18n } = useTranslation()
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+  const admin = isAdmin(user)
   const geoName = useGeoName()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const [picking, setPicking] = useState(false)
   const [violationsOpen, setViolationsOpen] = useState(false)
+  const [suspensionsOpen, setSuspensionsOpen] = useState(false)
+  const [suspendOpen, setSuspendOpen] = useState(false)
+  const [revokeOpen, setRevokeOpen] = useState(false)
   const showHome = searchParams.get('stay') === '1'
   const query = useQuery({
     queryKey: ['cases', 'home', id],
@@ -228,10 +184,37 @@ export function CaseHomePage() {
   })
   const item = query.data
   const openRequest = item?.requests.find((request) => request.status === 'OPEN') ?? null
-  const canStart = Boolean(item?.licenseNumber) && !openRequest
-  const redirecting = Boolean(item && !showHome && openRequest)
+  const revoked = item?.status === 'REVOKED'
+  const canStart = Boolean(item?.licenseNumber) && !openRequest && !revoked
+  const redirecting = Boolean(item && !showHome && openRequest?.type === 'ISSUANCE')
+
+  function canDeleteRequest(status: CaseRequestRow['status']) {
+    return admin || !requestDone(status)
+  }
+
+  function askDeleteRequest(requestId: string, number: string) {
+    confirmToast({
+      title: t('cases.deleteRequestConfirm', { number }),
+      confirmLabel: t('common.yesDelete'),
+      cancelLabel: t('common.cancel'),
+      confirmVariant: 'danger',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/cases/${id}/requests/${requestId}`)
+          toast.success(t('cases.requestDeleted'))
+          await queryClient.invalidateQueries({ queryKey: ['cases', 'home', id] })
+        } catch (error) {
+          toast.error(getApiErrorMessage(error, t('common.error')))
+        }
+      },
+    })
+  }
 
   async function startRequest(type: 'RENEWAL' | 'LOCATION_CHANGE') {
+    if (item?.status === 'REVOKED') {
+      toast.error(t('cases.revokedNoRequest'))
+      return
+    }
     try {
       await api.post(`/cases/${id}/requests`, { type })
       navigate(`/cases/${id}/process`)
@@ -241,6 +224,10 @@ export function CaseHomePage() {
   }
 
   function openAuction() {
+    if (item?.status === 'REVOKED') {
+      toast.error(t('cases.revokedNoRequest'))
+      return
+    }
     if (!item?.licenseNumber) {
       toast.error(t('cases.auction.licenseRequired'))
       return
@@ -258,18 +245,8 @@ export function CaseHomePage() {
   }
 
   useEffect(() => {
-    if (!item || showHome || !openRequest) return
-    if (openRequest.type === 'ISSUANCE') {
-      navigate(caseRequestPath(item.id, item.person.nationalId), { replace: true })
-      return
-    }
-    if (openRequest.type === 'RENEWAL' || openRequest.type === 'LOCATION_CHANGE') {
-      navigate(`/cases/${item.id}/process`, { replace: true })
-      return
-    }
-    if (openRequest.type === 'AUCTION') {
-      navigate(`/cases/${item.id}/auction/${openRequest.id}`, { replace: true })
-    }
+    if (!item || showHome || openRequest?.type !== 'ISSUANCE') return
+    navigate(caseRequestPath(item.id, item.person.nationalId), { replace: true })
   }, [item, showHome, openRequest, navigate])
 
   return (
@@ -308,8 +285,20 @@ export function CaseHomePage() {
             icon={Briefcase}
             title={item.businessUnitTitle || t('cases.details')}
             chips={
-              item.job?.group || item.job ? (
+              item.job?.group || item.job || item.status === 'SUSPENDED' || item.status === 'REVOKED' ? (
                 <>
+                  {item.status === 'REVOKED' ? (
+                    <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-800 shadow-[0_4px_10px_rgba(220,38,38,0.08)] ring-1 ring-red-200">
+                      <Ban className="size-3.5 shrink-0" aria-hidden />
+                      {t('cases.revoked')}
+                    </span>
+                  ) : null}
+                  {item.status === 'SUSPENDED' ? (
+                    <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900 shadow-[0_4px_10px_rgba(217,119,6,0.08)] ring-1 ring-amber-200">
+                      <CirclePause className="size-3.5 shrink-0" aria-hidden />
+                      {t('cases.suspensionActive')}
+                    </span>
+                  ) : null}
                   {item.job?.group ? (
                     <CaseMetaBadge icon={FolderKanban} label={t('cases.activityGroup')} value={item.job.group.title} />
                   ) : null}
@@ -320,13 +309,21 @@ export function CaseHomePage() {
               ) : undefined
             }
             action={
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 {item.violationCount > 0 && item.person.nationalId ? (
                   <ViolationCountBadge
                     count={item.violationCount}
                     label={t('cases.violationCount')}
                     locale={locale}
                     onClick={() => setViolationsOpen(true)}
+                  />
+                ) : null}
+                {(item.suspensionCount ?? 0) > 0 ? (
+                  <SuspensionCountBadge
+                    count={item.suspensionCount}
+                    label={t('cases.suspensionCount')}
+                    locale={locale}
+                    onClick={() => setSuspensionsOpen(true)}
                   />
                 ) : null}
                 <RemainingDaysBadge
@@ -339,6 +336,11 @@ export function CaseHomePage() {
             }
           >
             <div className={formCardBodyClassName}>
+              {item.status === 'REVOKED' && item.revokeReason ? (
+                <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm leading-6 text-red-900 ring-1 ring-red-100">
+                  {item.revokeReason}
+                </p>
+              ) : null}
               <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
                 <FormFactTile
                   icon={CalendarDays}
@@ -346,12 +348,25 @@ export function CaseHomePage() {
                   value={item.licenseIssuedAt ? <DateText value={item.licenseIssuedAt} /> : '—'}
                   empty={!item.licenseIssuedAt}
                 />
-                <FormFactTile
-                  icon={CalendarClock}
-                  label={t('cases.licenseExpires')}
-                  value={item.licenseExpiresAt ? <DateText value={item.licenseExpiresAt} /> : '—'}
-                  empty={!item.licenseExpiresAt}
-                />
+                <div className="relative min-w-0">
+                  <FormFactTile
+                    icon={CalendarClock}
+                    label={t('cases.licenseExpires')}
+                    value={item.licenseExpiresAt ? <DateText value={item.licenseExpiresAt} /> : '—'}
+                    empty={!item.licenseExpiresAt}
+                    className={item.licenseNumber && item.status !== 'REVOKED' ? 'pe-24' : ''}
+                  />
+                  {item.licenseNumber && item.status !== 'REVOKED' ? (
+                    <button
+                      type="button"
+                      onClick={() => void startRequest('RENEWAL')}
+                      className="absolute end-2 top-1/2 z-20 inline-flex -translate-y-1/2 cursor-pointer items-center gap-1 rounded-xl bg-mint-500 px-2 py-1 text-[11px] font-medium text-white shadow-[0_3px_8px_rgba(63,214,190,0.35)] transition hover:bg-mint-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+                    >
+                      <RefreshCw className="size-3" aria-hidden />
+                      {t('cases.requestTypes.RENEWAL')}
+                    </button>
+                  ) : null}
+                </div>
                 <FormFactTile
                   icon={MapPin}
                   label={t('geo.city')}
@@ -359,23 +374,6 @@ export function CaseHomePage() {
                   empty={!item.city}
                 />
               </div>
-              <CaseOperations
-                licenseTo={item.licenseNumber ? `/cases/${item.id}/license` : null}
-                violationTo={
-                  item.person.nationalId
-                    ? `${violationCreatePath()}?${new URLSearchParams({
-                        nationalId: item.person.nationalId,
-                        caseId: item.id,
-                      }).toString()}`
-                    : null
-                }
-                onPick={(key) => {
-                  if (key === 'renewLicense') void startRequest('RENEWAL')
-                  else if (key === 'changeLocation') void startRequest('LOCATION_CHANGE')
-                  else if (key === 'issueAuction') openAuction()
-                  else toast.message(t('cases.requestTypeLater'))
-                }}
-              />
               {violationsOpen && item.person.nationalId ? (
                 <PersonViolationsModal
                   nationalId={item.person.nationalId}
@@ -383,26 +381,17 @@ export function CaseHomePage() {
                   onClose={() => setViolationsOpen(false)}
                 />
               ) : null}
+              {suspensionsOpen ? (
+                <CaseSuspensionsDialog
+                  name={item.person.fullName}
+                  items={item.suspensions}
+                  onClose={() => setSuspensionsOpen(false)}
+                />
+              ) : null}
+              {suspendOpen ? <CaseSuspendDialog caseId={item.id} onClose={() => setSuspendOpen(false)} /> : null}
+              {revokeOpen ? <CaseRevokeDialog caseId={item.id} onClose={() => setRevokeOpen(false)} /> : null}
             </div>
           </FormCard>
-
-          {item.premise || item.premiseHistory.length > 0 ? (
-            <FormCard icon={MapPinned} title={t('cases.premiseHistoryTitle')}>
-              <div className={formCardBodyClassName}>
-                {item.premiseHistory.map((place) => (
-                  <PremiseHistoryBlock
-                    key={place.id}
-                    title={t('cases.premiseHistoryPrevious')}
-                    place={place}
-                    endedAt={place.endedAt}
-                  />
-                ))}
-                {item.premise ? (
-                  <PremiseHistoryBlock title={t('cases.premiseHistoryCurrent')} place={item.premise} />
-                ) : null}
-              </div>
-            </FormCard>
-          ) : null}
 
           <FormCard icon={Files} title={t('cases.requestsTitle')}>
             <div className={formCardBodyClassName}>
@@ -445,8 +434,9 @@ export function CaseHomePage() {
                       <tr>
                         <th className="px-4 py-3 text-start font-medium">{t('cases.requestDate')}</th>
                         <th className="px-4 py-3 text-start font-medium">{t('cases.requestType')}</th>
+                        <th className="px-4 py-3 text-start font-medium">{t('cases.issuedOn')}</th>
+                        <th className="px-4 py-3 text-center font-medium">{t('cases.endsOn')}</th>
                         <th className="px-4 py-3 text-start font-medium">{t('cases.listStep')}</th>
-                        <th className="px-4 py-3 text-start font-medium">{t('cases.licenseIssued')}</th>
                         <ActionsTh />
                       </tr>
                     </thead>
@@ -464,12 +454,7 @@ export function CaseHomePage() {
                             : request.status === 'OPEN'
                               ? `/cases/${item.id}/process`
                               : `/cases/${item.id}?stay=1`
-                        const licenseTo = `/cases/${item.id}/license`
                         const TypeIcon = REQUEST_TYPE_ICONS[request.type]
-                        const issuedOn =
-                          issued && request.type === 'ISSUANCE'
-                            ? item.licenseIssuedAt ?? request.completedAt
-                            : request.completedAt
                         return (
                           <tr key={request.id} className="border-t border-line">
                             <td className="px-4 py-3">
@@ -482,36 +467,47 @@ export function CaseHomePage() {
                               </RequestBadge>
                             </td>
                             <td className="px-4 py-3">
-                              <RequestBadge tone={issued ? 'mint' : 'teal'}>{status}</RequestBadge>
+                              <RequestDateCell request={request} part="start" />
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <RequestDateCell request={request} part="end" />
                             </td>
                             <td className="px-4 py-3">
-                              {issuedOn ? <DateText value={issuedOn} /> : '—'}
+                              <RequestBadge tone={issued ? 'mint' : 'teal'}>{status}</RequestBadge>
                             </td>
                             <td className={actionsColClassName}>
                               {request.type === 'AUCTION' ? (
                                 <EntityRowActions
                                   viewTo={`/cases/${item.id}/auction/${request.id}`}
                                   viewLabel={request.status === 'OPEN' ? t('cases.continueRequest') : t('cases.viewRequest')}
+                                  viewClassName="w-[8.25rem]"
                                   viewIcon={Eye}
                                   editTo={request.status === 'OPEN' ? `/cases/${item.id}/auction/${request.id}/edit` : undefined}
                                   rowOpensView={request.status !== 'OPEN'}
+                                  onDelete={
+                                    canDeleteRequest(request.status)
+                                      ? () => askDeleteRequest(request.id, request.number)
+                                      : undefined
+                                  }
                                 />
                               ) : request.type === 'ISSUANCE' || request.type === 'RENEWAL' || request.type === 'LOCATION_CHANGE' ? (
                                 <EntityRowActions
                                   viewTo={requestTo}
                                   viewLabel={issued ? t('cases.viewRequest') : t('cases.continueRequest')}
+                                  viewClassName="w-[8.25rem]"
                                   viewIcon={Eye}
                                   rowOpensView
-                                  extra={
-                                    issued ? (
-                                      <Link to={licenseTo}>
-                                        <Button type="button" variant="ghost">
-                                          <BadgeCheck className="size-4" aria-hidden />
-                                          {t('cases.viewLicense')}
-                                        </Button>
-                                      </Link>
-                                    ) : null
+                                  onDelete={
+                                    canDeleteRequest(request.status)
+                                      ? () => askDeleteRequest(request.id, request.number)
+                                      : undefined
                                   }
+                                />
+                              ) : canDeleteRequest(request.status) ? (
+                                <EntityRowActions
+                                  viewTo={`/cases/${item.id}?stay=1`}
+                                  showView={false}
+                                  onDelete={() => askDeleteRequest(request.id, request.number)}
                                 />
                               ) : null}
                             </td>
@@ -522,6 +518,51 @@ export function CaseHomePage() {
                   </table>
                 </TableCard>
               )}
+            </div>
+          </FormCard>
+
+          <FormCard icon={ClipboardList} title={t('cases.operationsTitle')}>
+            <div className={formCardBodyClassName}>
+              <CaseOperations
+                licenseTo={item.licenseNumber ? `/cases/${item.id}/license` : null}
+                violationTo={
+                  item.person.nationalId
+                    ? `${violationCreatePath()}?${new URLSearchParams({
+                        nationalId: item.person.nationalId,
+                        caseId: item.id,
+                      }).toString()}`
+                    : null
+                }
+                onPick={(key) => {
+                  const startsRequest =
+                    key === 'renewLicense' ||
+                    key === 'changeLocation' ||
+                    key === 'issueAuction' ||
+                    key === 'issueStewardship' ||
+                    key === 'renewWithLocation' ||
+                    key === 'issueServiceCard'
+                  if (item.status === 'REVOKED' && startsRequest) {
+                    toast.error(t('cases.revokedNoRequest'))
+                    return
+                  }
+                  if (key === 'suspend') {
+                    if (item.status === 'REVOKED') {
+                      toast.error(t('cases.revokeAlready'))
+                      return
+                    }
+                    setSuspendOpen(true)
+                  } else if (key === 'revoke') {
+                    if (item.status === 'REVOKED') {
+                      toast.error(t('cases.revokeAlready'))
+                      return
+                    }
+                    setRevokeOpen(true)
+                  } else if (key === 'renewLicense') void startRequest('RENEWAL')
+                  else if (key === 'changeLocation') void startRequest('LOCATION_CHANGE')
+                  else if (key === 'issueAuction') openAuction()
+                  else toast.message(t('cases.requestTypeLater'))
+                }}
+              />
             </div>
           </FormCard>
         </div>
@@ -541,7 +582,7 @@ function CaseOperations({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="space-y-3 border-t border-teal-100 pt-4">
+    <div className="space-y-3">
       <div className="flex flex-wrap justify-center gap-2">
         {licenseTo ? (
           <CaseOperationButton icon={BadgeCheck} tone="teal" label={t('cases.viewLicense')} to={licenseTo} />
@@ -627,6 +668,66 @@ function RequestBadge({
   )
 }
 
+function DateBadge({
+  children,
+  tone,
+  label,
+}: {
+  children: ReactNode
+  tone: 'mint' | 'red' | 'teal'
+  label: string
+}) {
+  const toneClass =
+    tone === 'mint'
+      ? 'bg-mint-50 text-teal-900 ring-mint-200'
+      : tone === 'red'
+        ? 'bg-red-50 text-red-700 ring-red-200'
+        : 'bg-teal-50 text-teal-900 ring-teal-200'
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${toneClass}`}>
+      <span className="sr-only">{label}</span>
+      {children}
+    </span>
+  )
+}
+
+function RequestDateCell({ request, part }: { request: CaseRequestRow; part: 'start' | 'end' }) {
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language.split('-')[0] ?? 'fa'
+  const license = request.type === 'ISSUANCE' || request.type === 'RENEWAL'
+  const value =
+    part === 'start'
+      ? request.type === 'AUCTION'
+        ? request.auctionStartsAt
+        : license
+          ? request.issuedAt
+          : null
+      : request.type === 'AUCTION'
+        ? request.auctionEndsAt
+        : license
+          ? request.expiresAt
+          : null
+  if (!value) return '—'
+  const remaining = part === 'end' ? licenseSpan(null, value)?.remaining : null
+  const remainingText = remaining == null ? null : formatNumber(remaining, locale)
+  const stacked = part === 'end' && remainingText != null
+  return (
+    <span className={stacked ? 'inline-flex flex-col items-center gap-1' : 'inline-flex flex-wrap items-center gap-1.5'}>
+      <DateBadge tone={part === 'start' ? 'mint' : 'red'} label={part === 'start' ? t('cases.issuedOn') : t('cases.endsOn')}>
+        <DateText value={value} />
+      </DateBadge>
+      {remainingText != null ? (
+        <span
+          className="inline-flex min-w-6 items-center justify-center rounded-full bg-mint-50 px-2 py-0.5 text-xs font-semibold text-teal-900 ring-1 ring-mint-200"
+          aria-label={`${t('cases.daysRemaining')}: ${remainingText}`}
+        >
+          {remainingText}
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
 function CaseMetaBadge({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
   return (
     <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-ink-800 shadow-[0_4px_10px_rgba(20,40,40,0.05)] ring-1 ring-teal-100">
@@ -702,6 +803,7 @@ function PersonViolationsModal({
   onClose: () => void
 }) {
   const { t } = useTranslation()
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const query = useQuery({
     queryKey: ['violations', 'person', nationalId],
     queryFn: async () =>
@@ -710,6 +812,11 @@ function PersonViolationsModal({
           params: { nationalId, sortBy: 'occurredAt', sortDir: 'desc' },
         })
       ).data,
+  })
+  const detail = useQuery({
+    queryKey: ['violation', selectedId],
+    enabled: Boolean(selectedId),
+    queryFn: async () => (await api.get<Violation>(`/violations/${selectedId}`)).data,
   })
   const items = query.data ?? []
 
@@ -720,73 +827,242 @@ function PersonViolationsModal({
       if (event.key !== 'Escape' || event.repeat) return
       event.preventDefault()
       event.stopPropagation()
-      onClose()
+      if (selectedId) setSelectedId(null)
+      else onClose()
     }
     document.addEventListener('keydown', onKey)
     return () => {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', onKey)
     }
-  }, [onClose])
+  }, [onClose, selectedId])
+
+  const selected = detail.data
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-start justify-center bg-ink-900/30 p-4 pt-[10vh]" data-nested-dialog>
-      <button type="button" className="absolute inset-0 cursor-default" aria-label={t('common.close')} onClick={onClose} />
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="case-person-violations-title"
-        className="relative z-10 flex max-h-[min(36rem,80dvh)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-xl"
-      >
-        <header className="relative shrink-0 overflow-hidden bg-gradient-to-e from-orange-50 via-white to-amber-50 px-5 py-4">
-          <div className="relative flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-[0_8px_16px_rgba(234,88,12,0.28)]">
-                <ShieldAlert className="size-5" aria-hidden />
-              </span>
-              <h2 id="case-person-violations-title" className="truncate text-sm font-semibold text-ink-900">
-                {t('cases.personViolations', { name: name || t('cases.details') })}
-              </h2>
+    <>
+      <div className="fixed inset-0 z-[80] flex items-start justify-center bg-ink-900/30 p-4 pt-[10vh]" data-nested-dialog>
+        <button type="button" className="absolute inset-0 cursor-default" aria-label={t('common.close')} onClick={onClose} />
+        <section
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="case-person-violations-title"
+          className="relative z-10 flex max-h-[min(36rem,80dvh)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-xl"
+        >
+          <header className="relative shrink-0 overflow-hidden bg-gradient-to-e from-orange-50 via-white to-amber-50 px-5 py-4">
+            <div className="relative flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-[0_8px_16px_rgba(234,88,12,0.28)]">
+                  <ShieldAlert className="size-5" aria-hidden />
+                </span>
+                <h2 id="case-person-violations-title" className="truncate text-sm font-semibold text-ink-900">
+                  {t('cases.personViolations', { name: name || t('cases.details') })}
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="cursor-pointer rounded-xl p-2 text-ink-500 hover:bg-white"
+                onClick={onClose}
+                aria-label={t('common.close')}
+              >
+                <X className="size-4" aria-hidden />
+              </button>
             </div>
-            <button
-              type="button"
-              className="cursor-pointer rounded-xl p-2 text-ink-500 hover:bg-white"
-              onClick={onClose}
-              aria-label={t('common.close')}
-            >
-              <X className="size-4" aria-hidden />
-            </button>
-          </div>
-        </header>
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          {query.isLoading ? <LoadingState /> : null}
-          {!query.isLoading && items.length === 0 ? <FormEmptyHint>{t('violations.empty')}</FormEmptyHint> : null}
-          <ul className="space-y-2">
-            {items.map((item) => (
-              <li key={item.id}>
-                <Link
-                  to={violationPath(item.id)}
-                  onClick={onClose}
-                  className="flex cursor-pointer flex-col gap-1.5 rounded-2xl border border-orange-100 bg-white px-3 py-3 transition hover:border-orange-300 hover:bg-orange-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"
-                >
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="min-w-0 truncate text-sm font-medium text-ink-900">{item.violationType.title}</span>
-                    <span className="shrink-0 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 ring-1 ring-orange-200">
-                      {t(`violationStatuses.${item.status}`)}
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            {query.isLoading ? <LoadingState /> : null}
+            {!query.isLoading && items.length === 0 ? <FormEmptyHint>{t('violations.empty')}</FormEmptyHint> : null}
+            <ul className="space-y-2">
+              {items.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(item.id)}
+                    className="flex w-full cursor-pointer flex-col gap-1.5 rounded-2xl border border-orange-100 bg-white px-3 py-3 text-start transition hover:border-orange-300 hover:bg-orange-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate text-sm font-medium text-ink-900">{item.violationType.title}</span>
+                      <span className="shrink-0 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 ring-1 ring-orange-200">
+                        {t(`violationStatuses.${item.status}`)}
+                      </span>
                     </span>
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500">
+                      <DateText value={item.occurredAt} />
+                      {item.caseFile?.businessUnitTitle ? <span className="truncate">{item.caseFile.businessUnitTitle}</span> : null}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <footer className="shrink-0 border-t border-orange-100 p-3">
+            <Link to={`${violationsPath()}?q=${encodeURIComponent(nationalId)}`} onClick={onClose} className="block">
+              <Button type="button" className="w-full">
+                <Eye className="size-4" aria-hidden />
+                {t('cases.viewAllViolations')}
+              </Button>
+            </Link>
+          </footer>
+        </section>
+      </div>
+      {selectedId ? (
+        <div className="fixed inset-0 z-[90] flex items-start justify-center bg-ink-900/40 p-4 pt-[8vh]" data-nested-dialog>
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            aria-label={t('common.close')}
+            onClick={() => setSelectedId(null)}
+          />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="case-violation-detail-title"
+            className="relative z-10 flex max-h-[min(40rem,84dvh)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-xl"
+          >
+            <header className="relative shrink-0 overflow-hidden bg-gradient-to-e from-orange-50 via-white to-amber-50 px-5 py-4">
+              <div className="relative flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-[0_8px_16px_rgba(234,88,12,0.28)]">
+                    <ShieldAlert className="size-5" aria-hidden />
                   </span>
-                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500">
-                    <DateText value={item.occurredAt} />
-                    {item.caseFile?.businessUnitTitle ? <span className="truncate">{item.caseFile.businessUnitTitle}</span> : null}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                  <h2 id="case-violation-detail-title" className="truncate text-sm font-semibold text-ink-900">
+                    {t('violations.details')}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  className="cursor-pointer rounded-xl p-2 text-ink-500 hover:bg-white"
+                  onClick={() => setSelectedId(null)}
+                  aria-label={t('common.close')}
+                >
+                  <X className="size-4" aria-hidden />
+                </button>
+              </div>
+            </header>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+              {detail.isLoading || !selected ? <LoadingState /> : null}
+              {selected ? (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-ink-900">{selected.violationType.title}</p>
+                    <span className="shrink-0 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 ring-1 ring-orange-200">
+                      {t(`violationStatuses.${selected.status}`)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-ink-500">
+                    <DateText value={selected.occurredAt} />
+                  </p>
+                  {selected.description ? <p className="text-sm leading-6 text-ink-800">{selected.description}</p> : null}
+                  <ViolationAttachmentMedia violationId={selected.id} items={selected.attachments} />
+                </>
+              ) : null}
+            </div>
+          </section>
         </div>
-      </section>
-    </div>,
+      ) : null}
+    </>,
     document.body,
+  )
+}
+
+const IMAGE_NAME = /\.(jpe?g|png|gif|webp|bmp)$/i
+
+function isImageAttachment(item: ViolationAttachment) {
+  if (item.kind === 'IMAGE') return true
+  if (item.mimeType?.toLowerCase().startsWith('image/')) return true
+  return IMAGE_NAME.test(item.originalName ?? '')
+}
+
+function useApiObjectUrl(href: string | null) {
+  const [src, setSrc] = useState<string>()
+
+  useEffect(() => {
+    if (!href) {
+      setSrc(undefined)
+      return
+    }
+    let objectUrl: string | undefined
+    let cancelled = false
+    void api
+      .get<Blob>(href, { responseType: 'blob' })
+      .then((response) => {
+        if (cancelled) return
+        const header = String(response.headers['content-type'] ?? '')
+        const mime = header.split(';')[0].trim() || response.data.type || 'application/octet-stream'
+        const blob =
+          response.data.type && response.data.type.split(';')[0] === mime
+            ? response.data
+            : new Blob([response.data], { type: mime })
+        objectUrl = URL.createObjectURL(blob)
+        setSrc(objectUrl)
+      })
+      .catch(() => {
+        if (!cancelled) setSrc(undefined)
+      })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [href])
+
+  return src
+}
+
+function ViolationAttachmentMedia({
+  violationId,
+  items,
+}: {
+  violationId: string
+  items: ViolationAttachment[]
+}) {
+  const { t } = useTranslation()
+  const images = items.filter(isImageAttachment)
+  const audios = items.filter((item) => !isImageAttachment(item) && isAudioAttachment(item))
+  if (!images.length && !audios.length) return null
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-medium text-ink-500">{t('violations.attachments')}</p>
+      {images.length ? (
+        <div className="space-y-2">
+          {images.map((item) => (
+            <ViolationImage
+              key={item.id}
+              href={`/violations/${violationId}/attachments/${item.id}`}
+              name={item.originalName || t('violations.attachments')}
+            />
+          ))}
+        </div>
+      ) : null}
+      {audios.map((item) => (
+        <ViolationAudio
+          key={item.id}
+          href={`/violations/${violationId}/attachments/${item.id}`}
+          label={item.originalName || t('violations.attachmentVoice')}
+        />
+      ))}
+    </div>
+  )
+}
+
+function ViolationImage({ href, name }: { href: string; name: string }) {
+  const src = useApiObjectUrl(href)
+  if (!src) {
+    return <div className="h-36 animate-pulse rounded-2xl bg-orange-50" aria-hidden />
+  }
+  return <img src={src} alt={name} className="max-h-64 w-full rounded-2xl bg-orange-50 object-contain" />
+}
+
+function ViolationAudio({ href, label }: { href: string; label: string }) {
+  const src = useApiObjectUrl(href)
+  return (
+    <div className="space-y-1 rounded-2xl bg-orange-50/70 px-3 py-2">
+      <p className="truncate text-xs text-ink-600">{label}</p>
+      {src ? (
+        <audio src={src} controls preload="metadata" className="h-10 w-full" dir="ltr" />
+      ) : (
+        <div className="h-10 animate-pulse rounded-xl bg-white" aria-hidden />
+      )}
+    </div>
   )
 }
 

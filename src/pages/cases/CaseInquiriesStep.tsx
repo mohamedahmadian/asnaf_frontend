@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CalendarCheck, Check, Clock, Download, FileText, Paperclip, Phone, Printer, Radio, RotateCcw, ScanSearch, UserRound, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -37,7 +37,9 @@ export function CaseInquiriesStep({
   items,
   loading,
   autoAdvance,
+  showAdvance = true,
   documentsPending = false,
+  headerAction,
   onAdvanced,
   onRewound,
 }: {
@@ -45,7 +47,10 @@ export function CaseInquiriesStep({
   items: CaseInquiryRow[]
   loading: boolean
   autoAdvance: boolean
+  /** در تمدید و تغییر مکان، ادامه را صفحهٔ فرایند می‌زند */
+  showAdvance?: boolean
   documentsPending?: boolean
+  headerAction?: ReactNode
   onAdvanced: (formationStep: number) => void
   onRewound: () => void
 }) {
@@ -111,17 +116,21 @@ export function CaseInquiriesStep({
         ) : null
       }
       action={
+        headerAction ?? (showAdvance || documentsPending ? (
         <div className="flex max-w-xs flex-col items-end gap-2">
+          {showAdvance ? (
           <Button type="button" disabled={loading || pending || advance.isPending} onClick={() => advance.mutate()}>
             <Check className="size-4" aria-hidden />
             {t('cases.inquiriesContinue')}
           </Button>
+          ) : null}
           {documentsPending ? (
             <p className="rounded-xl border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-start text-[11px] leading-5 text-orange-800">
               {t('cases.inquiriesDocumentsHint')}
             </p>
           ) : null}
         </div>
+        ) : undefined)
       }
     >
       {loading ? (

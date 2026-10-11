@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Check, Landmark } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +17,8 @@ export function CasePlacesStep({
   item,
   loading,
   autoAdvance,
+  showAdvance = true,
+  headerAction,
   onAdvanced,
   onRewound,
 }: {
@@ -24,6 +26,9 @@ export function CasePlacesStep({
   item: CaseInquiryRow | null
   loading: boolean
   autoAdvance: boolean
+  /** در تمدید، ادامه را صفحهٔ فرایند می‌زند */
+  showAdvance?: boolean
+  headerAction?: ReactNode
   onAdvanced: (formationStep: number) => void
   onRewound: () => void
 }) {
@@ -74,10 +79,13 @@ export function CasePlacesStep({
       icon={Landmark}
       title={t('cases.steps.places')}
       action={
-        <Button type="button" disabled={loading || pending || advance.isPending} onClick={() => advance.mutate()}>
-          <Check className="size-4" aria-hidden />
-          {t('cases.placesContinue')}
-        </Button>
+        headerAction ??
+        (showAdvance ? (
+          <Button type="button" disabled={loading || pending || advance.isPending} onClick={() => advance.mutate()}>
+            <Check className="size-4" aria-hidden />
+            {t('cases.placesContinue')}
+          </Button>
+        ) : undefined)
       }
     >
       {loading ? (

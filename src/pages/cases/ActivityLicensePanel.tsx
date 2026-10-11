@@ -1,12 +1,14 @@
-import { BadgeCheck, Download, Printer } from 'lucide-react'
+import { BadgeCheck, CalendarDays, Check, Download, Printer, X } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Button } from '../../components/ui/Form'
-import { FormEmptyHint } from '../../components/ui/FormLayout'
+import { Button, FormField } from '../../components/ui/Form'
+import { formCardBodyClassName, FormCard } from '../../components/ui/FormLayout'
+import { PersianDateField } from '../../components/ui/PersianDateField'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { api, getApiErrorMessage, getImageUrl } from '../../lib/api'
+import { addYearsIso, todayIsoDate } from '../../lib/datetime'
 import {
   activityLicenseHtml,
   buildLicenseView,
@@ -104,6 +106,19 @@ export function ActivityLicenseSheet({ view }: { view: LicenseView }) {
 export function ActivityLicensePanel({ caseId }: { caseId: string }) {
   const { t } = useTranslation()
   const [busy, setBusy] = useState<'print' | 'download' | 'issue' | null>(null)
+  const [issuedAt, setIssuedAt] = useState(() => todayIsoDate())
+  const [expiresAt, setExpiresAt] = useState(() => addYearsIso(todayIsoDate(), 1))
+  const [confirming, setConfirming] = useState(false)
+  const expiresTouched = useRef(false)
+  const settings = useQuery({
+    queryKey: ['cases', 'general-settings'],
+    queryFn: async () => (await api.get<{ contractYears: number }>('/cases/settings/general')).data,
+  })
+  const contractYears = settings.data?.contractYears || 1
+  useEffect(() => {
+    if (expiresTouched.current || !settings.data) return
+    setExpiresAt(addYearsIso(issuedAt, contractYears))
+  }, [settings.data, contractYears, issuedAt])
   const query = useQuery({
     queryKey: ['cases', 'license', caseId],
     queryFn: async () => (await api.get<ActivityLicense>(`/cases/${caseId}/license`)).data,
@@ -125,11 +140,30 @@ export function ActivityLicensePanel({ caseId }: { caseId: string }) {
     }
   }
 
+  function datesReady() {
+    if (!issuedAt || !expiresAt) {
+      toast.error(t('cases.issueLicenseDatesRequired'))
+      return false
+    }
+    if (expiresAt <= issuedAt) {
+      toast.error(t('cases.issueLicenseDateOrder'))
+      return false
+    }
+    return true
+  }
+
   async function issue() {
+    if (!datesReady()) return
     setBusy('issue')
     try {
-      await api.post('/cases/formation/complete', { caseId, step: 6 })
+      await api.post('/cases/formation/complete', {
+        caseId,
+        step: 6,
+        licenseIssuedAt: issuedAt,
+        licenseExpiresAt: expiresAt,
+      })
       toast.success(t('cases.issueLicenseDone'))
+      setConfirming(false)
       await query.refetch()
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('cases.saveFailed')))
@@ -141,13 +175,60 @@ export function ActivityLicensePanel({ caseId }: { caseId: string }) {
   if (query.isLoading) return <LoadingState />
   if (query.isError || !query.data) {
     return (
-      <div className="space-y-4">
-        <FormEmptyHint>{t('cases.licenseNotIssued')}</FormEmptyHint>
-        <Button type="button" disabled={busy != null} onClick={() => void issue()}>
-          <BadgeCheck className="size-4" aria-hidden />
-          {t('cases.issueLicense')}
-        </Button>
-      </div>
+      <FormCard icon={BadgeCheck} title={t('cases.steps.issuance')}>
+        <div className={formCardBodyClassName}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField icon={CalendarDays} label={t('cases.licenseIssued')} htmlFor="license-issued-at">
+              <PersianDateField
+                id="license-issued-at"
+                value={issuedAt || undefined}
+                onChange={(next) => {
+                  const value = next ?? ''
+                  setIssuedAt(value)
+                  if (!expiresTouched.current && value) setExpiresAt(addYearsIso(value, contractYears))
+                }}
+              />
+            </FormField>
+            <FormField icon={CalendarDays} label={t('cases.licenseExpires')} htmlFor="license-expires-at">
+              <PersianDateField
+                id="license-expires-at"
+                value={expiresAt || undefined}
+                onChange={(next) => {
+                  expiresTouched.current = true
+                  setExpiresAt(next ?? '')
+                }}
+              />
+            </FormField>
+          </div>
+          <Button
+            type="button"
+            aria-pressed
+            className="ring-2 ring-teal-300 ring-offset-2"
+            disabled={busy != null}
+            onClick={() => {
+              if (datesReady()) setConfirming(true)
+            }}
+          >
+            <BadgeCheck className="size-4" aria-hidden />
+            {t('cases.issueLicense')}
+          </Button>
+          {confirming ? (
+            <div className="rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3">
+              <p className="text-sm leading-7 text-ink-700">{t('cases.issueLicenseConfirmText')}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button type="button" disabled={busy != null} onClick={() => void issue()}>
+                  <Check className="size-4" aria-hidden />
+                  {t('cases.issueLicenseConfirmYes')}
+                </Button>
+                <Button type="button" variant="ghost" disabled={busy != null} onClick={() => setConfirming(false)}>
+                  <X className="size-4" aria-hidden />
+                  {t('common.cancel')}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </FormCard>
     )
   }
 

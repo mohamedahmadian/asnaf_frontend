@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { PageHeader, caseShellClassName } from '../../components/ui/Form'
 import { FormCard } from '../../components/ui/FormLayout'
 import { FormTabs } from '../../components/ui/FormTabs'
+import { CaseContractDurationField } from './CaseContractDurationField'
 import { CaseGeneralSettingsPanel } from './CaseGeneralSettingsPanel'
 import { CaseIdentityDocumentsPanel } from './CaseIdentityDocumentsPanel'
 import { CasePlacesOfficePanel } from './CasePlacesOfficePanel'
@@ -73,8 +74,18 @@ export function CaseSettingsPage() {
           {tab === 'identity' ? <CaseIdentityDocumentsPanel /> : null}
           {tab === 'places' ? <CasePlacesOfficePanel /> : null}
           {tab === 'management' ? <CaseManagementApproversPanel /> : null}
-          {tab === 'issuance' ? <CaseRequirementsPanel requestType="ISSUANCE" /> : null}
-          {tab === 'renewal' ? <CaseRequirementsPanel requestType="RENEWAL" /> : null}
+          {tab === 'issuance' ? (
+            <>
+              <CaseContractDurationField />
+              <CaseRequirementsPanel requestType="ISSUANCE" />
+            </>
+          ) : null}
+          {tab === 'renewal' ? (
+            <>
+              <CaseContractDurationField />
+              <CaseRequirementsPanel requestType="RENEWAL" />
+            </>
+          ) : null}
           {tab === 'location' ? <CaseRequirementsPanel requestType="LOCATION_CHANGE" /> : null}
         </div>
       </FormCard>

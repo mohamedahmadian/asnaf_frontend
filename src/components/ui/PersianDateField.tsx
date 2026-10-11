@@ -30,6 +30,35 @@ function dateInRange(date: DateObject, min?: DateObject, max?: DateObject) {
   return true
 }
 
+function positionedHost(wrapper: HTMLElement) {
+  let node: HTMLElement | null = wrapper
+  for (let depth = 0; depth < 4 && node; depth += 1) {
+    if (/translate\(/.test(node.style.transform)) return node
+    node = node.parentElement
+  }
+  return wrapper.parentElement ?? wrapper
+}
+
+function keepCalendarInView() {
+  const wrapper = document.querySelector<HTMLElement>('.rmdp-wrapper')
+  if (!wrapper) return
+  const host = positionedHost(wrapper)
+  const margin = 8
+  const available = window.innerHeight - margin * 2
+  if (wrapper.scrollHeight > available) {
+    wrapper.style.maxHeight = `${available}px`
+    wrapper.style.overflowY = 'auto'
+  }
+  const rect = wrapper.getBoundingClientRect()
+  let shift = 0
+  if (rect.bottom > window.innerHeight - margin) shift -= rect.bottom - (window.innerHeight - margin)
+  if (rect.top + shift < margin) shift += margin - (rect.top + shift)
+  if (shift === 0) return
+  const match = /translate\(\s*([-\d.]+)px,\s*([-\d.]+)px\)/.exec(host.style.transform)
+  if (!match) return
+  host.style.transform = `translate(${Number(match[1])}px, ${Number(match[2]) + shift}px)`
+}
+
 function hasSelectedDate(selected?: DateObject | DateObject[] | null) {
   if (!selected) return false
   return Array.isArray(selected) ? selected.length > 0 : true
@@ -168,9 +197,13 @@ export function PersianDateField({
         calendarPosition={dir === 'rtl' ? 'bottom-right' : 'bottom-left'}
         containerClassName="w-full"
         portal
-        zIndex={80}
+        zIndex={120}
         hideOnScroll
         onOpenPickNewDate={false}
+        onPositionChange={() => {
+          keepCalendarInView()
+          requestAnimationFrame(keepCalendarInView)
+        }}
         mapDays={({ date }) => {
           const parts = calendarDayParts(date, locale)
           const friday = usesJalaliCalendar(locale) && date.weekDay?.index === 6

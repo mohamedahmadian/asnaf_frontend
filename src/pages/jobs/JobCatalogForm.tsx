@@ -1,4 +1,4 @@
-import { Banknote, Briefcase, Files, FolderKanban, HardHat, Languages, Receipt, ScanSearch, ToggleRight, Type } from 'lucide-react'
+import { BadgeCheck, Banknote, Briefcase, FolderKanban, HardHat, Languages, MapPinned, Receipt, RefreshCw, ToggleRight, Type } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { type FormEvent, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,7 +11,7 @@ import { SearchSelect } from '../../components/ui/SearchSelect'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { parseGroupedAmount, toLatinDigits } from '../../lib/datetime'
 import type { InquiryCenter, JobDocumentRef, JobGroup, JobInquiryCenterRef, JobType, Paginated } from '../../types/app'
-import { JobProcessRequirements } from '../cases/CaseRequirementsPanel'
+import { CaseRequirementsPanel } from '../cases/CaseRequirementsPanel'
 import { InquiryCenterPicker } from './InquiryCenterPanels'
 import { JobDocumentsPanel } from './JobDocumentPanels'
 
@@ -176,8 +176,9 @@ export function JobCatalogForm({
           onChange={setTab}
           tabs={[
             { id: 'details', label: t('jobCatalog.tabDetails'), icon: HardHat },
-            { id: 'centers', label: t('jobCatalog.tabInquiryCenters'), icon: ScanSearch },
-            { id: 'documents', label: t('jobCatalog.tabDocuments'), icon: Files },
+            { id: 'issuance', label: t('cases.requestTypes.ISSUANCE'), icon: BadgeCheck },
+            { id: 'renewal', label: t('cases.requestTypes.RENEWAL'), icon: RefreshCw },
+            { id: 'location', label: t('cases.requestTypes.LOCATION_CHANGE'), icon: MapPinned },
           ]}
         />
       ) : null}
@@ -279,8 +280,8 @@ export function JobCatalogForm({
           </FormField>
         ) : null}
           </div>
-        ) : tab === 'centers' ? (
-          <div role="tabpanel" id="form-panel-centers" aria-labelledby="form-tab-centers">
+        ) : tab === 'issuance' ? (
+          <div role="tabpanel" id="form-panel-issuance" aria-labelledby="form-tab-issuance" className="space-y-10">
             <InquiryCenterPicker
               centers={centers}
               selectedIds={inquiryCenterIds}
@@ -288,21 +289,23 @@ export function JobCatalogForm({
               label={t('jobCatalog.tabInquiryCenters')}
               empty={t('jobCatalog.noInquiryCenters')}
             />
-          </div>
-        ) : (
-          <div role="tabpanel" id="form-panel-documents" aria-labelledby="form-tab-documents">
             {jobId ? (
-              <div className="space-y-10">
-                <JobDocumentsPanel
-                  jobId={jobId}
-                  documents={initial?.documents ?? []}
-                  queryKey={['jobs-catalog', jobId]}
-                />
-                <JobProcessRequirements jobId={jobId} />
-              </div>
+              <JobDocumentsPanel
+                jobId={jobId}
+                documents={initial?.documents ?? []}
+                queryKey={['jobs-catalog', jobId]}
+              />
             ) : null}
           </div>
-        )}
+        ) : tab === 'renewal' && jobId ? (
+          <div role="tabpanel" id="form-panel-renewal" aria-labelledby="form-tab-renewal">
+            <CaseRequirementsPanel requestType="RENEWAL" jobId={jobId} scope="job" />
+          </div>
+        ) : jobId ? (
+          <div role="tabpanel" id="form-panel-location" aria-labelledby="form-tab-location">
+            <CaseRequirementsPanel requestType="LOCATION_CHANGE" jobId={jobId} scope="job" />
+          </div>
+        ) : null}
         <FormActions
           submitLabel={t('jobCatalog.save')}
           cancelLabel={t('jobCatalog.cancel')}

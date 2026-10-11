@@ -1,4 +1,4 @@
-import { Banknote, Briefcase, Files, FolderKanban, HardHat, Languages, Receipt, ScanSearch, Type } from 'lucide-react'
+import { BadgeCheck, Banknote, Briefcase, FolderKanban, HardHat, Languages, MapPinned, Receipt, RefreshCw, Type } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,7 +19,7 @@ import { jobCatalogApi, jobCatalogEditPath, jobsCatalogPath } from '../../lib/pa
 import type { Job } from '../../types/app'
 import { GeoStatus } from '../geo/GeoShared'
 import { InquiryCenterList } from './InquiryCenterPanels'
-import { JobProcessRequirements } from '../cases/CaseRequirementsPanel'
+import { CaseRequirementsPanel } from '../cases/CaseRequirementsPanel'
 import { JobDocumentsPanel } from './JobDocumentPanels'
 
 export function JobCatalogDetailPage() {
@@ -56,8 +56,9 @@ export function JobCatalogDetailPage() {
           onChange={setTab}
           tabs={[
             { id: 'details', label: t('jobCatalog.tabDetails'), icon: HardHat },
-            { id: 'centers', label: t('jobCatalog.tabInquiryCenters'), icon: ScanSearch },
-            { id: 'documents', label: t('jobCatalog.tabDocuments'), icon: Files },
+            { id: 'issuance', label: t('cases.requestTypes.ISSUANCE'), icon: BadgeCheck },
+            { id: 'renewal', label: t('cases.requestTypes.RENEWAL'), icon: RefreshCw },
+            { id: 'location', label: t('cases.requestTypes.LOCATION_CHANGE'), icon: MapPinned },
           ]}
         />
         <div className="space-y-6 p-5 sm:p-6">
@@ -104,24 +105,26 @@ export function JobCatalogDetailPage() {
               />
               <FormFactTile icon={HardHat} label={t('jobCatalog.isActive')} value={<GeoStatus active={item.isActive} />} />
             </div>
-          ) : tab === 'centers' ? (
-            <div role="tabpanel" id="form-panel-centers" aria-labelledby="form-tab-centers">
+          ) : tab === 'issuance' ? (
+            <div role="tabpanel" id="form-panel-issuance" aria-labelledby="form-tab-issuance" className="space-y-10">
               <InquiryCenterList
                 centers={item.inquiryCenters}
                 label={t('jobCatalog.tabInquiryCenters')}
                 empty={t('jobCatalog.noInquiryCenters')}
               />
+              <JobDocumentsPanel
+                jobId={item.id}
+                documents={item.documents ?? []}
+                queryKey={['jobs-catalog', item.id]}
+              />
+            </div>
+          ) : tab === 'renewal' ? (
+            <div role="tabpanel" id="form-panel-renewal" aria-labelledby="form-tab-renewal">
+              <CaseRequirementsPanel requestType="RENEWAL" jobId={item.id} scope="job" />
             </div>
           ) : (
-            <div role="tabpanel" id="form-panel-documents" aria-labelledby="form-tab-documents">
-              <div className="space-y-10">
-                <JobDocumentsPanel
-                  jobId={item.id}
-                  documents={item.documents ?? []}
-                  queryKey={['jobs-catalog', item.id]}
-                />
-                <JobProcessRequirements jobId={item.id} />
-              </div>
+            <div role="tabpanel" id="form-panel-location" aria-labelledby="form-tab-location">
+              <CaseRequirementsPanel requestType="LOCATION_CHANGE" jobId={item.id} scope="job" />
             </div>
           )}
           <DetailActions

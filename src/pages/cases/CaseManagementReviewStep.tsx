@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Building2, Check, Clock, FileText, Paperclip, RotateCcw, Shield, ShieldCheck, UserRound, X } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -45,6 +45,8 @@ export function CaseManagementReviewStep({
   items,
   loading,
   autoAdvance,
+  showAdvance = true,
+  headerAction,
   onAdvanced,
   onRewound,
 }: {
@@ -52,6 +54,9 @@ export function CaseManagementReviewStep({
   items: CaseManagementApproverRow[]
   loading: boolean
   autoAdvance: boolean
+  /** در تمدید و تغییر مکان، ادامه را صفحهٔ فرایند می‌زند */
+  showAdvance?: boolean
+  headerAction?: ReactNode
   onAdvanced: (formationStep: number) => void
   onRewound: () => void
 }) {
@@ -115,10 +120,13 @@ export function CaseManagementReviewStep({
         items.length > 0 ? <InquiryProgressChart done={doneCount} total={items.length} locale={locale} /> : null
       }
       action={
+        headerAction ??
+        (showAdvance ? (
         <Button type="button" disabled={loading || pending || advance.isPending} onClick={() => advance.mutate()}>
           <Check className="size-4" aria-hidden />
           {t('cases.managementContinue')}
         </Button>
+        ) : undefined)
       }
     >
       {loading ? (

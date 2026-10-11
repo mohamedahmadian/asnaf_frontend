@@ -1,4 +1,4 @@
-import { FileText, MapPinned, Plus, RefreshCw, ScanSearch, Trash2, Users } from 'lucide-react'
+import { FileText, Plus, ScanSearch, Trash2, Users } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -284,18 +284,3 @@ export function CaseRequirementsPanel({
   )
 }
 
-export function JobProcessRequirements({ jobId }: { jobId: string }) {
-  const { t } = useTranslation()
-  return (
-    <div className="space-y-10">
-      <section className="space-y-4">
-        <FormSectionTitle icon={RefreshCw}>{t('cases.requestTypes.RENEWAL')}</FormSectionTitle>
-        <CaseRequirementsPanel requestType="RENEWAL" jobId={jobId} scope="job" />
-      </section>
-      <section className="space-y-4">
-        <FormSectionTitle icon={MapPinned}>{t('cases.requestTypes.LOCATION_CHANGE')}</FormSectionTitle>
-        <CaseRequirementsPanel requestType="LOCATION_CHANGE" jobId={jobId} scope="job" />
-      </section>
-    </div>
-  )
-}

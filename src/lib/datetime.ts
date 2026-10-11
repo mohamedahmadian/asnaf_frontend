@@ -358,6 +358,13 @@ export function addDaysIso(iso: string, days: number) {
   return toIsoDateOnly(date.add(days, 'days'))
 }
 
+export function addYearsIso(iso: string, years: number) {
+  const date = fromIsoDateOnly(iso)
+  if (!date) return ''
+  const span = Number.isInteger(years) && years >= 1 && years <= 5 ? years : 1
+  return toIsoDateOnly(date.add(span, 'year'))
+}
+
 /** پنجشنبه و جمعه در تقویم ایران */
 export function isIranWeekendIso(iso: string) {
   const js = new Date(`${iso}T12:00:00`)

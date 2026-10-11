@@ -940,7 +940,8 @@ export function CaseFormationPage() {
                     uploadingId={uploadingId}
                     removingId={removingId}
                     disabled={!caseId}
-                    framed
+                    layout="tabs"
+                    emphasizeRequired
                     onFile={(documentId, file) => {
                       if (!caseId) return
                       void upload(documentId, file, { caseId, jobId: activityJobId })

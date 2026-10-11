@@ -312,6 +312,7 @@ export function EntityRowActions({
   viewTo,
   showView = true,
   viewLabel,
+  viewClassName = '',
   viewIcon: ViewIcon = Eye,
   extra,
   editTo,
@@ -322,6 +323,7 @@ export function EntityRowActions({
   viewTo: string
   showView?: boolean
   viewLabel?: string
+  viewClassName?: string
   viewIcon?: LucideIcon
   extra?: ReactNode
   editTo?: string
@@ -337,7 +339,7 @@ export function EntityRowActions({
     <div data-row-actions className="flex flex-nowrap items-center gap-2 whitespace-nowrap">
       {showView ? (
         <Link to={viewTo} {...(rowOpensEdit ? {} : { 'data-row-view': '' })}>
-          <Button type="button" variant="ghost">
+          <Button type="button" variant="ghost" className={viewClassName}>
             <ViewIcon className="size-4" aria-hidden />
             {label}
           </Button>
