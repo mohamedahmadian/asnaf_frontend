@@ -6,17 +6,10 @@ import { formatNumber } from '../../lib/datetime'
 import type { TFunction } from 'i18next'
 import { AUCTION_WIZARD_STEPS } from './auction'
 
-export function auctionWizardTitle(
-  t: TFunction,
-  locale: string,
-  name: string,
-  count: number | null,
-  issued = false,
-) {
-  if (issued) return t('cases.auction.title')
+export function auctionIssueButtonLabel(t: TFunction, locale: string, name: string, count: number) {
   const personName = name.trim()
-  if (!personName || count == null) return t('cases.auction.wizardTitle')
-  return t('cases.auction.wizardHeading', { name: personName, count: formatNumber(count, locale) })
+  if (!personName) return t('cases.auction.issueLicense')
+  return t('cases.auction.issueButton', { name: personName, count: formatNumber(count, locale) })
 }
 
 function HeaderBadge({
@@ -29,9 +22,11 @@ function HeaderBadge({
   children: ReactNode
 }) {
   return (
-    <span className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-2xl bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-800">
+    <span
+      className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-2xl bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-800"
+      aria-label={label}
+    >
       <Icon className="size-4 shrink-0" aria-hidden />
-      <span>{label}</span>
       <span className="min-w-0">{children}</span>
     </span>
   )

@@ -19,7 +19,7 @@ import { PersianDateField } from '../../components/ui/PersianDateField'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { formatGroupedNumber, formatNumber, localizeDigits, parseGroupedAmount, toLatinDigits } from '../../lib/datetime'
-import { AuctionCaseSubtitle, AuctionStepRing, AuctionWizardNav, auctionWizardTitle } from './AuctionWizard'
+import { AuctionCaseSubtitle, AuctionStepRing, AuctionWizardNav } from './AuctionWizard'
 import {
   AUCTION_WIZARD_STEPS,
   auctionWizardFinished,
@@ -129,8 +129,6 @@ export function CaseAuctionFormPage() {
   }, [id, loaded.data, navigate, requestId, t])
 
   const person = caseFile.data?.person
-  const personName = [person?.firstName, person?.lastName].filter(Boolean).join(' ') || person?.fullName || ''
-  const goodsCount = items.filter((row) => row.name.trim()).length
   const backTo = `/cases/${id}?stay=1`
   const reached = auctionWizardReached(loaded.data)
   const finished = auctionWizardFinished(loaded.data)
@@ -255,7 +253,7 @@ export function CaseAuctionFormPage() {
     <div className={caseShellClassName}>
       <PageHeader
         icon={Gavel}
-        title={auctionWizardTitle(t, locale, personName, goodsCount)}
+        title={t('cases.auction.wizardTitle')}
         titleExtra={
           ready ? (
           <AuctionStepRing

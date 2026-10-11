@@ -69,26 +69,30 @@ export function CaseDocumentList({
             const uploaded = Boolean(stored.find((row) => row.documentId === item.id)?.current)
             const selected = item.id === active?.id
             const requiredMark = emphasizeRequired && item.isRequired
+            const requiredDone = requiredMark && uploaded
+            const tabTone = requiredDone
+              ? selected
+                ? 'border-2 border-emerald-400 bg-emerald-100 text-emerald-800'
+                : 'border border-emerald-300 bg-emerald-50 text-emerald-800'
+              : requiredMark
+                ? selected
+                  ? 'border-2 border-red-300 bg-red-100 text-red-800'
+                  : 'border border-red-200 bg-red-50 text-red-700'
+                : selected
+                  ? 'bg-teal-500 text-white'
+                  : 'border border-teal-400 bg-white text-ink-700'
             return (
               <button
                 key={item.id}
                 type="button"
                 role="tab"
                 aria-selected={selected}
-                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-2xl px-4 py-2 text-sm ${
-                  requiredMark
-                    ? selected
-                      ? 'border-2 border-red-300 bg-red-100 text-red-800'
-                      : 'border border-red-200 bg-red-50 text-red-700'
-                    : selected
-                      ? 'bg-teal-500 text-white'
-                      : 'border border-teal-400 bg-white text-ink-700'
-                }`}
+                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-2xl px-4 py-2 text-sm ${tabTone}`}
                 onClick={() => setActiveId(item.id)}
               >
                 <span>{item.title}</span>
                 {requiredMark ? (
-                  <span className="text-red-500" aria-hidden>
+                  <span className={requiredDone ? 'text-emerald-600' : 'text-red-500'} aria-hidden>
                     *
                   </span>
                 ) : null}

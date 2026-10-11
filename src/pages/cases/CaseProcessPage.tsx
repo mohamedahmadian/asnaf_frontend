@@ -1,4 +1,4 @@
-import { BadgeCheck, Briefcase, CalendarClock, CalendarDays, Check, FolderKanban, MapPinned, RefreshCw, type LucideIcon } from 'lucide-react'
+import { BadgeCheck, CalendarClock, CalendarDays, Check, MapPinned, RefreshCw, Store, type LucideIcon } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,8 +21,9 @@ import { CaseManagementReviewStep, type CaseManagementApproverRow } from './Case
 import { CasePlacesStep } from './CasePlacesStep'
 import type { CaseInquiryRow } from './inquiry-types'
 import { emptyLocationForm, type DocumentTypeRow, type LocationForm, type StoredVersion } from './formation-types'
+import { AuctionCaseSubtitle, AuctionStepRing } from './AuctionWizard'
 
-const RENEWAL_STEPS = ['terms', 'documents', 'inquiries', 'places', 'management'] as const
+const RENEWAL_STEPS = ['terms', 'documents', 'inquiries', 'places', 'management', 'issue'] as const
 
 type ProcessState = {
   id: string
@@ -33,6 +34,7 @@ type ProcessState = {
   formationStep: number
   licenseNumber: string | null
   businessUnitTitle: string | null
+  person: { firstName: string; lastName: string; fullName: string } | null
   jobGroupTitle: string | null
   jobTitle: string | null
   contractYears: number
@@ -307,7 +309,7 @@ export function CaseProcessPage() {
 
   async function goToStep(index: number) {
     if (index > reached || (hideDocuments && index === 1)) return
-    if (item?.type === 'RENEWAL' && step === 0 && index !== 0) {
+    if (item?.type === 'RENEWAL' && (step === 0 || step === 5) && index !== step) {
       const saved = await scheduleRenewalSave(true)
       if (!saved) return
     }
@@ -337,7 +339,7 @@ export function CaseProcessPage() {
 
   async function continueProcess() {
     if (!item) return
-    if (item.type === 'RENEWAL' && serverStep === 0) {
+    if (item.type === 'RENEWAL' && (serverStep === 0 || serverStep === 5)) {
       const saved = await scheduleRenewalSave(true)
       if (!saved) return
     }
@@ -347,10 +349,10 @@ export function CaseProcessPage() {
     }
     setBusy(true)
     try {
-      const finalStep = 4
+      const finalStep = item.type === 'RENEWAL' ? 5 : 4
       if (serverStep >= finalStep) {
         await api.post('/cases/formation/complete', { caseId: id, step: finalStep })
-        toast.success(t('cases.processCompleted'))
+        toast.success(item.type === 'RENEWAL' ? t('cases.renewLicenseDone') : t('cases.processCompleted'))
         navigate(`/cases/${id}?stay=1`)
         return
       }
@@ -373,7 +375,8 @@ export function CaseProcessPage() {
     renewalSteps.filter((name) => RENEWAL_STEPS.indexOf(name) <= progress).length,
     stepTotal,
   )
-  const renewalOnLastStep = renewal && step >= RENEWAL_STEPS.length - 1
+  const renewalActionLabel =
+    step >= 5 ? t('cases.renewActivityLicense') : step === 4 ? t('cases.renewEconomicLicense') : t('cases.processContinue')
   const renewalContinue = renewal ? (
     <Button
       type="button"
@@ -381,12 +384,12 @@ export function CaseProcessPage() {
         busy ||
         (step === 2 && inquiriesPending) ||
         (step === 3 && (placesReview.isLoading || !placesReview.data || placesReview.data.status === 'PENDING')) ||
-        (renewalOnLastStep && reviewsPending)
+        (step === 4 && reviewsPending)
       }
       onClick={() => void continueProcess()}
     >
       <BadgeCheck className="size-4" aria-hidden />
-      {renewalOnLastStep ? t('cases.processComplete') : t('cases.processContinue')}
+      {renewalActionLabel}
     </Button>
   ) : null
 
@@ -397,7 +400,7 @@ export function CaseProcessPage() {
         title={renewal ? t('cases.renewCurrentLicense') : item ? t(`cases.requestTypes.${item.type}`) : t('cases.newRequest')}
         titleExtra={
           renewal ? (
-            <ProcessStepRing
+            <AuctionStepRing
               currentLabel={formatNumber(stepCurrent, locale)}
               totalLabel={formatNumber(stepTotal, locale)}
               ratio={stepCurrent / stepTotal}
@@ -410,19 +413,14 @@ export function CaseProcessPage() {
         }
         subtitle={
           renewal && item ? (
-            <span className="flex flex-col gap-1.5">
-              {item.businessUnitTitle ? (
-                <span className="text-sm font-medium text-ink-800">
-                  {t('cases.unitTitle')}: {item.businessUnitTitle}
-                </span>
-              ) : null}
-              <span className="flex flex-wrap items-center gap-1.5">
-                {item.jobGroupTitle ? (
-                  <ProcessBadge icon={FolderKanban} label={t('cases.activityGroup')} value={item.jobGroupTitle} />
-                ) : null}
-                {item.jobTitle ? <ProcessBadge icon={Briefcase} label={t('cases.activityJob')} value={item.jobTitle} /> : null}
-              </span>
-            </span>
+            <AuctionCaseSubtitle
+              firstName={item.person?.firstName}
+              lastName={item.person?.lastName}
+              fullName={item.person?.fullName}
+              jobTitle={item.jobTitle}
+              businessUnitTitle={item.businessUnitTitle}
+              licenseNumber={item.licenseNumber}
+            />
           ) : (
             item?.number
           )
@@ -432,7 +430,13 @@ export function CaseProcessPage() {
       {renewal ? (
         <ol
           className={`mb-5 grid grid-cols-2 gap-2 ${
-            renewalSteps.length > 4 ? 'sm:grid-cols-3 lg:grid-cols-5' : renewalSteps.length > 3 ? 'sm:grid-cols-4' : 'sm:grid-cols-3'
+            renewalSteps.length > 5
+              ? 'sm:grid-cols-3 lg:grid-cols-6'
+              : renewalSteps.length > 4
+                ? 'sm:grid-cols-3 lg:grid-cols-5'
+                : renewalSteps.length > 3
+                  ? 'sm:grid-cols-4'
+                  : 'sm:grid-cols-3'
           }`}
         >
           {renewalSteps.map((name) => {
@@ -619,7 +623,7 @@ export function CaseProcessPage() {
           }}
         />
       ) : null}
-      {item && step >= 4 ? (
+      {item && step === 4 ? (
         <CaseManagementReviewStep
           caseId={id}
           items={reviews.data ?? []}
@@ -634,6 +638,58 @@ export function CaseProcessPage() {
             void reviews.refetch()
           }}
         />
+      ) : null}
+      {item?.type === 'RENEWAL' && item.renewal && step === 5 ? (
+        <FormCard icon={BadgeCheck} title={t('cases.renewalSteps.issue')} action={renewalContinue}>
+          <div className={formCardBodyClassName}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormFactTile
+                icon={Store}
+                label={t('cases.unitTitle')}
+                value={item.businessUnitTitle?.trim() || '—'}
+                tone="teal"
+              />
+              <FormFactTile
+                icon={BadgeCheck}
+                label={t('cases.licenseNumber')}
+                copyValue={item.licenseNumber}
+                tone="mint"
+              />
+            </div>
+            <section>
+              <FormSectionTitle icon={RefreshCw}>{t('cases.renewalNextLicense')}</FormSectionTitle>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <FormField icon={CalendarDays} label={t('cases.renewalNextIssued')} htmlFor="renewal-issue-issued">
+                  <PersianDateField
+                    id="renewal-issue-issued"
+                    value={renewalIssued || undefined}
+                    maxDate={renewalExpires || undefined}
+                    onChange={(value) => {
+                      const issued = value ?? ''
+                      const expires = renewalExpiresTouched.current
+                        ? renewalExpires
+                        : addYearsIso(issued, item.contractYears || 1)
+                      rememberRenewalDates(issued, expires)
+                      void scheduleRenewalSave(false)
+                    }}
+                  />
+                </FormField>
+                <FormField icon={CalendarDays} label={t('cases.renewalNextExpires')} htmlFor="renewal-issue-expires">
+                  <PersianDateField
+                    id="renewal-issue-expires"
+                    value={renewalExpires || undefined}
+                    minDate={renewalIssued || undefined}
+                    onChange={(value) => {
+                      renewalExpiresTouched.current = true
+                      rememberRenewalDates(renewalIssued, value ?? '')
+                      void scheduleRenewalSave(false)
+                    }}
+                  />
+                </FormField>
+              </div>
+            </section>
+          </div>
+        </FormCard>
       ) : null}
       {item && item.type !== 'RENEWAL' && !(item.type === 'LOCATION_CHANGE' && step === 0) ? (
         <div className="flex justify-end">
@@ -653,47 +709,6 @@ export function CaseProcessPage() {
           </Button>
         </div>
       ) : null}
-    </div>
-  )
-}
-
-function ProcessStepRing({
-  currentLabel,
-  totalLabel,
-  ratio,
-  label,
-}: {
-  currentLabel: string
-  totalLabel: string
-  ratio: number
-  label: string
-}) {
-  const size = 56
-  const stroke = 5.5
-  const radius = (size - stroke) / 2
-  const circ = 2 * Math.PI * radius
-  const clamped = Math.min(1, Math.max(0, ratio))
-  const dash = circ * clamped
-  return (
-    <div className="relative size-14 shrink-0" role="img" aria-label={label}>
-      <svg viewBox={`0 0 ${size} ${size}`} className="size-14 -rotate-90" aria-hidden>
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" className="stroke-teal-100" strokeWidth={stroke} />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          className="stroke-teal-500"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={`${dash} ${circ - dash}`}
-        />
-      </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-semibold leading-none text-teal-800" aria-hidden>
-        {currentLabel}
-        <span className="px-px text-ink-400">/</span>
-        {totalLabel}
-      </span>
     </div>
   )
 }

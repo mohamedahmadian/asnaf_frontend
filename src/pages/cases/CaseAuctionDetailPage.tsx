@@ -11,7 +11,7 @@ import { LoadingState } from '../../components/ui/LoadingState'
 import { confirmToast } from '../../components/ui/confirmToast'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { formatGroupedNumber, formatNumber, localizeDigits } from '../../lib/datetime'
-import { AuctionCaseSubtitle, AuctionStepRing, AuctionWizardNav, auctionWizardTitle } from './AuctionWizard'
+import { AuctionCaseSubtitle, AuctionStepRing, AuctionWizardNav, auctionIssueButtonLabel } from './AuctionWizard'
 import { CaseManagementReviewStep, type CaseManagementApproverRow } from './CaseManagementReviewStep'
 import {
   AUCTION_WIZARD_STEPS,
@@ -192,7 +192,7 @@ export function CaseAuctionDetailPage() {
     <div className={caseShellClassName}>
       <PageHeader
         icon={Gavel}
-        title={auctionWizardTitle(t, locale, personName, item ? item.items.length : null, finished)}
+        title={finished ? t('cases.auction.title') : t('cases.auction.wizardTitle')}
         titleExtra={
           item ? (
             <AuctionStepRing
@@ -247,7 +247,7 @@ export function CaseAuctionDetailPage() {
               <div className="flex justify-center">
                 <Button type="button" disabled={savingId === 'issue'} onClick={askIssue}>
                   <BadgeCheck className="size-4" aria-hidden />
-                  {t('cases.auction.issueLicense')}
+                  {auctionIssueButtonLabel(t, locale, personName, item.items.length)}
                 </Button>
               </div>
             ) : null}

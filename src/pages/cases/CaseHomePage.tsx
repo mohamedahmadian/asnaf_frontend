@@ -123,6 +123,29 @@ const REQUEST_TYPE_ICONS = {
   AUCTION: Gavel,
 } as const
 
+const REQUEST_TYPE_STYLES = {
+  ISSUANCE: {
+    badge: 'bg-teal-50 text-teal-800 ring-teal-200',
+    edge: 'border-s-teal-500',
+  },
+  RENEWAL: {
+    badge: 'bg-sky-50 text-sky-800 ring-sky-200',
+    edge: 'border-s-sky-500',
+  },
+  LOCATION_CHANGE: {
+    badge: 'bg-amber-50 text-amber-900 ring-amber-200',
+    edge: 'border-s-amber-500',
+  },
+  STEWARDSHIP: {
+    badge: 'bg-violet-50 text-violet-800 ring-violet-200',
+    edge: 'border-s-violet-500',
+  },
+  AUCTION: {
+    badge: 'bg-rose-50 text-rose-800 ring-rose-200',
+    edge: 'border-s-rose-400',
+  },
+} as const
+
 const LATER_REQUESTS = [
   { type: 'STEWARDSHIP', icon: UserRound },
 ] as const
@@ -615,14 +638,15 @@ export function CaseHomePage() {
                                 ? `/cases/${item.id}/process`
                                 : `/cases/${item.id}?stay=1`
                         const TypeIcon = REQUEST_TYPE_ICONS[request.type]
+                        const typeStyle = REQUEST_TYPE_STYLES[request.type]
                         return (
                           <tr key={request.id} className="border-t border-line">
-                            <td className="px-4 py-3">
+                            <td className={`border-s-4 px-4 py-3 ${typeStyle.edge}`}>
                               <DateText value={request.createdAt} />
                             </td>
                             <td className="px-4 py-3">
-                              <RequestBadge>
-                                <TypeIcon className="size-3.5" aria-hidden />
+                              <RequestBadge className={typeStyle.badge} large>
+                                <TypeIcon className="size-4" aria-hidden />
                                 {t(`cases.requestTypes.${request.type}`)}
                               </RequestBadge>
                             </td>
@@ -859,16 +883,25 @@ function CaseOperationButton({
 function RequestBadge({
   children,
   tone = 'teal',
+  large = false,
+  className,
 }: {
   children: ReactNode
   tone?: 'teal' | 'mint'
+  large?: boolean
+  className?: string
 }) {
   const toneClass =
-    tone === 'mint'
+    className ??
+    (tone === 'mint'
       ? 'bg-mint-50 text-teal-900 ring-mint-200'
-      : 'bg-teal-50 text-teal-900 ring-teal-200'
+      : 'bg-teal-50 text-teal-900 ring-teal-200')
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${toneClass}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full font-medium ring-1 ${
+        large ? 'px-3 py-1 text-sm' : 'px-2.5 py-0.5 text-xs'
+      } ${toneClass}`}
+    >
       {children}
     </span>
   )

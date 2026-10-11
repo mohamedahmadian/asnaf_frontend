@@ -339,7 +339,8 @@
       "documents": "مدارک",
       "inquiries": "استعلام‌ها",
       "places": "اداره اماکن",
-      "management": "تاییدهای مدیریتی"
+      "management": "تاییدهای مدیریتی",
+      "issue": "تمدید مجوز"
     },
     "renewalCurrentLicense": "مجوز فعلی",
     "renewalNextLicense": "مجوز جدید",
@@ -359,6 +360,9 @@
     "processContinue": "ادامه",
     "processComplete": "تکمیل درخواست",
     "processCompleted": "درخواست تکمیل شد",
+    "renewEconomicLicense": "تمدید مجوز اقتصادی",
+    "renewActivityLicense": "تمدید مجوز فعالیت اقتصادی",
+    "renewLicenseDone": "مجوز فعالیت اقتصادی تمدید شد",
     "issueLicense": "صدور مجوز",
     "issueLicenseDone": "مجوز فعالیت اقتصادی صادر شد",
     "issueLicenseConfirmText": "با تأیید، مجوز فعالیت اقتصادی با همین تاریخ صدور و تاریخ انقضا صادر می‌شود.",
@@ -603,7 +607,6 @@
     "auction": {
       "title": "مجوز حراج",
       "wizardTitle": "صدور مجوز حراج",
-      "wizardHeading": "صدور مجوز حراج برای {{name}} برای {{count}} عدد کالای فوق",
       "create": "درخواست مجوز حراج",
       "createSubtitle": "بازه حراج، سقف تخفیف و فهرست کالاها را ثبت کنید",
       "edit": "ویرایش مجوز حراج",
@@ -652,6 +655,7 @@
         "issue": "صدور مجوز حراج"
       },
       "issueLicense": "صدور مجوز",
+      "issueButton": "صدور مجوز حراج برای {{name}} برای {{count}} عدد کالای فوق",
       "issueConfirm": "مجوز حراج با این مشخصات صادر شود؟",
       "issueDone": "مجوز حراج صادر شد",
       "issued": "مجوز حراج صادر شده است",
