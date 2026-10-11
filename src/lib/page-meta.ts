@@ -380,6 +380,9 @@ export function getPageMeta(pathname: string): {
   if (pathname.startsWith('/cases/settings')) {
     return { titleKey: 'menus.caseSettings', subtitleKey: 'cases.settingsSubtitle' }
   }
+  if (/^\/cases\/[^/]+\/renewal(\/[^/]+)?$/.test(pathname)) {
+    return { titleKey: 'cases.renewalDetails', subtitleKey: 'cases.renewalDetailsSubtitle' }
+  }
   if (/^\/cases\/[^/]+\/auction\/new$/.test(pathname)) {
     return { titleKey: 'cases.auction.create', subtitleKey: 'cases.auction.createSubtitle' }
   }

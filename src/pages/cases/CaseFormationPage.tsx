@@ -244,6 +244,23 @@ export function CaseFormationPage() {
       ).data,
   })
   const activityDocuments = activityRequirements.data ?? []
+  const requiredActivityCount = activityDocuments.filter((item) => item.isRequired).length
+  const optionalActivityCount = activityDocuments.length - requiredActivityCount
+  const activityDocumentsCountLabel =
+    requiredActivityCount > 0 && optionalActivityCount > 0
+      ? t('cases.activityDocumentsCount', {
+          required: formatNumber(requiredActivityCount, locale),
+          optional: formatNumber(optionalActivityCount, locale),
+        })
+      : requiredActivityCount > 0
+        ? t('cases.activityDocumentsRequiredOnly', {
+            required: formatNumber(requiredActivityCount, locale),
+          })
+        : optionalActivityCount > 0
+          ? t('cases.activityDocumentsOptionalOnly', {
+              optional: formatNumber(optionalActivityCount, locale),
+            })
+          : null
 
   const inquiriesReady = useMemo(() => {
     if (reached < PLACES_FORMATION_STEP && step < PLACES_FORMATION_STEP) return true
@@ -905,19 +922,8 @@ export function CaseFormationPage() {
               <section className="space-y-3 border-t border-teal-100 pt-4">
                 <FormSectionTitle icon={Files} className="mb-2.5 flex-wrap">
                   <span>{t('cases.activityDocumentsTitle')}</span>
-                  {activityDocuments.length > 0 ? (
-                    <span className="font-medium text-ink-500">
-                      {t('cases.activityDocumentsCount', {
-                        required: formatNumber(
-                          activityDocuments.filter((item) => item.isRequired).length,
-                          locale,
-                        ),
-                        optional: formatNumber(
-                          activityDocuments.filter((item) => !item.isRequired).length,
-                          locale,
-                        ),
-                      })}
-                    </span>
+                  {activityDocumentsCountLabel ? (
+                    <span className="font-medium text-ink-500">{activityDocumentsCountLabel}</span>
                   ) : null}
                 </FormSectionTitle>
                 {activityDocuments.some((item) => item.isRequired) ? (

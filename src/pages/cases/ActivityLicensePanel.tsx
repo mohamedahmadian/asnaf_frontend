@@ -121,7 +121,10 @@ export function ActivityLicensePanel({ caseId }: { caseId: string }) {
   }, [settings.data, contractYears, issuedAt])
   const query = useQuery({
     queryKey: ['cases', 'license', caseId],
-    queryFn: async () => (await api.get<ActivityLicense>(`/cases/${caseId}/license`)).data,
+    queryFn: async () => {
+      const { data } = await api.get<ActivityLicense & { licenseNumber: string | null }>(`/cases/${caseId}/license`)
+      return data.licenseNumber ? data : null
+    },
   })
 
   async function output(action: 'print' | 'download') {
@@ -200,18 +203,20 @@ export function ActivityLicensePanel({ caseId }: { caseId: string }) {
               />
             </FormField>
           </div>
-          <Button
-            type="button"
-            aria-pressed
-            className="ring-2 ring-teal-300 ring-offset-2"
-            disabled={busy != null}
-            onClick={() => {
-              if (datesReady()) setConfirming(true)
-            }}
-          >
-            <BadgeCheck className="size-4" aria-hidden />
-            {t('cases.issueLicense')}
-          </Button>
+          <div className="flex justify-center">
+            <Button
+              type="button"
+              aria-pressed
+              className="ring-2 ring-teal-300 ring-offset-2"
+              disabled={busy != null}
+              onClick={() => {
+                if (datesReady()) setConfirming(true)
+              }}
+            >
+              <BadgeCheck className="size-4" aria-hidden />
+              {t('cases.issueLicense')}
+            </Button>
+          </div>
           {confirming ? (
             <div className="rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3">
               <p className="text-sm leading-7 text-ink-700">{t('cases.issueLicenseConfirmText')}</p>

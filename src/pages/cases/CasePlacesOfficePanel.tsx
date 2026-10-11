@@ -1,4 +1,4 @@
-import { Mail, Phone, ScrollText, UserRound } from 'lucide-react'
+import { Mail, Phone, ScrollText, Shield } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -7,25 +7,21 @@ import { AppForm, FormActions, FormField, fieldClassName } from '../../component
 import { SearchSelect } from '../../components/ui/SearchSelect'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { toLatinDigits } from '../../lib/datetime'
+import type { AppRole } from '../../types/app'
 
 type PlacesOffice = {
   id: string
   phone: string | null
-  officerId: string | null
-  officerName: string | null
+  officerRoleId: string | null
+  officerRoleName: string | null
   letterTitle: string | null
   letterBody: string | null
-}
-
-type OfficerOption = {
-  id: string
-  fullName: string
 }
 
 export function CasePlacesOfficePanel() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [officerId, setOfficerId] = useState('')
+  const [officerRoleId, setOfficerRoleId] = useState('')
   const [phone, setPhone] = useState('')
   const [letterTitle, setLetterTitle] = useState('')
   const [letterBody, setLetterBody] = useState('')
@@ -34,21 +30,21 @@ export function CasePlacesOfficePanel() {
     queryKey: ['cases', 'places-office'],
     queryFn: async () => (await api.get<PlacesOffice>('/cases/settings/places-office')).data,
   })
-  const officers = useQuery({
-    queryKey: ['cases', 'places-officers'],
-    queryFn: async () => (await api.get<OfficerOption[]>('/cases/settings/places-office/officers')).data,
+  const roles = useQuery({
+    queryKey: ['roles', 'lookup'],
+    queryFn: async () => (await api.get<AppRole[]>('/roles')).data,
   })
 
   useEffect(() => {
     if (!office.data) return
-    setOfficerId(office.data.officerId ?? '')
+    setOfficerRoleId(office.data.officerRoleId ?? '')
     setPhone(office.data.phone ?? '')
     setLetterTitle(office.data.letterTitle ?? '')
     setLetterBody(office.data.letterBody ?? '')
   }, [office.data])
 
   function reset() {
-    setOfficerId(office.data?.officerId ?? '')
+    setOfficerRoleId(office.data?.officerRoleId ?? '')
     setPhone(office.data?.phone ?? '')
     setLetterTitle(office.data?.letterTitle ?? '')
     setLetterBody(office.data?.letterBody ?? '')
@@ -60,7 +56,7 @@ export function CasePlacesOfficePanel() {
     try {
       const digits = toLatinDigits(phone).replace(/\D/g, '')
       await api.put('/cases/settings/places-office', {
-        officerId: officerId || null,
+        officerRoleId: officerRoleId || null,
         phone: digits || null,
         letterTitle: letterTitle.trim() || null,
         letterBody: letterBody.trim() || null,
@@ -76,22 +72,25 @@ export function CasePlacesOfficePanel() {
 
   const options = [
     { value: '', label: t('cases.placesSelectOfficer') },
-    ...(officers.data ?? []).map((user) => ({ value: user.id, label: user.fullName })),
+    ...(roles.data ?? [])
+      .slice()
+      .sort((left, right) => left.name.localeCompare(right.name, 'fa'))
+      .map((role) => ({ value: role.id, label: role.name })),
   ]
-  if (office.data?.officerId && !options.some((option) => option.value === office.data?.officerId)) {
+  if (office.data?.officerRoleId && !options.some((option) => option.value === office.data?.officerRoleId)) {
     options.splice(1, 0, {
-      value: office.data.officerId,
-      label: office.data.officerName || office.data.officerId,
+      value: office.data.officerRoleId,
+      label: office.data.officerRoleName || office.data.officerRoleId,
     })
   }
 
   return (
     <AppForm onSubmit={submit} className="space-y-4" autoFocusFirst={false}>
-      <FormField icon={UserRound} label={t('cases.placesOfficer')} htmlFor="places-officer">
+      <FormField icon={Shield} label={t('cases.placesOfficer')} htmlFor="places-officer">
         <SearchSelect
           id="places-officer"
-          value={officerId}
-          onChange={setOfficerId}
+          value={officerRoleId}
+          onChange={setOfficerRoleId}
           placeholder={t('cases.placesSelectOfficer')}
           options={options}
         />

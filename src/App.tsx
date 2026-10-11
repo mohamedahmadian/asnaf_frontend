@@ -23,6 +23,7 @@ import { CaseAuctionFormPage } from './pages/cases/CaseAuctionFormPage'
 import { CaseFormationPage } from './pages/cases/CaseFormationPage'
 import { CaseHomePage } from './pages/cases/CaseHomePage'
 import { CaseProcessPage } from './pages/cases/CaseProcessPage'
+import { CaseRenewalDetailPage } from './pages/cases/CaseRenewalDetailPage'
 import { CaseLicensePage } from './pages/cases/CaseLicensePage'
 import { CaseInquiriesListPage } from './pages/cases/CaseInquiriesListPage'
 import { CaseInquiryDetailPage } from './pages/cases/CaseInquiryDetailPage'
@@ -286,6 +287,7 @@ export default function App() {
                   <Route path="/cases/:id/auction/new" element={<CaseAuctionFormPage />} />
                   <Route path="/cases/:id/auction/:requestId/edit" element={<CaseAuctionFormPage />} />
                   <Route path="/cases/:id/auction/:requestId" element={<CaseAuctionDetailPage />} />
+                  <Route path="/cases/:id/renewal/:requestId" element={<CaseRenewalDetailPage />} />
                   <Route path="/cases/:id/license" element={<CaseLicensePage />} />
                   <Route path="/cases/:id/process" element={<CaseProcessPage />} />
                   <Route path="/cases/:id" element={<CaseHomePage />} />

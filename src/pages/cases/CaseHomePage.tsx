@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CalendarDays,
   CirclePause,
+  CirclePlay,
   ClipboardList,
   Eye,
   Files,
@@ -15,8 +16,10 @@ import {
   MapPin,
   MapPinned,
   MapPinPlus,
+  Phone,
   Plus,
   RefreshCw,
+  RotateCcw,
   ShieldAlert,
   UserRound,
   X,
@@ -47,9 +50,16 @@ import { formatNumber } from '../../lib/datetime'
 import { useGeoName } from '../../lib/geo'
 import { violationCreatePath, violationsPath } from '../../lib/paths/violations'
 import type { Violation, ViolationAttachment } from '../../types/app'
-import { isAudioAttachment } from '../violations/files'
+import { isAudioAttachment, openViolationFile } from '../violations/files'
 import { FORMATION_STEPS } from './formation-types'
-import { CaseRevokeDialog, CaseSuspendDialog, CaseSuspensionsDialog, SuspensionCountBadge } from './CaseSuspensions'
+import {
+  CaseLiftSuspensionDialog,
+  CaseRevokeDialog,
+  CaseSuspendDialog,
+  CaseSuspensionsDialog,
+  SuspensionCountBadge,
+  SuspensionFiles,
+} from './CaseSuspensions'
 
 type CaseRequestRow = {
   id: string
@@ -81,12 +91,15 @@ type CaseHome = {
   status: 'ACTIVE' | 'SUSPENDED' | 'REVOKED'
   revokeReason: string | null
   revokedAt: string | null
+  reactivatedAt: string | null
   suspensionCount: number
   suspensions: {
     id: string
     reason: string
     startsAt: string
-    endsAt: string
+    endsAt: string | null
+    liftNote: string | null
+    files: { id: string; kind: 'SUSPEND' | 'LIFT'; originalName: string | null; mimeType?: string | null }[]
     active: boolean
   }[]
   city: { nameFa: string; nameEn: string } | null
@@ -157,6 +170,95 @@ const OPERATION_TONES = {
   },
 } as const
 
+function suspensionDayCount(startsAt: string, endsAt: string) {
+  const start = isoUtcDay(startsAt)
+  const end = isoUtcDay(endsAt)
+  const today = isoUtcDay(todayIso())
+  if (start == null || end == null || today == null) return null
+  const total = Math.max(1, Math.round((end - start) / 86_400_000) + 1)
+  const elapsed = Math.min(total, Math.max(0, Math.round((today - start) / 86_400_000) + 1))
+  return { total, ratio: elapsed / total }
+}
+
+function ActiveSuspensionNotice({
+  suspension,
+}: {
+  suspension: CaseHome['suspensions'][number] | null
+}) {
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language.split('-')[0] ?? 'fa'
+  if (!suspension) return null
+  const attachments = (suspension.files ?? []).filter((file) => file.kind === 'SUSPEND')
+  const span = suspension.endsAt ? suspensionDayCount(suspension.startsAt, suspension.endsAt) : null
+  return (
+    <div className="space-y-2 rounded-2xl bg-amber-50 px-3 py-3 text-sm text-amber-950 ring-1 ring-amber-200">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="text-amber-800/80">{t('cases.suspendStartsAt')}</span>
+          <DateText value={suspension.startsAt} />
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="text-amber-800/80">{t('cases.suspendEndsAt')}</span>
+          {suspension.endsAt ? <DateText value={suspension.endsAt} /> : '—'}
+        </span>
+        {span ? (
+          <SuspensionDaysChart total={span.total} ratio={span.ratio} locale={locale} label={t('cases.suspensionDays')} />
+        ) : null}
+      </div>
+      <p className="whitespace-pre-wrap leading-6">{suspension.reason}</p>
+      <SuspensionFiles files={attachments} />
+    </div>
+  )
+}
+
+function SuspensionDaysChart({
+  total,
+  ratio,
+  locale,
+  label,
+}: {
+  total: number
+  ratio: number
+  locale: string
+  label: string
+}) {
+  const size = 52
+  const stroke = 5
+  const radius = (size - stroke) / 2
+  const circ = 2 * Math.PI * radius
+  const dash = circ * Math.min(1, Math.max(0, ratio))
+  const daysLabel = formatNumber(total, locale)
+  return (
+    <div
+      className="ms-auto flex items-center gap-2 rounded-2xl bg-white/80 px-2.5 py-1.5 ring-1 ring-amber-200"
+      role="img"
+      aria-label={`${daysLabel} ${label}`}
+    >
+      <div className="relative size-[3.25rem] shrink-0">
+        <svg viewBox={`0 0 ${size} ${size}`} className="size-[3.25rem] -rotate-90" aria-hidden>
+          <circle cx={size / 2} cy={size / 2} r={radius} fill="none" className="stroke-amber-100" strokeWidth={stroke} />
+          {dash > 0 ? (
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              className="stroke-amber-500"
+              strokeWidth={stroke}
+              strokeLinecap="round"
+              strokeDasharray={`${dash} ${circ - dash}`}
+            />
+          ) : null}
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold leading-none text-amber-950" aria-hidden>
+          {daysLabel}
+        </span>
+      </div>
+      <p className="max-w-16 text-[11px] font-medium leading-4 text-amber-800">{label}</p>
+    </div>
+  )
+}
+
 function caseRequestPath(caseId: string, nationalId: string | null) {
   return `/cases/formation?nationalId=${encodeURIComponent(nationalId ?? '')}&caseId=${encodeURIComponent(caseId)}`
 }
@@ -175,6 +277,7 @@ export function CaseHomePage() {
   const [violationsOpen, setViolationsOpen] = useState(false)
   const [suspensionsOpen, setSuspensionsOpen] = useState(false)
   const [suspendOpen, setSuspendOpen] = useState(false)
+  const [liftOpen, setLiftOpen] = useState(false)
   const [revokeOpen, setRevokeOpen] = useState(false)
   const showHome = searchParams.get('stay') === '1'
   const query = useQuery({
@@ -183,6 +286,7 @@ export function CaseHomePage() {
     queryFn: async () => (await api.get<CaseHome>(`/cases/${id}`)).data,
   })
   const item = query.data
+  const activityDayCount = item?.licenseNumber ? activityDays(item) : null
   const openRequest = item?.requests.find((request) => request.status === 'OPEN') ?? null
   const revoked = item?.status === 'REVOKED'
   const canStart = Boolean(item?.licenseNumber) && !openRequest && !revoked
@@ -258,11 +362,16 @@ export function CaseHomePage() {
           item ? (
             <span className="flex flex-wrap items-center gap-1.5">
               <EntityNameSubtitle icon={UserRound} name={item.person.fullName || t('cases.details')} />
-              {item.licenseNumber ? (
-                <span className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-2xl bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-800">
-                  <BadgeCheck className="size-4 shrink-0" aria-hidden />
-                  <span>{t('cases.licenseNumber')}</span>
-                  <CopyableDigits value={item.licenseNumber} />
+              {item.person.phone ? (
+                <span className="inline-flex max-w-full items-center gap-1.5 rounded-2xl bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-800">
+                  <Phone className="size-4 shrink-0" aria-hidden />
+                  <CopyableDigits value={item.person.phone} />
+                </span>
+              ) : null}
+              {item.person.nationalId ? (
+                <span className="inline-flex max-w-full items-center gap-1.5 rounded-2xl bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-800">
+                  <IdCard className="size-4 shrink-0" aria-hidden />
+                  <CopyableDigits value={item.person.nationalId} />
                 </span>
               ) : null}
             </span>
@@ -282,8 +391,36 @@ export function CaseHomePage() {
       {item && !redirecting ? (
         <div className="space-y-4">
           <FormCard
+            className={
+              item.status === 'SUSPENDED' ? '!border-2 !border-amber-400' : undefined
+            }
             icon={Briefcase}
             title={item.businessUnitTitle || t('cases.details')}
+            titleExtra={
+              item.licenseNumber || (activityDayCount != null && activityDayCount > 0) ? (
+                <span className="flex flex-wrap items-center gap-1.5">
+                  {item.licenseNumber ? (
+                    <span
+                      className="inline-flex max-w-full items-center gap-1.5 rounded-2xl bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-800"
+                      aria-label={t('cases.licenseNumber')}
+                    >
+                      <BadgeCheck className="size-4 shrink-0" aria-hidden />
+                      <CopyableDigits value={item.licenseNumber} />
+                    </span>
+                  ) : null}
+                  {activityDayCount != null && activityDayCount > 0 ? (
+                    <span
+                      className="inline-flex max-w-full items-center gap-1.5 rounded-2xl bg-mint-50 px-3 py-1.5 text-sm font-medium text-teal-900"
+                      aria-label={`${t('cases.activityDays')}: ${formatNumber(activityDayCount, locale)}`}
+                    >
+                      <CalendarDays className="size-4 shrink-0" aria-hidden />
+                      <span className="font-semibold">{formatNumber(activityDayCount, locale)}</span>
+                      <span>{t('cases.activityDays')}</span>
+                    </span>
+                  ) : null}
+                </span>
+              ) : undefined
+            }
             chips={
               item.job?.group || item.job || item.status === 'SUSPENDED' || item.status === 'REVOKED' ? (
                 <>
@@ -294,7 +431,7 @@ export function CaseHomePage() {
                     </span>
                   ) : null}
                   {item.status === 'SUSPENDED' ? (
-                    <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900 shadow-[0_4px_10px_rgba(217,119,6,0.08)] ring-1 ring-amber-200">
+                    <span className="case-suspension-blink inline-flex max-w-full items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900 shadow-[0_4px_10px_rgba(217,119,6,0.08)] ring-1 ring-amber-200">
                       <CirclePause className="size-3.5 shrink-0" aria-hidden />
                       {t('cases.suspensionActive')}
                     </span>
@@ -336,6 +473,11 @@ export function CaseHomePage() {
             }
           >
             <div className={formCardBodyClassName}>
+              {item.status === 'SUSPENDED' ? (
+                <ActiveSuspensionNotice
+                  suspension={item.suspensions.find((row) => row.active) ?? null}
+                />
+              ) : null}
               {item.status === 'REVOKED' && item.revokeReason ? (
                 <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm leading-6 text-red-900 ring-1 ring-red-100">
                   {item.revokeReason}
@@ -374,6 +516,15 @@ export function CaseHomePage() {
                   empty={!item.city}
                 />
               </div>
+              {item.reactivatedAt && item.status !== 'REVOKED' ? (
+                <p className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-teal-50 px-3 py-2 text-sm text-teal-950 ring-1 ring-teal-100">
+                  <span className="inline-flex items-center gap-1.5 font-medium">
+                    <RotateCcw className="size-4 shrink-0 text-teal-600" aria-hidden />
+                    {t('cases.reactivatedAt')}
+                  </span>
+                  <DateText value={item.reactivatedAt} withTime />
+                </p>
+              ) : null}
               {violationsOpen && item.person.nationalId ? (
                 <PersonViolationsModal
                   nationalId={item.person.nationalId}
@@ -389,6 +540,13 @@ export function CaseHomePage() {
                 />
               ) : null}
               {suspendOpen ? <CaseSuspendDialog caseId={item.id} onClose={() => setSuspendOpen(false)} /> : null}
+              {liftOpen ? (
+                <CaseLiftSuspensionDialog
+                  caseId={item.id}
+                  startsAt={item.suspensions.find((row) => row.active)?.startsAt ?? ''}
+                  onClose={() => setLiftOpen(false)}
+                />
+              ) : null}
               {revokeOpen ? <CaseRevokeDialog caseId={item.id} onClose={() => setRevokeOpen(false)} /> : null}
             </div>
           </FormCard>
@@ -435,7 +593,7 @@ export function CaseHomePage() {
                         <th className="px-4 py-3 text-start font-medium">{t('cases.requestDate')}</th>
                         <th className="px-4 py-3 text-start font-medium">{t('cases.requestType')}</th>
                         <th className="px-4 py-3 text-start font-medium">{t('cases.issuedOn')}</th>
-                        <th className="px-4 py-3 text-center font-medium">{t('cases.endsOn')}</th>
+                        <th className="px-4 py-3 text-center! font-medium">{t('cases.endsOn')}</th>
                         <th className="px-4 py-3 text-start font-medium">{t('cases.listStep')}</th>
                         <ActionsTh />
                       </tr>
@@ -451,9 +609,11 @@ export function CaseHomePage() {
                         const requestTo =
                           request.type === 'ISSUANCE'
                             ? caseRequestPath(item.id, item.person.nationalId)
-                            : request.status === 'OPEN'
-                              ? `/cases/${item.id}/process`
-                              : `/cases/${item.id}?stay=1`
+                            : request.type === 'RENEWAL' && request.status !== 'OPEN'
+                              ? `/cases/${item.id}/renewal/${request.id}`
+                              : request.status === 'OPEN'
+                                ? `/cases/${item.id}/process`
+                                : `/cases/${item.id}?stay=1`
                         const TypeIcon = REQUEST_TYPE_ICONS[request.type]
                         return (
                           <tr key={request.id} className="border-t border-line">
@@ -493,7 +653,11 @@ export function CaseHomePage() {
                               ) : request.type === 'ISSUANCE' || request.type === 'RENEWAL' || request.type === 'LOCATION_CHANGE' ? (
                                 <EntityRowActions
                                   viewTo={requestTo}
-                                  viewLabel={issued ? t('cases.viewRequest') : t('cases.continueRequest')}
+                                  viewLabel={
+                                    issued || (request.type === 'RENEWAL' && request.status !== 'OPEN')
+                                      ? t('cases.viewRequest')
+                                      : t('cases.continueRequest')
+                                  }
                                   viewClassName="w-[8.25rem]"
                                   viewIcon={Eye}
                                   rowOpensView
@@ -524,6 +688,8 @@ export function CaseHomePage() {
           <FormCard icon={ClipboardList} title={t('cases.operationsTitle')}>
             <div className={formCardBodyClassName}>
               <CaseOperations
+                suspended={item.status === 'SUSPENDED'}
+                revoked={item.status === 'REVOKED'}
                 licenseTo={item.licenseNumber ? `/cases/${item.id}/license` : null}
                 violationTo={
                   item.person.nationalId
@@ -550,7 +716,24 @@ export function CaseHomePage() {
                       toast.error(t('cases.revokeAlready'))
                       return
                     }
-                    setSuspendOpen(true)
+                    if (item.status === 'SUSPENDED') setLiftOpen(true)
+                    else setSuspendOpen(true)
+                  } else if (key === 'reactivate') {
+                    confirmToast({
+                      title: t('cases.reactivateConfirm'),
+                      confirmLabel: t('common.yes'),
+                      cancelLabel: t('common.cancel'),
+                      onConfirm: async () => {
+                        try {
+                          await api.post(`/cases/${id}/reactivation`)
+                          toast.success(t('cases.reactivated'))
+                          await queryClient.invalidateQueries({ queryKey: ['cases', 'home', id] })
+                          await queryClient.invalidateQueries({ queryKey: ['cases', 'list'] })
+                        } catch (error) {
+                          toast.error(getApiErrorMessage(error, t('common.error')))
+                        }
+                      },
+                    })
                   } else if (key === 'revoke') {
                     if (item.status === 'REVOKED') {
                       toast.error(t('cases.revokeAlready'))
@@ -575,39 +758,62 @@ function CaseOperations({
   onPick,
   licenseTo,
   violationTo,
+  suspended,
+  revoked,
 }: {
   onPick: (key: string) => void
   licenseTo: string | null
   violationTo: string | null
+  suspended: boolean
+  revoked: boolean
 }) {
   const { t } = useTranslation()
+  if (revoked) {
+    return (
+      <div className="flex flex-wrap justify-center gap-2">
+        <CaseOperationButton
+          icon={RotateCcw}
+          tone="teal"
+          label={t('cases.operations.reactivate')}
+          onClick={() => onPick('reactivate')}
+        />
+      </div>
+    )
+  }
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap justify-center gap-2">
-        {licenseTo ? (
-          <CaseOperationButton icon={BadgeCheck} tone="teal" label={t('cases.viewLicense')} to={licenseTo} />
-        ) : null}
-        {CASE_OPERATIONS.map((operation) => (
-          <CaseOperationButton
-            key={operation.key}
-            icon={operation.icon}
-            tone={operation.tone}
-            label={t(`cases.operations.${operation.key}`)}
-            onClick={() => onPick(operation.key)}
-          />
-        ))}
-      </div>
-      <div className="flex flex-wrap justify-center gap-2 border-t border-dashed border-red-100 pt-3">
-        {CASE_SENSITIVE_OPERATIONS.map((operation) => (
-          <CaseOperationButton
-            key={operation.key}
-            icon={operation.icon}
-            tone={operation.tone}
-            label={t(`cases.operations.${operation.key}`)}
-            to={operation.key === 'registerViolation' ? violationTo ?? undefined : undefined}
-            onClick={() => onPick(operation.key)}
-          />
-        ))}
+      {suspended ? null : (
+        <div className="flex flex-wrap justify-center gap-2">
+          {licenseTo ? (
+            <CaseOperationButton icon={BadgeCheck} tone="teal" label={t('cases.viewLicense')} to={licenseTo} />
+          ) : null}
+          {CASE_OPERATIONS.map((operation) => (
+            <CaseOperationButton
+              key={operation.key}
+              icon={operation.icon}
+              tone={operation.tone}
+              label={t(`cases.operations.${operation.key}`)}
+              onClick={() => onPick(operation.key)}
+            />
+          ))}
+        </div>
+      )}
+      <div
+        className={`flex flex-wrap justify-center gap-2 ${suspended ? '' : 'border-t border-dashed border-red-100 pt-3'}`}
+      >
+        {CASE_SENSITIVE_OPERATIONS.map((operation) => {
+          const unsuspend = operation.key === 'suspend' && suspended
+          return (
+            <CaseOperationButton
+              key={operation.key}
+              icon={unsuspend ? CirclePlay : operation.icon}
+              tone={unsuspend ? 'teal' : operation.tone}
+              label={unsuspend ? t('cases.operations.unsuspend') : t(`cases.operations.${operation.key}`)}
+              to={operation.key === 'registerViolation' ? violationTo ?? undefined : undefined}
+              onClick={() => onPick(operation.key)}
+            />
+          )
+        })}
       </div>
     </div>
   )
@@ -711,9 +917,13 @@ function RequestDateCell({ request, part }: { request: CaseRequestRow; part: 'st
   const remaining = part === 'end' ? licenseSpan(null, value)?.remaining : null
   const remainingText = remaining == null ? null : formatNumber(remaining, locale)
   const stacked = part === 'end' && remainingText != null
+  const endUrgent = remaining != null && remaining < END_DATE_URGENT_DAYS
   return (
     <span className={stacked ? 'inline-flex flex-col items-center gap-1' : 'inline-flex flex-wrap items-center gap-1.5'}>
-      <DateBadge tone={part === 'start' ? 'mint' : 'red'} label={part === 'start' ? t('cases.issuedOn') : t('cases.endsOn')}>
+      <DateBadge
+        tone={part === 'start' ? 'mint' : endUrgent ? 'red' : 'teal'}
+        label={part === 'start' ? t('cases.issuedOn') : t('cases.endsOn')}
+      >
         <DateText value={value} />
       </DateBadge>
       {remainingText != null ? (
@@ -736,6 +946,21 @@ function CaseMetaBadge({ icon: Icon, label, value }: { icon: LucideIcon; label: 
       <span>{value}</span>
     </span>
   )
+}
+
+const END_DATE_URGENT_DAYS = 30
+
+function activityDays(item: CaseHome) {
+  const issued = item.requests
+    .filter((request) => request.type === 'ISSUANCE' && request.issuedAt)
+    .map((request) => request.issuedAt as string)
+    .sort()
+  const first = issued[0] ?? item.licenseIssuedAt
+  if (!first) return null
+  const start = isoUtcDay(first)
+  const today = isoUtcDay(todayIso())
+  if (start == null || today == null) return null
+  return Math.max(0, Math.round((today - start) / 86_400_000))
 }
 
 function isoUtcDay(value: string) {
@@ -847,7 +1072,7 @@ function PersonViolationsModal({
           role="dialog"
           aria-modal="true"
           aria-labelledby="case-person-violations-title"
-          className="relative z-10 flex max-h-[min(36rem,80dvh)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-xl"
+          className="relative z-10 flex max-h-[min(44rem,88dvh)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-xl"
         >
           <header className="relative shrink-0 overflow-hidden bg-gradient-to-e from-orange-50 via-white to-amber-50 px-5 py-4">
             <div className="relative flex items-center justify-between gap-3">
@@ -917,7 +1142,7 @@ function PersonViolationsModal({
             role="dialog"
             aria-modal="true"
             aria-labelledby="case-violation-detail-title"
-            className="relative z-10 flex max-h-[min(40rem,84dvh)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-xl"
+            className="relative z-10 flex max-h-[min(52rem,92dvh)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-xl"
           >
             <header className="relative shrink-0 overflow-hidden bg-gradient-to-e from-orange-50 via-white to-amber-50 px-5 py-4">
               <div className="relative flex items-center justify-between gap-3">
@@ -1018,7 +1243,8 @@ function ViolationAttachmentMedia({
   const { t } = useTranslation()
   const images = items.filter(isImageAttachment)
   const audios = items.filter((item) => !isImageAttachment(item) && isAudioAttachment(item))
-  if (!images.length && !audios.length) return null
+  const others = items.filter((item) => !isImageAttachment(item) && !isAudioAttachment(item))
+  if (!items.length) return null
   return (
     <div className="space-y-3">
       <p className="text-xs font-medium text-ink-500">{t('violations.attachments')}</p>
@@ -1040,6 +1266,20 @@ function ViolationAttachmentMedia({
           label={item.originalName || t('violations.attachmentVoice')}
         />
       ))}
+      {others.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          className="flex w-full cursor-pointer items-center gap-2 rounded-2xl bg-orange-50/70 px-3 py-2 text-start text-sm text-orange-900"
+          onClick={() => {
+            openViolationFile(`/violations/${violationId}/attachments/${item.id}`).catch((error) => {
+              toast.error(getApiErrorMessage(error, t('common.error')))
+            })
+          }}
+        >
+          <span className="min-w-0 truncate">{item.originalName || t('violations.openAttachment')}</span>
+        </button>
+      ))}
     </div>
   )
 }
@@ -1049,7 +1289,7 @@ function ViolationImage({ href, name }: { href: string; name: string }) {
   if (!src) {
     return <div className="h-36 animate-pulse rounded-2xl bg-orange-50" aria-hidden />
   }
-  return <img src={src} alt={name} className="max-h-64 w-full rounded-2xl bg-orange-50 object-contain" />
+  return <img src={src} alt={name} className="max-h-[28rem] w-full rounded-2xl bg-orange-50 object-contain" />
 }
 
 function ViolationAudio({ href, label }: { href: string; label: string }) {

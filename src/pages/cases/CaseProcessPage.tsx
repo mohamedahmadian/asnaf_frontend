@@ -119,33 +119,38 @@ export function CaseProcessPage() {
         })
       ).data,
   })
+  const requestId = process.data?.id
   const inquiries = useQuery({
-    queryKey: ['cases', 'formation-inquiries', id],
+    queryKey: ['cases', 'formation-inquiries', id, requestId],
     enabled:
-      Boolean(id) &&
+      Boolean(id && requestId) &&
       ((process.data?.formationStep ?? 0) >= 2 ||
         (process.data?.type === 'RENEWAL' &&
           requirements.isSuccess &&
           !(requirements.data ?? []).some((row) => row.isRequired) &&
           (process.data?.formationStep ?? 0) >= 1)),
-    queryFn: async () => (await api.get<CaseInquiryRow[]>('/cases/formation/inquiries', { params: { caseId: id } })).data,
+    queryFn: async () =>
+      (await api.get<CaseInquiryRow[]>('/cases/formation/inquiries', { params: { caseId: id, requestId } })).data,
   })
   const placesReview = useQuery({
-    queryKey: ['cases', 'formation-places', id],
-    enabled: Boolean(id) && process.data?.type === 'RENEWAL' && (process.data?.formationStep ?? 0) >= 3,
+    queryKey: ['cases', 'formation-places', id, requestId],
+    enabled:
+      Boolean(id && requestId) &&
+      (process.data?.type === 'RENEWAL' || process.data?.type === 'LOCATION_CHANGE') &&
+      (process.data?.formationStep ?? 0) >= 3,
     queryFn: async () =>
-      (await api.get<CaseInquiryRow | null>('/cases/formation/places', { params: { caseId: id } })).data,
+      (await api.get<CaseInquiryRow | null>('/cases/formation/places', { params: { caseId: id, requestId } })).data,
   })
   const reviews = useQuery({
-    queryKey: ['cases', 'formation-management-approvers', id],
+    queryKey: ['cases', 'formation-management-approvers', id, requestId],
     enabled:
-      Boolean(id) &&
-      (process.data?.type === 'RENEWAL'
-        ? (process.data?.formationStep ?? 0) >= 4
-        : (process.data?.formationStep ?? 0) >= 3),
+      Boolean(id && requestId) &&
+      (process.data?.formationStep ?? 0) >= 4,
     queryFn: async () =>
       (
-        await api.get<CaseManagementApproverRow[]>('/cases/formation/management-approvers', { params: { caseId: id } })
+        await api.get<CaseManagementApproverRow[]>('/cases/formation/management-approvers', {
+          params: { caseId: id, requestId },
+        })
       ).data,
   })
   const cities = useQuery({
@@ -342,7 +347,7 @@ export function CaseProcessPage() {
     }
     setBusy(true)
     try {
-      const finalStep = item.type === 'RENEWAL' ? RENEWAL_STEPS.length - 1 : 3
+      const finalStep = 4
       if (serverStep >= finalStep) {
         await api.post('/cases/formation/complete', { caseId: id, step: finalStep })
         toast.success(t('cases.processCompleted'))
@@ -598,7 +603,7 @@ export function CaseProcessPage() {
           }}
         />
       ) : null}
-      {item?.type === 'RENEWAL' && step === 3 ? (
+      {(item?.type === 'RENEWAL' || item?.type === 'LOCATION_CHANGE') && step === 3 ? (
         <CasePlacesStep
           caseId={id}
           item={placesReview.data ?? null}
@@ -614,7 +619,7 @@ export function CaseProcessPage() {
           }}
         />
       ) : null}
-      {item && (item.type === 'RENEWAL' ? step >= 4 : step >= 3) ? (
+      {item && step >= 4 ? (
         <CaseManagementReviewStep
           caseId={id}
           items={reviews.data ?? []}
@@ -637,15 +642,14 @@ export function CaseProcessPage() {
             disabled={
               busy ||
               (step === 2 && inquiriesPending) ||
-              (item.type === 'RENEWAL' &&
-                step === 3 &&
+              (step === 3 &&
                 (placesReview.isLoading || !placesReview.data || placesReview.data.status === 'PENDING')) ||
-              ((item.type === 'RENEWAL' ? step >= 4 : step >= 3) && reviewsPending)
+              (step >= 4 && reviewsPending)
             }
             onClick={() => void continueProcess()}
           >
             <BadgeCheck className="size-4" aria-hidden />
-            {(item.type === 'RENEWAL' ? step >= 4 : step >= 3) ? t('cases.processComplete') : t('cases.processContinue')}
+            {step >= 4 ? t('cases.processComplete') : t('cases.processContinue')}
           </Button>
         </div>
       ) : null}

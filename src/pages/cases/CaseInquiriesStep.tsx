@@ -117,15 +117,15 @@ export function CaseInquiriesStep({
       }
       action={
         headerAction ?? (showAdvance || documentsPending ? (
-        <div className="flex max-w-xs flex-col items-end gap-2">
+        <div className="flex flex-col items-end gap-2">
           {showAdvance ? (
-          <Button type="button" disabled={loading || pending || advance.isPending} onClick={() => advance.mutate()}>
+          <Button type="button" className="whitespace-nowrap" disabled={loading || pending || advance.isPending} onClick={() => advance.mutate()}>
             <Check className="size-4" aria-hidden />
             {t('cases.inquiriesContinue')}
           </Button>
           ) : null}
           {documentsPending ? (
-            <p className="rounded-xl border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-start text-[11px] leading-5 text-orange-800">
+            <p className="max-w-xs rounded-xl border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-start text-[11px] leading-5 text-orange-800">
               {t('cases.inquiriesDocumentsHint')}
             </p>
           ) : null}

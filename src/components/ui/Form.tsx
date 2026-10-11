@@ -555,6 +555,7 @@ export function FormActions({
   className = '',
   headerIcons,
   extraItems,
+  cancelEnd = false,
 }: {
   submitLabel: string
   cancelLabel?: string
@@ -564,6 +565,8 @@ export function FormActions({
   /** آیکون ذخیره/انصراف در هدر. پیش‌فرض روی مسیر ایجاد/ویرایش روشن است */
   headerIcons?: boolean
   extraItems?: DetailActionExtraItem[]
+  /** انصراف در انتهای اینلاین فرم (سمت چپ در RTL) */
+  cancelEnd?: boolean
 }) {
   const { pathname } = useLocation()
   const formId = useContext(AppFormContext)
@@ -574,24 +577,31 @@ export function FormActions({
   useEditFormDoubleSave(isEditPath && !submitting, formId)
   const extras = extraItems ?? []
   const hasExtra = extras.length > 0
+  const showCancel = Boolean(onCancel && cancelLabel)
+  const cancelButton = showCancel ? (
+    <Button type="button" variant="ghost" data-form-cancel="" onClick={onCancel}>
+      <X className="size-4" aria-hidden />
+      {cancelLabel}
+    </Button>
+  ) : null
   return (
     <>
       <div
-        className={`flex flex-wrap items-center gap-3 ${hasExtra ? 'justify-between' : ''} ${isEntryPath ? 'pt-4' : ''} ${className}`.trim()}
+        className={`flex flex-wrap items-center gap-3 ${hasExtra || cancelEnd ? 'w-full justify-between' : ''} ${isEntryPath ? 'pt-4' : ''} ${className}`.trim()}
       >
         <div className="flex flex-wrap gap-3">
           <Button type="submit" disabled={submitting}>
             <Check className="size-4" aria-hidden />
             {submitLabel}
           </Button>
-          {onCancel && cancelLabel ? (
-            <Button type="button" variant="ghost" data-form-cancel="" onClick={onCancel}>
-              <X className="size-4" aria-hidden />
-              {cancelLabel}
-            </Button>
-          ) : null}
+          {cancelEnd ? null : cancelButton}
         </div>
-        {hasExtra ? <div className="flex flex-wrap gap-3">{renderDetailExtraButtons(extras)}</div> : null}
+        {hasExtra || (cancelEnd && showCancel) ? (
+          <div className="flex flex-wrap gap-3">
+            {hasExtra ? renderDetailExtraButtons(extras) : null}
+            {cancelEnd ? cancelButton : null}
+          </div>
+        ) : null}
       </div>
       {showHeaderIcons && formId ? (
         <PageHeaderActionsPortal>

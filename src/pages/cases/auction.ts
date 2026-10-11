@@ -10,6 +10,9 @@ export type AuctionRequest = {
   number: string
   status: 'OPEN' | 'ISSUED' | 'COMPLETED' | 'REJECTED' | 'CANCELLED'
   editable: boolean
+  canIssue: boolean
+  phase: number
+  title: string | null
   startsAt: string
   endsAt: string
   discountMin: number
@@ -24,6 +27,7 @@ export type AuctionRequest = {
   approvals: {
     id: string
     kind: AuctionApproverKind
+    label: string | null
     status: AuctionApprovalStatus
     note: string | null
     decidedAt: string | null
@@ -31,6 +35,21 @@ export type AuctionRequest = {
     people: { id: string; fullName: string }[]
     canDecide: boolean
   }[]
+}
+
+export const AUCTION_WIZARD_STEPS = ['request', 'management', 'issue'] as const
+
+export type AuctionWizardStep = (typeof AUCTION_WIZARD_STEPS)[number]
+
+export function auctionWizardReached(item: Pick<AuctionRequest, 'status' | 'phase'> | null | undefined) {
+  if (!item) return 0
+  if (item.status === 'REJECTED' || item.status === 'CANCELLED') return 1
+  if (item.status === 'ISSUED' || item.status === 'COMPLETED') return 2
+  return Math.min(Math.max(item.phase, 1), 2)
+}
+
+export function auctionWizardFinished(item: Pick<AuctionRequest, 'status'> | null | undefined) {
+  return item?.status === 'ISSUED' || item?.status === 'COMPLETED'
 }
 
 export function priceAfterDiscount(price: number, percent: number) {

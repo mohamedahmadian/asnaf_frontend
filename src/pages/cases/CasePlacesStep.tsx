@@ -21,6 +21,7 @@ export function CasePlacesStep({
   headerAction,
   onAdvanced,
   onRewound,
+  onChanged,
 }: {
   caseId: string
   item: CaseInquiryRow | null
@@ -31,6 +32,7 @@ export function CasePlacesStep({
   headerAction?: ReactNode
   onAdvanced: (formationStep: number) => void
   onRewound: () => void
+  onChanged?: () => void
 }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
@@ -72,6 +74,7 @@ export function CasePlacesStep({
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ['cases', 'formation-places', caseId] })
+    onChanged?.()
   }
 
   return (

@@ -1,22 +1,44 @@
-import { Ban, CalendarDays, CirclePause, MessageSquareText, X } from 'lucide-react'
+import { Ban, CalendarDays, CirclePause, CirclePlay, MessageSquareText, Paperclip, X } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AppForm, FormActions, FormField, fieldClassName } from '../../components/ui/Form'
+import { AppForm, Button, FormActions, FormField, fieldClassName } from '../../components/ui/Form'
 import { DateText } from '../../components/ui/DateText'
+import { FileDropField } from '../../components/ui/FileDropField'
 import { FormEmptyHint } from '../../components/ui/FormLayout'
 import { PersianDateField } from '../../components/ui/PersianDateField'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { formatNumber } from '../../lib/datetime'
+import { optimizeImageFile } from '../../lib/optimize-image'
+import { openInquiryFile } from './inquiry-api'
+
+export type CaseSuspensionFile = {
+  id: string
+  kind: 'SUSPEND' | 'LIFT'
+  originalName: string | null
+  mimeType?: string | null
+}
 
 export type CaseSuspensionRow = {
   id: string
   reason: string
   startsAt: string
-  endsAt: string
+  endsAt: string | null
+  liftNote: string | null
+  files: CaseSuspensionFile[]
   active: boolean
+}
+
+async function suspensionBody(fields: Record<string, string>, file: File | null) {
+  const body = new FormData()
+  for (const [key, value] of Object.entries(fields)) body.append(key, value)
+  if (file) {
+    const prepared = file.type.startsWith('image/') ? await optimizeImageFile(file) : file
+    body.append('file', prepared)
+  }
+  return body
 }
 
 function todayIso() {
@@ -83,16 +105,24 @@ export function CaseSuspendDialog({ caseId, onClose }: { caseId: string; onClose
   const [reason, setReason] = useState('')
   const [startsAt, setStartsAt] = useState(todayIso)
   const [endsAt, setEndsAt] = useState('')
+  const [attachment, setAttachment] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   useDialogEscape(onClose)
 
   async function submit() {
-    if (saving || !reason.trim() || !startsAt || !endsAt) return
+    if (saving || !reason.trim() || !startsAt) return
     setSaving(true)
     try {
-      await api.post(`/cases/${caseId}/suspensions`, { reason: reason.trim(), startsAt, endsAt })
+      await api.post(
+        `/cases/${caseId}/suspensions`,
+        await suspensionBody(
+          { reason: reason.trim(), startsAt, ...(endsAt ? { endsAt } : {}) },
+          attachment,
+        ),
+      )
       const today = todayIso()
-      toast.success(startsAt <= today && endsAt >= today ? t('cases.suspendSaved') : t('cases.suspendScheduled'))
+      const activeNow = startsAt <= today && (!endsAt || endsAt >= today)
+      toast.success(activeNow ? t('cases.suspendSaved') : t('cases.suspendScheduled'))
       await queryClient.invalidateQueries({ queryKey: ['cases', 'home', caseId] })
       onClose()
     } catch (error) {
@@ -164,13 +194,122 @@ export function CaseSuspendDialog({ caseId, onClose }: { caseId: string; onClose
                 onChange={(value) => setEndsAt(value ?? '')}
                 minDate={startsAt || undefined}
               />
-              <input className="sr-only" tabIndex={-1} value={endsAt} required onChange={() => undefined} />
             </FormField>
           </div>
+          <SuspensionAttachmentField id="suspendFile" onFile={setAttachment} />
           <FormActions
             headerIcons={false}
             submitting={saving}
             submitLabel={t('cases.suspendConfirm')}
+            cancelLabel={t('common.cancel')}
+            onCancel={onClose}
+          />
+        </AppForm>
+      </section>
+    </div>,
+    document.body,
+  )
+}
+
+export function CaseLiftSuspensionDialog({
+  caseId,
+  startsAt,
+  onClose,
+}: {
+  caseId: string
+  startsAt: string
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [endsAt, setEndsAt] = useState(todayIso)
+  const [note, setNote] = useState('')
+  const [attachment, setAttachment] = useState<File | null>(null)
+  const [saving, setSaving] = useState(false)
+  useDialogEscape(onClose)
+
+  async function submit() {
+    if (saving || !note.trim() || !endsAt) return
+    setSaving(true)
+    try {
+      await api.post(
+        `/cases/${caseId}/suspensions/lift`,
+        await suspensionBody({ note: note.trim(), endsAt }, attachment),
+      )
+      toast.success(t('cases.liftSaved'))
+      await queryClient.invalidateQueries({ queryKey: ['cases', 'home', caseId] })
+      onClose()
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, t('common.error')))
+      setSaving(false)
+    }
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink-900/30 p-4" data-nested-dialog>
+      <button type="button" className="absolute inset-0 cursor-default" aria-label={t('common.close')} onClick={onClose} />
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="case-lift-title"
+        className="relative z-10 flex max-h-[min(52rem,92dvh)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-xl"
+      >
+        <header className="relative shrink-0 overflow-hidden bg-gradient-to-e from-teal-50 via-white to-mint-50 px-5 py-4">
+          <div className="relative flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-teal-500 text-white shadow-[0_8px_16px_rgba(46,189,182,0.28)]">
+                <CirclePlay className="size-5" aria-hidden />
+              </span>
+              <h2 id="case-lift-title" className="truncate text-sm font-semibold text-ink-900">
+                {t('cases.liftTitle')}
+              </h2>
+            </div>
+            <button
+              type="button"
+              className="cursor-pointer rounded-xl p-2 text-ink-500 hover:bg-white"
+              onClick={onClose}
+              aria-label={t('common.close')}
+            >
+              <X className="size-4" aria-hidden />
+            </button>
+          </div>
+        </header>
+        <AppForm onSubmit={() => void submit()} autoFocusFirst={false} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5 sm:p-6">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FormField icon={CalendarDays} label={t('cases.suspendStartsAt')} htmlFor="liftStartsAt">
+              <div id="liftStartsAt" aria-readonly="true" className={`${fieldClassName} cursor-default text-ink-700`}>
+                <DateText value={startsAt} />
+              </div>
+            </FormField>
+            <FormField icon={CalendarDays} label={t('cases.suspendEndsAt')} htmlFor="liftEndsAt">
+              <PersianDateField
+                id="liftEndsAt"
+                value={endsAt}
+                onChange={(value) => setEndsAt(value ?? '')}
+                minDate={startsAt || undefined}
+                maxDate={todayIso()}
+              />
+              <input className="sr-only" tabIndex={-1} value={endsAt} required onChange={() => undefined} />
+            </FormField>
+          </div>
+          <FormField icon={MessageSquareText} label={t('cases.liftNote')} htmlFor="liftNote">
+            <textarea
+              id="liftNote"
+              rows={8}
+              required
+              autoFocus
+              maxLength={8000}
+              value={note}
+              placeholder={t('cases.liftNotePlaceholder')}
+              onChange={(event) => setNote(event.target.value)}
+              className={`${fieldClassName} min-h-40 resize-y`}
+            />
+          </FormField>
+          <SuspensionAttachmentField id="liftFile" onFile={setAttachment} />
+          <FormActions
+            headerIcons={false}
+            submitting={saving}
+            submitLabel={t('cases.liftConfirm')}
             cancelLabel={t('common.cancel')}
             onCancel={onClose}
           />
@@ -283,7 +422,7 @@ export function CaseSuspensionsDialog({
           role="dialog"
           aria-modal="true"
           aria-labelledby="case-suspensions-title"
-          className="relative z-10 flex max-h-[min(36rem,80dvh)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-xl"
+          className="relative z-10 flex max-h-[min(44rem,88dvh)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-xl"
         >
           <header className="relative shrink-0 overflow-hidden bg-gradient-to-e from-amber-50 via-white to-orange-50 px-5 py-4">
             <div className="relative flex items-center justify-between gap-3">
@@ -343,7 +482,7 @@ export function CaseSuspensionsDialog({
             role="dialog"
             aria-modal="true"
             aria-labelledby="case-suspension-detail-title"
-            className="relative z-10 flex max-h-[min(40rem,84dvh)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-xl"
+            className="relative z-10 flex max-h-[min(52rem,92dvh)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-xl"
           >
             <header className="relative shrink-0 overflow-hidden bg-gradient-to-e from-amber-50 via-white to-orange-50 px-5 py-4">
               <div className="relative flex items-center justify-between gap-3">
@@ -380,12 +519,144 @@ export function CaseSuspensionsDialog({
                 </p>
               </div>
               <p className="whitespace-pre-wrap text-sm leading-6 text-ink-800">{selected.reason}</p>
+              {selected.liftNote ? (
+                <p className="whitespace-pre-wrap rounded-2xl bg-teal-50 px-3 py-2 text-sm leading-6 text-teal-950 ring-1 ring-teal-100">
+                  <span className="mb-1 block text-xs text-teal-700">{t('cases.liftNote')}</span>
+                  {selected.liftNote}
+                </p>
+              ) : null}
+              <SuspensionFiles files={selected.files ?? []} />
             </div>
           </section>
         </div>
       ) : null}
     </>,
     document.body,
+  )
+}
+
+function SuspensionAttachmentField({ id, onFile }: { id: string; onFile: (file: File | null) => void }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button type="button" variant="ghost" onClick={() => setOpen((current) => !current)}>
+          <Paperclip className="size-4" aria-hidden />
+          {t('cases.addAttachment')}
+        </Button>
+      </div>
+      {open ? (
+        <FormField icon={Paperclip} label={t('cases.inquiryAttachment')} htmlFor={id}>
+          <FileDropField
+            id={id}
+            accept="image/*,audio/*,application/pdf"
+            allowCamera
+            onFile={onFile}
+            onClear={() => onFile(null)}
+          />
+        </FormField>
+      ) : null}
+    </div>
+  )
+}
+
+export const IMAGE_NAME = /\.(jpe?g|png|gif|webp|bmp)$/i
+const AUDIO_NAME = /\.(webm|ogg|mp3|m4a|wav|aac)$/i
+
+function isImageFile(file: CaseSuspensionFile) {
+  if (file.mimeType?.toLowerCase().startsWith('image/')) return true
+  return IMAGE_NAME.test(file.originalName ?? '')
+}
+
+function isAudioFile(file: CaseSuspensionFile) {
+  if (file.mimeType?.toLowerCase().startsWith('audio/')) return true
+  return AUDIO_NAME.test(file.originalName ?? '')
+}
+
+function useApiObjectUrl(href: string | null) {
+  const [src, setSrc] = useState<string>()
+
+  useEffect(() => {
+    if (!href) {
+      setSrc(undefined)
+      return
+    }
+    let objectUrl: string | undefined
+    let cancelled = false
+    void api
+      .get<Blob>(href, { responseType: 'blob' })
+      .then((response) => {
+        if (cancelled) return
+        const header = String(response.headers['content-type'] ?? '')
+        const mime = header.split(';')[0].trim() || response.data.type || 'application/octet-stream'
+        const blob =
+          response.data.type && response.data.type.split(';')[0] === mime
+            ? response.data
+            : new Blob([response.data], { type: mime })
+        objectUrl = URL.createObjectURL(blob)
+        setSrc(objectUrl)
+      })
+      .catch(() => {
+        if (!cancelled) setSrc(undefined)
+      })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [href])
+
+  return src
+}
+
+export function SuspensionFiles({ files }: { files: CaseSuspensionFile[] }) {
+  if (!files.length) return null
+  return (
+    <div className="space-y-3">
+      {files.map((file) => (
+        <SuspensionFilePreview key={file.id} file={file} />
+      ))}
+    </div>
+  )
+}
+
+function SuspensionFilePreview({ file }: { file: CaseSuspensionFile }) {
+  const { t } = useTranslation()
+  const href = `/cases/suspensions/files/${file.id}`
+  const image = isImageFile(file)
+  const audio = !image && isAudioFile(file)
+  const src = useApiObjectUrl(image || audio ? href : null)
+  const label = file.originalName || t('cases.inquiryAttachment')
+  return (
+    <div className="space-y-2 rounded-2xl bg-cream-50 px-3 py-3 ring-1 ring-line">
+      <button
+        type="button"
+        className="flex w-full cursor-pointer items-center gap-2 text-start text-sm text-teal-800"
+        onClick={() => void openInquiryFile(file.id, '/cases/suspensions/files')}
+      >
+        <Paperclip className="size-4 shrink-0" aria-hidden />
+        <span className="min-w-0">
+          <span className="mb-0.5 block text-xs text-ink-500">
+            {file.kind === 'LIFT' ? t('cases.liftFile') : t('cases.suspensionFile')}
+          </span>
+          <span className="block truncate">{label}</span>
+        </span>
+      </button>
+      {image ? (
+        src ? (
+          <img src={src} alt={label} className="max-h-[28rem] w-full rounded-2xl bg-white object-contain" />
+        ) : (
+          <div className="h-36 animate-pulse rounded-2xl bg-white" aria-hidden />
+        )
+      ) : null}
+      {audio ? (
+        src ? (
+          <audio src={src} controls preload="metadata" className="h-10 w-full" dir="ltr" />
+        ) : (
+          <div className="h-10 animate-pulse rounded-xl bg-white" aria-hidden />
+        )
+      ) : null}
+    </div>
   )
 }
 

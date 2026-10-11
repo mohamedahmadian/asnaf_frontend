@@ -11,7 +11,7 @@ import { SearchSelect } from '../../components/ui/SearchSelect'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { documentGenders, type DocumentGender, type DocumentItem, type Paginated } from '../../types/app'
 
-type RequestType = 'ISSUANCE' | 'RENEWAL' | 'LOCATION_CHANGE'
+type RequestType = 'ISSUANCE' | 'RENEWAL' | 'LOCATION_CHANGE' | 'AUCTION'
 
 type RequirementDocument = {
   id: string
@@ -35,10 +35,12 @@ export function CaseRequirementsPanel({
   requestType,
   jobId,
   scope = 'all',
+  section = 'all',
 }: {
   requestType: RequestType
   jobId?: string
   scope?: 'all' | 'job'
+  section?: 'all' | 'documents' | 'inquiries'
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -108,8 +110,12 @@ export function CaseRequirementsPanel({
     .filter((item) => item.isActive && !takenCenters.has(item.id))
     .map((item) => ({ value: item.id, label: item.name }))
 
+  const showDocuments = section !== 'inquiries'
+  const showInquiries = section !== 'documents'
+
   return (
-    <div className="space-y-8">
+    <div className={showDocuments && showInquiries ? 'space-y-8' : 'space-y-3'}>
+      {showDocuments ? (
       <section className="space-y-3">
         <FormSectionTitle icon={FileText}>{documentsTitle}</FormSectionTitle>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
@@ -215,6 +221,8 @@ export function CaseRequirementsPanel({
           </div>
         )}
       </section>
+      ) : null}
+      {showInquiries ? (
       <section className="space-y-3">
         <FormSectionTitle icon={ScanSearch}>{inquiriesTitle}</FormSectionTitle>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
@@ -280,6 +288,7 @@ export function CaseRequirementsPanel({
           </div>
         )}
       </section>
+      ) : null}
     </div>
   )
 }

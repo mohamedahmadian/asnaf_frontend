@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Building2, Check, Clock, FileText, Paperclip, RotateCcw, Shield, ShieldCheck, UserRound, X } from 'lucide-react'
+import { Building2, Check, Clock, FileText, Paperclip, RotateCcw, Shield, ShieldCheck, Type, UserRound, X } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -34,8 +34,9 @@ export type CaseManagementApproverRow = {
   createdAt: string
   decidedAt: string | null
   decidedBy: { id: string; fullName: string } | null
-  workUnitTitle: string
+  workUnitTitle: string | null
   roleName: string
+  displayTitle?: string | null
   people: { id: string; fullName: string }[]
   files: CaseInquiryFile[]
 }
@@ -49,6 +50,7 @@ export function CaseManagementReviewStep({
   headerAction,
   onAdvanced,
   onRewound,
+  onChanged,
 }: {
   caseId: string
   items: CaseManagementApproverRow[]
@@ -59,6 +61,7 @@ export function CaseManagementReviewStep({
   headerAction?: ReactNode
   onAdvanced: (formationStep: number) => void
   onRewound: () => void
+  onChanged?: () => void
 }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
@@ -102,11 +105,12 @@ export function CaseManagementReviewStep({
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ['cases', 'formation-management-approvers', caseId] })
+    onChanged?.()
   }
 
   const tabs = items.map((item) => ({
     id: item.id,
-    label: `${item.workUnitTitle} · ${item.roleName}`,
+    label: item.displayTitle || [item.workUnitTitle, item.roleName].filter(Boolean).join(' · '),
     approved: item.status === 'APPROVED',
     pending: item.status === 'PENDING',
   }))
@@ -179,7 +183,7 @@ function ReviewCard({
   const [file, setFile] = useState<File | null>(null)
   const [attachmentOpen, setAttachmentOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const label = `${item.workUnitTitle} · ${item.roleName}`
+  const label = item.displayTitle || [item.workUnitTitle, item.roleName].filter(Boolean).join(' · ')
 
   async function decide(status: 'APPROVED' | 'REJECTED') {
     if (status === 'REJECTED' && !note.trim()) {
@@ -237,7 +241,12 @@ function ReviewCard({
         </span>
       </span>
       <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
-        <FormFactTile icon={Building2} label={t('cases.settingsManagementUnit')} value={item.workUnitTitle} tone="teal" />
+        {item.displayTitle ? (
+          <FormFactTile icon={Type} label={t('cases.settingsProcessManagementTitle')} value={item.displayTitle} tone="teal" className="sm:col-span-2" />
+        ) : null}
+        {item.workUnitTitle ? (
+          <FormFactTile icon={Building2} label={t('cases.settingsManagementUnit')} value={item.workUnitTitle} tone="teal" />
+        ) : null}
         <FormFactTile icon={Shield} label={t('cases.settingsManagementRole')} value={item.roleName} tone="mint" />
       </div>
       <FormSectionTitle icon={UserRound}>

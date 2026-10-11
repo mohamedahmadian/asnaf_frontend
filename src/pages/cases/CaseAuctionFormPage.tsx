@@ -1,4 +1,4 @@
-import { BadgePercent, CalendarDays, Gavel, Package, Percent, Plus, Trash2 } from 'lucide-react'
+import { BadgePercent, CalendarDays, Gavel, Heading, Package, Percent, Plus, Trash2 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,7 +8,6 @@ import { AmountInput } from '../../components/ui/AmountInput'
 import {
   AppForm,
   Button,
-  EntityNameSubtitle,
   FormActions,
   FormField,
   PageHeader,
@@ -19,8 +18,15 @@ import { FormCard, FormSectionTitle, formCardBodyClassName } from '../../compone
 import { PersianDateField } from '../../components/ui/PersianDateField'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { api, getApiErrorMessage } from '../../lib/api'
-import { formatGroupedNumber, localizeDigits, parseGroupedAmount, toLatinDigits } from '../../lib/datetime'
-import { priceAfterDiscount, type AuctionRequest } from './auction'
+import { formatGroupedNumber, formatNumber, localizeDigits, parseGroupedAmount, toLatinDigits } from '../../lib/datetime'
+import { AuctionCaseSubtitle, AuctionStepRing, AuctionWizardNav, auctionWizardTitle } from './AuctionWizard'
+import {
+  AUCTION_WIZARD_STEPS,
+  auctionWizardFinished,
+  auctionWizardReached,
+  priceAfterDiscount,
+  type AuctionRequest,
+} from './auction'
 
 type ItemDraft = {
   key: string
@@ -41,8 +47,24 @@ function parsePercent(raw: string) {
   return Math.round(value * 100) / 100
 }
 
+type AuctionCaseHeader = {
+  businessUnitTitle: string | null
+  licenseNumber: string | null
+  job: { title: string } | null
+  person: { fullName: string; firstName: string; lastName: string } | null
+}
+
 function hundredths(value: number) {
   return Math.round(value * 100)
+}
+
+function itemNameKey(name: string) {
+  return name
+    .trim()
+    .replace(/[يى]/g, 'ی')
+    .replace(/ك/g, 'ک')
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
 }
 
 export function CaseAuctionFormPage() {
@@ -53,6 +75,8 @@ export function CaseAuctionFormPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const redirected = useRef(false)
+  const defaultTitle = t('cases.auction.title')
+  const [title, setTitle] = useState(defaultTitle)
   const [startsAt, setStartsAt] = useState('')
   const [endsAt, setEndsAt] = useState('')
   const [discountMin, setDiscountMin] = useState('')
@@ -60,6 +84,11 @@ export function CaseAuctionFormPage() {
   const [items, setItems] = useState<ItemDraft[]>([emptyItem()])
   const [saving, setSaving] = useState(false)
   const [ready, setReady] = useState(!isEdit)
+  const caseFile = useQuery({
+    queryKey: ['cases', 'home', id],
+    enabled: Boolean(id),
+    queryFn: async () => (await api.get<AuctionCaseHeader>(`/cases/${id}`)).data,
+  })
   const loaded = useQuery({
     queryKey: ['cases', 'auction', id, requestId],
     enabled: isEdit,
@@ -69,6 +98,7 @@ export function CaseAuctionFormPage() {
   useEffect(() => {
     const data = loaded.data
     if (!data) return
+    setTitle(data.title?.trim() || defaultTitle)
     setStartsAt(data.startsAt)
     setEndsAt(data.endsAt)
     setDiscountMin(String(data.discountMin))
@@ -82,7 +112,7 @@ export function CaseAuctionFormPage() {
       })),
     )
     setReady(true)
-  }, [loaded.data])
+  }, [defaultTitle, loaded.data])
 
   useEffect(() => {
     if (!loaded.isError || redirected.current) return
@@ -98,11 +128,74 @@ export function CaseAuctionFormPage() {
     navigate(`/cases/${id}/auction/${requestId}`, { replace: true })
   }, [id, loaded.data, navigate, requestId, t])
 
+  const person = caseFile.data?.person
+  const personName = [person?.firstName, person?.lastName].filter(Boolean).join(' ') || person?.fullName || ''
+  const goodsCount = items.filter((row) => row.name.trim()).length
   const backTo = `/cases/${id}?stay=1`
-  const number = loaded.data ? localizeDigits(loaded.data.number, locale) : ''
+  const reached = auctionWizardReached(loaded.data)
+  const finished = auctionWizardFinished(loaded.data)
+  const stepCurrent = Math.min(reached + 1, AUCTION_WIZARD_STEPS.length)
+  const stepTotal = AUCTION_WIZARD_STEPS.length
+
+  function openWizardStep(index: number) {
+    if (!requestId || index > reached) return
+    if (index === 0) return
+    navigate(`/cases/${id}/auction/${requestId}?step=${AUCTION_WIZARD_STEPS[index]}`)
+  }
 
   function patchItem(key: string, patch: Partial<ItemDraft>) {
     setItems((current) => current.map((item) => (item.key === key ? { ...item, ...patch } : item)))
+  }
+
+  function discountBounds() {
+    const min = parsePercent(discountMin)
+    const max = parsePercent(discountMax)
+    if (min == null || max == null || hundredths(max) < hundredths(min)) return null
+    return { min, max }
+  }
+
+  function discountViolation(raw: string) {
+    const percent = parsePercent(raw)
+    const range = discountBounds()
+    if (percent == null || !range) return null
+    if (hundredths(percent) < hundredths(range.min)) return 'low' as const
+    if (hundredths(percent) > hundredths(range.max)) return 'high' as const
+    return null
+  }
+
+  function duplicateItemName(key: string, raw: string) {
+    const name = itemNameKey(raw)
+    if (!name) return false
+    return items.some((row) => row.key !== key && itemNameKey(row.name) === name)
+  }
+
+  function focusItemField(id: string) {
+    window.setTimeout(() => {
+      const input = document.getElementById(id)
+      if (!(input instanceof HTMLInputElement)) return
+      input.focus()
+      input.select()
+    }, 0)
+  }
+
+  function warnDuplicateName(key: string) {
+    toast.error(t('cases.auction.itemNameDuplicate'), { id: 'auction-item-name-duplicate' })
+    focusItemField(`auctionItemName-${key}`)
+    return true
+  }
+
+  function warnItemDiscount(key: string) {
+    const range = discountBounds()
+    if (!range) return false
+    toast.error(
+      t('cases.auction.itemDiscountRange', {
+        min: localizeDigits(String(range.min), locale),
+        max: localizeDigits(String(range.max), locale),
+      }),
+      { id: 'auction-item-discount-range' },
+    )
+    focusItemField(`auctionItemDiscount-${key}`)
+    return true
   }
 
   async function submit(event: FormEvent) {
@@ -122,27 +215,35 @@ export function CaseAuctionFormPage() {
       return
     }
     const payloadItems = []
+    const names = new Set<string>()
     for (const item of items) {
       const price = parseGroupedAmount(item.price)
       const discountPercent = parsePercent(item.discountPercent)
+      const nameKey = itemNameKey(item.name)
+      if (nameKey && names.has(nameKey)) {
+        warnDuplicateName(item.key)
+        return
+      }
+      if (nameKey) names.add(nameKey)
       if (!item.name.trim() || price == null || price < 1 || discountPercent == null) {
         toast.error(t('cases.auction.required'))
         return
       }
       if (hundredths(discountPercent) < hundredths(min) || hundredths(discountPercent) > hundredths(max)) {
-        toast.error(t('cases.auction.itemDiscountRange'))
+        warnItemDiscount(item.key)
         return
       }
       payloadItems.push({ name: item.name.trim(), price, discountPercent })
     }
     setSaving(true)
     try {
-      const body = { startsAt, endsAt, discountMin: min, discountMax: max, items: payloadItems }
-      if (isEdit) await api.patch(`/cases/${id}/auction/${requestId}`, body)
-      else await api.post(`/cases/${id}/auction`, body)
+      const body = { title: title.trim() || null, startsAt, endsAt, discountMin: min, discountMax: max, items: payloadItems }
+      const saved = isEdit
+        ? (await api.patch<AuctionRequest>(`/cases/${id}/auction/${requestId}`, body)).data
+        : (await api.post<AuctionRequest>(`/cases/${id}/auction`, body)).data
       toast.success(t(isEdit ? 'cases.auction.updated' : 'cases.auction.saved'))
       await queryClient.invalidateQueries({ queryKey: ['cases', 'home', id] })
-      navigate(backTo)
+      navigate(`/cases/${id}/auction/${saved.id}?step=management`)
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('common.error')))
     } finally {
@@ -154,24 +255,52 @@ export function CaseAuctionFormPage() {
     <div className={caseShellClassName}>
       <PageHeader
         icon={Gavel}
-        title={t(isEdit ? 'cases.auction.edit' : 'cases.auction.create')}
+        title={auctionWizardTitle(t, locale, personName, goodsCount)}
+        titleExtra={
+          ready ? (
+          <AuctionStepRing
+            currentLabel={formatNumber(stepCurrent, locale)}
+            totalLabel={formatNumber(stepTotal, locale)}
+            ratio={stepCurrent / stepTotal}
+            label={t('cases.stepOf', {
+              current: formatNumber(stepCurrent, locale),
+              total: formatNumber(stepTotal, locale),
+            })}
+          />
+          ) : undefined
+        }
         subtitle={
-          isEdit && number ? (
-            <EntityNameSubtitle icon={Gavel} label={t('cases.requestNumber')} name={number} />
-          ) : (
-            t('cases.auction.createSubtitle')
-          )
+          caseFile.data ? (
+            <AuctionCaseSubtitle
+              firstName={person?.firstName}
+              lastName={person?.lastName}
+              fullName={person?.fullName}
+              jobTitle={caseFile.data.job?.title}
+              businessUnitTitle={caseFile.data.businessUnitTitle}
+              licenseNumber={caseFile.data.licenseNumber}
+            />
+          ) : undefined
         }
         backTo={backTo}
       />
+      {ready ? <AuctionWizardNav view={0} reached={reached} finished={finished} onStep={openWizardStep} /> : null}
       {isEdit && loaded.isLoading ? <LoadingState /> : null}
       {ready && (!isEdit || loaded.data?.editable) ? (
         <FormCard
           icon={Gavel}
-          title={isEdit && number ? number : t('cases.auction.create')}
+          title={t('cases.auction.wizardSteps.request')}
           subtitle={isEdit ? undefined : t('cases.auction.createSubtitle')}
         >
           <AppForm onSubmit={submit} className={formCardBodyClassName}>
+            <FormField icon={Heading} label={t('cases.auction.licenseTitle')} htmlFor="auctionTitle">
+              <input
+                id="auctionTitle"
+                className={fieldClassName}
+                value={title}
+                maxLength={200}
+                onChange={(event) => setTitle(event.target.value)}
+              />
+            </FormField>
             <div className="grid gap-3 sm:grid-cols-2">
               <FormField icon={CalendarDays} label={t('cases.auction.startsAt')} htmlFor="auctionStartsAt">
                 <PersianDateField id="auctionStartsAt" value={startsAt} onChange={(value) => setStartsAt(value ?? '')} maxDate={endsAt || undefined} />
@@ -220,7 +349,16 @@ export function CaseAuctionFormPage() {
                           value={item.name}
                           maxLength={200}
                           required
-                          onChange={(event) => patchItem(item.key, { name: event.target.value })}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            patchItem(item.key, { name: value })
+                            if (duplicateItemName(item.key, value)) warnDuplicateName(item.key)
+                          }}
+                          onBlur={(event) => {
+                            const next = event.relatedTarget
+                            if (next instanceof HTMLElement && next.closest('[data-form-cancel]')) return
+                            if (duplicateItemName(item.key, event.currentTarget.value)) warnDuplicateName(item.key)
+                          }}
                         />
                       </FormField>
                       <FormField icon={BadgePercent} label={t('cases.auction.itemPrice')} htmlFor={`auctionItemPrice-${item.key}`}>
@@ -239,7 +377,16 @@ export function CaseAuctionFormPage() {
                           className={`${fieldClassName} digit-field`}
                           value={item.discountPercent}
                           required
-                          onChange={(event) => patchItem(item.key, { discountPercent: event.target.value })}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            patchItem(item.key, { discountPercent: value })
+                            if (discountViolation(value) === 'high') warnItemDiscount(item.key)
+                          }}
+                          onBlur={(event) => {
+                            const next = event.relatedTarget
+                            if (next instanceof HTMLElement && next.closest('[data-form-cancel]')) return
+                            if (discountViolation(event.currentTarget.value)) warnItemDiscount(item.key)
+                          }}
                         />
                       </FormField>
                       <FormField icon={BadgePercent} label={t('cases.auction.itemPriceAfter')}>
@@ -274,6 +421,7 @@ export function CaseAuctionFormPage() {
               cancelLabel={t('common.cancel')}
               submitting={saving}
               onCancel={() => navigate(backTo)}
+              cancelEnd
             />
           </AppForm>
         </FormCard>

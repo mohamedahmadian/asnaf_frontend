@@ -51,7 +51,7 @@ export function CaseContractDurationField() {
   const years = query.data.contractYears || 1
 
   return (
-    <div className="max-w-sm space-y-2">
+    <div className="w-full">
       <FormField icon={CalendarClock} label={t('cases.contractDuration')} htmlFor="case-contract-years">
         <SearchSelect
           id="case-contract-years"
@@ -65,7 +65,6 @@ export function CaseContractDurationField() {
           disabled={saving}
         />
       </FormField>
-      <p className="text-sm leading-7 text-ink-500">{t('cases.contractDurationHint')}</p>
     </div>
   )
 }

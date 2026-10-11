@@ -36,7 +36,7 @@ export function FormTabs({
     <div
       role="tablist"
       onKeyDown={onKeyDown}
-      className="flex gap-2 border-b border-teal-100 px-4 pt-4 sm:px-6"
+      className="flex flex-wrap gap-2 border-b border-teal-100 px-4 pt-4 sm:px-6"
     >
       {tabs.map((tab) => {
         const active = tab.id === value
