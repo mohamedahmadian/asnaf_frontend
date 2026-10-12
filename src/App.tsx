@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Landmark } from 'lucide-react'
+import { CircleCheck, CircleX, Info, Landmark, LoaderCircle, TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { AuthProvider } from './auth/AuthProvider'
 import { DashboardLayout } from './components/layout/DashboardLayout'
+import { useFormEscapeListener } from './hooks/useEscapeLeave'
 import { useSelectNumberOnFocus } from './hooks/useSelectNumberOnFocus'
 import { languages, type AppLanguage } from './i18n'
 import { NavigationHistoryProvider } from './lib/navigation-history'
@@ -20,9 +21,12 @@ import { SmsSendPage } from './pages/sms/SmsSendPage'
 import { SmsSettingsPage } from './pages/sms/SmsSettingsPage'
 import { CaseAuctionDetailPage } from './pages/cases/CaseAuctionDetailPage'
 import { CaseAuctionFormPage } from './pages/cases/CaseAuctionFormPage'
+import { CaseDossierEditPage } from './pages/cases/CaseDossierEditPage'
+import { CaseDossierPage } from './pages/cases/CaseDossierPage'
 import { CaseFormationPage } from './pages/cases/CaseFormationPage'
 import { CaseHomePage } from './pages/cases/CaseHomePage'
 import { CaseProcessPage } from './pages/cases/CaseProcessPage'
+import { CaseLocationDetailPage } from './pages/cases/CaseLocationDetailPage'
 import { CaseRenewalDetailPage } from './pages/cases/CaseRenewalDetailPage'
 import { CaseLicensePage } from './pages/cases/CaseLicensePage'
 import { CaseInquiriesListPage } from './pages/cases/CaseInquiriesListPage'
@@ -31,6 +35,8 @@ import { CaseInquiryLetterPage } from './pages/cases/CaseInquiryLetterPage'
 import { CaseManagementPage } from './pages/cases/CaseManagementPage'
 import { CaseReportsPage } from './pages/cases/CaseReportsPage'
 import { CaseSettingsPage } from './pages/cases/CaseSettingsPage'
+import { CaseStewardCardPage, CaseStewardshipPage } from './pages/cases/CaseStewardshipPage'
+import { CaseStewardNewPage } from './pages/cases/CaseStewardNewPage'
 import { CitiesListPage } from './pages/geo/CitiesListPage'
 import { CityCreatePage } from './pages/geo/CityCreatePage'
 import { CityDetailPage } from './pages/geo/CityDetailPage'
@@ -136,22 +142,36 @@ import { ProtectedRoute } from './routes/ProtectedRoute'
 
 const queryClient = new QueryClient()
 
+const toastIconProps = { strokeWidth: 2.35, 'aria-hidden': true as const }
+
+const toastIcons = {
+  success: <CircleCheck {...toastIconProps} />,
+  error: <CircleX {...toastIconProps} />,
+  warning: <TriangleAlert {...toastIconProps} />,
+  info: <Info {...toastIconProps} />,
+  loading: <LoaderCircle {...toastIconProps} className="animate-spin" />,
+}
+
 function AppToaster() {
   const { i18n } = useTranslation()
   const lang = (i18n.language.split('-')[0] as AppLanguage) || 'fa'
   return (
     <Toaster
-      richColors
       position="bottom-center"
       className="app-toaster"
       swipeDirections={['bottom', 'left', 'right']}
       dir={languages[lang]?.dir ?? 'rtl'}
+      gap={12}
+      offset={22}
+      icons={toastIcons}
+      style={{ ['--width' as string]: 'min(24rem, calc(100vw - 2rem))' }}
     />
   )
 }
 
 export default function App() {
   useSelectNumberOnFocus()
+  useFormEscapeListener()
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -288,7 +308,13 @@ export default function App() {
                   <Route path="/cases/:id/auction/:requestId/edit" element={<CaseAuctionFormPage />} />
                   <Route path="/cases/:id/auction/:requestId" element={<CaseAuctionDetailPage />} />
                   <Route path="/cases/:id/renewal/:requestId" element={<CaseRenewalDetailPage />} />
+                  <Route path="/cases/:id/place-change/:requestId" element={<CaseLocationDetailPage />} />
                   <Route path="/cases/:id/license" element={<CaseLicensePage />} />
+                  <Route path="/cases/:id/dossier/edit" element={<CaseDossierEditPage />} />
+                  <Route path="/cases/:id/stewards/new" element={<CaseStewardNewPage />} />
+                  <Route path="/cases/:id/stewardship/card" element={<CaseStewardCardPage />} />
+                  <Route path="/cases/:id/stewardship" element={<CaseStewardshipPage />} />
+                  <Route path="/cases/:id/dossier" element={<CaseDossierPage />} />
                   <Route path="/cases/:id/process" element={<CaseProcessPage />} />
                   <Route path="/cases/:id" element={<CaseHomePage />} />
                   <Route path="/cases" element={<CaseManagementPage />} />

@@ -17,9 +17,18 @@ export function UserMenu() {
         setOpen(false)
       }
     }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || !open) return
+      event.preventDefault()
+      setOpen(false)
+    }
     document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
-  }, [])
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onClick)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
 
   return (
     <div className="relative" ref={ref}>

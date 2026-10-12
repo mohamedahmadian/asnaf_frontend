@@ -196,14 +196,6 @@ function joinPath(segments: string[]) {
   return `/${segments.join('/')}`
 }
 
-function isEditOrDetailsPath(pathname: string) {
-  const segments = pathname.replace(/\/+$/, '').split('/').filter(Boolean)
-  const last = segments[segments.length - 1]
-  if (!last) return false
-  if (last === 'edit' || last === 'new') return true
-  return looksLikeId(last) && segments.length > 1
-}
-
 function isCreateOrEditPath(pathname: string) {
   const last = pathname.replace(/\/+$/, '').split('/').filter(Boolean).at(-1)
   return last === 'edit' || last === 'new'
@@ -254,7 +246,7 @@ export function PageHeader({
   const { goBack } = useNavigationHistory()
   const fallback = backTo === false ? undefined : backTo ?? resolvePageBackTo(pathname)
   const showBack = Boolean(fallback)
-  useEscapeBack(showBack && isEditOrDetailsPath(pathname), () => {
+  useEscapeBack(showBack, () => {
     if (fallback) goBack(fallback)
   })
   const backButton = showBack ? (
@@ -535,7 +527,7 @@ export function HeaderFormActions({
           type="button"
           variant="ghost"
           icon
-          data-form-cancel=""
+          data-form-cancel={form}
           aria-label={cancelLabel}
           title={cancelLabel}
           onClick={onCancel}
@@ -579,7 +571,7 @@ export function FormActions({
   const hasExtra = extras.length > 0
   const showCancel = Boolean(onCancel && cancelLabel)
   const cancelButton = showCancel ? (
-    <Button type="button" variant="ghost" data-form-cancel="" onClick={onCancel}>
+    <Button type="button" variant="ghost" data-form-cancel={formId ?? ''} onClick={onCancel}>
       <X className="size-4" aria-hidden />
       {cancelLabel}
     </Button>

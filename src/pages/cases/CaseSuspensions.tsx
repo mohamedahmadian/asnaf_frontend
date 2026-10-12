@@ -1,9 +1,10 @@
-import { Ban, CalendarDays, CirclePause, CirclePlay, MessageSquareText, Paperclip, X } from 'lucide-react'
+import { Ban, CalendarClock, CalendarDays, CirclePause, CirclePlay, MessageSquareText, Paperclip, X } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { confirmToast } from '../../components/ui/confirmToast'
 import { AppForm, Button, FormActions, FormField, fieldClassName } from '../../components/ui/Form'
 import { DateText } from '../../components/ui/DateText'
 import { FileDropField } from '../../components/ui/FileDropField'
@@ -56,7 +57,7 @@ function useDialogEscape(onClose: () => void) {
     document.body.style.overflow = 'hidden'
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.repeat) return
-      if (document.querySelector('.rmdp-wrapper, [role="listbox"]')) return
+      if (document.querySelector('.rmdp-wrapper, [role="listbox"], [data-sonner-toast]')) return
       event.preventDefault()
       event.stopPropagation()
       onCloseRef.current()
@@ -320,7 +321,145 @@ export function CaseLiftSuspensionDialog({
   )
 }
 
-export function CaseRevokeDialog({ caseId, onClose }: { caseId: string; onClose: () => void }) {
+function useNowIso() {
+  const [now, setNow] = useState(() => new Date().toISOString())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date().toISOString()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+  return now
+}
+
+export function CaseStewardRevokeDialog({
+  caseId,
+  onClose,
+}: {
+  caseId: string
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const requestedAt = useNowIso()
+  const [revokedAt, setRevokedAt] = useState(todayIso)
+  const [reason, setReason] = useState('')
+  const [attachment, setAttachment] = useState<File | null>(null)
+  const [saving, setSaving] = useState(false)
+  useDialogEscape(onClose)
+
+  async function save() {
+    if (saving || !reason.trim() || !revokedAt) return
+    setSaving(true)
+    try {
+      await api.post(
+        `/cases/${caseId}/stewardship/revocation`,
+        await suspensionBody({ reason: reason.trim(), source: 'HOST', revokedAt }, attachment),
+      )
+      toast.success(t('cases.stewardship.revokeSaved'))
+      await queryClient.invalidateQueries({ queryKey: ['cases', 'stewards'] })
+      await queryClient.invalidateQueries({ queryKey: ['cases', 'dossier'] })
+      await queryClient.invalidateQueries({ queryKey: ['cases', 'stewardship', caseId] })
+      await queryClient.invalidateQueries({ queryKey: ['cases', 'home', caseId] })
+      onClose()
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, t('common.error')))
+      setSaving(false)
+    }
+  }
+
+  function submit() {
+    if (saving || !reason.trim() || !revokedAt) return
+    confirmToast({
+      title: t('cases.stewardship.revokeConfirmTitle'),
+      confirmLabel: t('cases.stewardship.revokeAction'),
+      cancelLabel: t('common.cancel'),
+      confirmVariant: 'danger',
+      onConfirm: () => save(),
+    })
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink-900/30 p-4" data-nested-dialog>
+      <button type="button" className="absolute inset-0 cursor-default" aria-label={t('common.close')} onClick={onClose} />
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="steward-revoke-title"
+        className="relative z-10 flex max-h-[min(52rem,92dvh)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-xl"
+      >
+        <header className="relative shrink-0 overflow-hidden bg-gradient-to-e from-red-50 via-white to-rose-50 px-5 py-4">
+          <div className="relative flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-red-600 text-white shadow-[0_8px_16px_rgba(220,38,38,0.28)]">
+                <Ban className="size-5" aria-hidden />
+              </span>
+              <h2 id="steward-revoke-title" className="truncate text-sm font-semibold text-ink-900">
+                {t('cases.stewardship.revokeRequest')}
+              </h2>
+            </div>
+            <button
+              type="button"
+              className="cursor-pointer rounded-xl p-2 text-ink-500 hover:bg-white"
+              onClick={onClose}
+              aria-label={t('common.close')}
+            >
+              <X className="size-4" aria-hidden />
+            </button>
+          </div>
+        </header>
+        <AppForm onSubmit={submit} autoFocusFirst className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5 sm:p-6">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FormField icon={CalendarClock} label={t('cases.stewardship.requestAt')}>
+              <div className={`${fieldClassName} flex items-center bg-cream-50`}>
+                <DateText value={requestedAt} withTime />
+              </div>
+            </FormField>
+            <FormField icon={CalendarDays} label={t('cases.stewardship.revokeOn')} htmlFor="stewardRevokeOn">
+              <PersianDateField id="stewardRevokeOn" value={revokedAt} onChange={(value) => setRevokedAt(value ?? '')} />
+              <input className="sr-only" tabIndex={-1} value={revokedAt} required onChange={() => undefined} />
+            </FormField>
+          </div>
+          <FormField icon={MessageSquareText} label={t('cases.stewardship.requestText')} htmlFor="stewardRevokeText">
+            <textarea
+              id="stewardRevokeText"
+              rows={12}
+              required
+              maxLength={8000}
+              value={reason}
+              placeholder={t('cases.stewardship.requestTextPlaceholder')}
+              onChange={(event) => setReason(event.target.value)}
+              className={`${fieldClassName} min-h-64 resize-y`}
+            />
+          </FormField>
+          <SuspensionAttachmentField id="stewardRevokeFile" onFile={setAttachment} />
+          <FormActions
+            headerIcons={false}
+            submitting={saving}
+            submitLabel={t('cases.stewardship.revokeAction')}
+            cancelLabel={t('common.cancel')}
+            onCancel={onClose}
+          />
+        </AppForm>
+      </section>
+    </div>,
+    document.body,
+  )
+}
+
+export function CaseRevokeDialog({
+  caseId,
+  onClose,
+  path,
+  body,
+  title,
+  successMessage,
+}: {
+  caseId: string
+  onClose: () => void
+  path?: string
+  body?: Record<string, string>
+  title?: string
+  successMessage?: string
+}) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [reason, setReason] = useState('')
@@ -331,9 +470,12 @@ export function CaseRevokeDialog({ caseId, onClose }: { caseId: string; onClose:
     if (saving || !reason.trim()) return
     setSaving(true)
     try {
-      await api.post(`/cases/${caseId}/revocation`, { reason: reason.trim() })
-      toast.success(t('cases.revokeSaved'))
+      await api.post(path ?? `/cases/${caseId}/revocation`, { reason: reason.trim(), ...body })
+      toast.success(successMessage ?? t('cases.revokeSaved'))
       await queryClient.invalidateQueries({ queryKey: ['cases', 'home', caseId] })
+      await queryClient.invalidateQueries({ queryKey: ['cases', 'stewardship', caseId] })
+      await queryClient.invalidateQueries({ queryKey: ['cases', 'stewards'] })
+      await queryClient.invalidateQueries({ queryKey: ['cases', 'dossier'] })
       onClose()
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('common.error')))
@@ -357,7 +499,7 @@ export function CaseRevokeDialog({ caseId, onClose }: { caseId: string; onClose:
                 <Ban className="size-5" aria-hidden />
               </span>
               <h2 id="case-revoke-title" className="truncate text-sm font-semibold text-ink-900">
-                {t('cases.revokeTitle')}
+                {title ?? t('cases.revokeTitle')}
               </h2>
             </div>
             <button

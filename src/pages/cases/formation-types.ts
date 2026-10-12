@@ -14,6 +14,9 @@ export const PLACES_FORMATION_STEP = FORMATION_STEPS.indexOf('places')
 export const MANAGEMENT_FORMATION_STEP = FORMATION_STEPS.indexOf('managementReview')
 export const ISSUANCE_FORMATION_STEP = FORMATION_STEPS.indexOf('issuance')
 
+export const STEWARDSHIP_STEPS = ['identity', 'inquiries', 'places', 'managementReview', 'cardIssuance'] as const
+export const STEWARDSHIP_ISSUANCE_STEP = STEWARDSHIP_STEPS.indexOf('cardIssuance')
+
 export const EDUCATION_LEVELS = [
   'ILLITERATE',
   'ELEMENTARY',

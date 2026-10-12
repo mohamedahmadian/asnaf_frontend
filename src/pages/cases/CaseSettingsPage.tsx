@@ -1,4 +1,4 @@
-import { BadgeCheck, FileText, Gavel, IdCard, Landmark, MapPinned, RefreshCw, ScanSearch, Settings, Shield, SlidersHorizontal, type LucideIcon } from 'lucide-react'
+import { BadgeCheck, FileText, Gavel, IdCard, Landmark, MapPinned, RefreshCw, ScanSearch, Settings, Shield, SlidersHorizontal, UserRound, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageHeader, caseShellClassName } from '../../components/ui/Form'
@@ -11,7 +11,7 @@ import { CasePlacesOfficePanel } from './CasePlacesOfficePanel'
 import { CaseProcessManagementRolesPanel } from './CaseProcessManagementRolesPanel'
 import { CaseRequirementsPanel } from './CaseRequirementsPanel'
 
-type RequestType = 'ISSUANCE' | 'RENEWAL' | 'LOCATION_CHANGE' | 'AUCTION'
+type RequestType = 'ISSUANCE' | 'RENEWAL' | 'LOCATION_CHANGE' | 'AUCTION' | 'STEWARDSHIP'
 
 function RequestSettings({
   requestType,
@@ -30,13 +30,13 @@ function RequestSettings({
     { id: 'inquiries', label: t('cases.steps.inquiries'), icon: ScanSearch },
     { id: 'approvals', label: t('cases.settingsProcessManagementTab'), icon: Shield },
   ]
-  const showContract = requestType === 'ISSUANCE' || requestType === 'RENEWAL'
+  const showContract = requestType === 'ISSUANCE' || requestType === 'RENEWAL' || requestType === 'STEWARDSHIP'
 
   return (
     <div>
       {showContract ? (
         <div className="px-5 pt-5 sm:px-6 sm:pt-6">
-          <CaseContractDurationField />
+          <CaseContractDurationField scope={requestType === 'STEWARDSHIP' ? 'steward' : 'license'} />
         </div>
       ) : null}
       <div className={showContract ? 'mt-5 border-t border-teal-100' : undefined}>
@@ -64,12 +64,13 @@ function RequestSettings({
 export function CaseSettingsPage() {
   const { t } = useTranslation()
   const [tab, setTab] = useState('issuance')
-  const requestTab = tab === 'issuance' || tab === 'renewal' || tab === 'location' || tab === 'auction'
+  const requestTab = tab === 'issuance' || tab === 'renewal' || tab === 'location' || tab === 'auction' || tab === 'stewardship'
   const tabs: { id: string; label: string; icon: LucideIcon }[] = [
     { id: 'issuance', label: t('cases.settingsIssuanceTab'), icon: BadgeCheck },
     { id: 'renewal', label: t('cases.settingsRenewalTab'), icon: RefreshCw },
     { id: 'location', label: t('cases.settingsLocationTab'), icon: MapPinned },
     { id: 'auction', label: t('cases.settingsAuctionTab'), icon: Gavel },
+    { id: 'stewardship', label: t('cases.settingsStewardshipTab'), icon: UserRound },
     { id: 'places', label: t('cases.settingsPlacesTab'), icon: Landmark },
     { id: 'general', label: t('cases.settingsGeneralTab'), icon: SlidersHorizontal },
   ]
@@ -93,6 +94,7 @@ export function CaseSettingsPage() {
           {tab === 'renewal' ? <RequestSettings requestType="RENEWAL" /> : null}
           {tab === 'location' ? <RequestSettings requestType="LOCATION_CHANGE" /> : null}
           {tab === 'auction' ? <RequestSettings requestType="AUCTION" /> : null}
+          {tab === 'stewardship' ? <RequestSettings requestType="STEWARDSHIP" /> : null}
           {tab === 'places' ? <CasePlacesOfficePanel /> : null}
           {tab === 'general' ? <CaseGeneralSettingsPanel /> : null}
         </div>

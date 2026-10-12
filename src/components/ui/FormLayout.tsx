@@ -238,6 +238,7 @@ export function FormFactTile({
   tone = 'teal',
   compact = false,
   className = '',
+  onClick,
 }: {
   icon: LucideIcon
   label: string
@@ -247,20 +248,32 @@ export function FormFactTile({
   tone?: FormTone
   compact?: boolean
   className?: string
+  onClick?: () => void
 }) {
   const colors = formToneClass[tone]
   const copyDigits = useCopyDigits()
-  const usingCopy = copyValue !== undefined
-  const canCopy = Boolean(copyValue)
-  const isEmpty = empty ?? (usingCopy && !copyValue)
+  const usingCopy = copyValue !== undefined && !onClick
+  const canCopy = Boolean(copyValue) && !onClick
+  const isEmpty = empty ?? (copyValue !== undefined && !copyValue)
   const display = usingCopy ? <CopyableDigits value={copyValue} /> : value
   return (
     <article
       className={`relative z-10 flex min-w-0 items-start overflow-hidden rounded-2xl border ${colors.wrap} ${
         compact ? 'gap-2 px-2.5 py-1.5' : 'gap-3 px-3 py-3'
-      } ${canCopy ? 'cursor-pointer' : ''} ${className}`}
-      data-enter-ignore={canCopy ? '' : undefined}
-      onClick={canCopy ? () => copyDigits(copyValue) : undefined}
+      } ${canCopy || onClick ? 'cursor-pointer' : ''} ${onClick ? 'transition hover:ring-2 hover:ring-teal-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300' : ''} ${className}`}
+      data-enter-ignore={canCopy || onClick ? '' : undefined}
+      role={onClick ? 'link' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick ?? (canCopy ? () => copyDigits(copyValue) : undefined)}
+      onKeyDown={
+        onClick
+          ? (event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return
+              event.preventDefault()
+              onClick()
+            }
+          : undefined
+      }
     >
       <span
         className={`flex shrink-0 items-center justify-center ${colors.factIcon} ${

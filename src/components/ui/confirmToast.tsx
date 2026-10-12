@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, StickyNote, X } from 'lucide-react'
+import { Check, CircleAlert, CircleCheck, StickyNote, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Button, FormField, fieldClassName } from './Form'
@@ -97,46 +97,57 @@ function ConfirmToastCard({
   return (
     <div
       data-confirm-toast=""
-      className="w-[min(100vw-2rem,22rem)] rounded-[22px] border border-white bg-white p-4 shadow-[0_16px_40px_rgba(20,40,40,0.14)]"
+      className="w-[min(100vw-2rem,24rem)] overflow-hidden rounded-[18px] border border-line bg-white shadow-[0_14px_36px_rgba(44,42,38,0.12)]"
     >
-      <div className="flex items-start gap-3">
-        <div
-          className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${
-            isDanger ? 'bg-red-50 text-red-600' : 'bg-teal-50 text-teal-600'
-          }`}
-        >
-          {isDanger ? (
-            <AlertTriangle className="size-5" aria-hidden />
-          ) : (
-            <Check className="size-5" aria-hidden />
-          )}
+      <div
+        className={`h-1 ${
+          isDanger
+            ? 'bg-[linear-gradient(to_inline-end,#fb7185,#e11d48)]'
+            : 'bg-[linear-gradient(to_inline-end,var(--color-teal-500),var(--color-mint-500))]'
+        }`}
+      />
+      <div className="p-4">
+        <div className="flex items-start gap-3">
+          <div
+            className={`flex size-11 shrink-0 items-center justify-center rounded-[15px] text-white ${
+              isDanger
+                ? 'bg-[linear-gradient(160deg,#fb7185,#e11d48)] shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_8px_16px_rgba(225,29,72,0.22)]'
+                : 'bg-[linear-gradient(160deg,var(--color-teal-500),var(--color-mint-500))] shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_8px_16px_rgba(46,189,182,0.28)]'
+            }`}
+          >
+            {isDanger ? (
+              <CircleAlert className="size-[22px]" strokeWidth={2.35} aria-hidden />
+            ) : (
+              <CircleCheck className="size-[22px]" strokeWidth={2.35} aria-hidden />
+            )}
+          </div>
+          <p className="pt-2 text-[15px] font-medium leading-7 text-ink-900">{title}</p>
         </div>
-        <p className="pt-1.5 text-sm font-medium text-ink-900">{title}</p>
-      </div>
-      {prompt ? (
-        <div className="mt-3">
-          <FormField icon={StickyNote} label={prompt.label} htmlFor={inputId}>
-            <textarea
-              id={inputId}
-              className={fieldClassName}
-              rows={2}
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-              placeholder={prompt.placeholder}
-            />
-          </FormField>
-          {prompt.hint ? <p className="mt-1.5 text-xs text-ink-500">{prompt.hint}</p> : null}
+        {prompt ? (
+          <div className="mt-3">
+            <FormField icon={StickyNote} label={prompt.label} htmlFor={inputId}>
+              <textarea
+                id={inputId}
+                className={fieldClassName}
+                rows={2}
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                placeholder={prompt.placeholder}
+              />
+            </FormField>
+            {prompt.hint ? <p className="mt-1.5 text-xs text-ink-500">{prompt.hint}</p> : null}
+          </div>
+        ) : null}
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={() => toast.dismiss(id)}>
+            <X className="size-4" aria-hidden />
+            {cancelLabel}
+          </Button>
+          <Button type="button" variant={confirmVariant} onClick={submit}>
+            <Check className="size-4" aria-hidden />
+            {confirmLabel}
+          </Button>
         </div>
-      ) : null}
-      <div className="mt-4 flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={() => toast.dismiss(id)}>
-          <X className="size-4" aria-hidden />
-          {cancelLabel}
-        </Button>
-        <Button type="button" variant={confirmVariant} onClick={submit}>
-          <Check className="size-4" aria-hidden />
-          {confirmLabel}
-        </Button>
       </div>
     </div>
   )

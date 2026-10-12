@@ -47,6 +47,9 @@ export function hasPermission(
   return parent ? codes.includes(parent) : false
 }
 
+/** صندوق شخصی استعلام و اماکن؛ برای نقش مدیریت نشان داده نمی‌شود. */
+const ADMIN_HIDDEN_MENUS = new Set(['cases.inquiries', 'cases.places'])
+
 export function hasMenuAccess(
   user: Pick<AuthUser, 'isAdmin' | 'permissionCodes' | 'roles' | 'position'> | null | undefined,
   menuCode: string,
@@ -55,6 +58,7 @@ export function hasMenuAccess(
   if (menuCode === 'dashboard.home') {
     return true
   }
+  if (isAdmin(user) && ADMIN_HIDDEN_MENUS.has(menuCode)) return false
   return hasPermission(user, menuCode) || hasPermission(user, moduleCode)
 }
 
@@ -62,7 +66,6 @@ export function filterNavByAccess(
   nav: NavModule[],
   user: Pick<AuthUser, 'isAdmin' | 'permissionCodes' | 'roles' | 'position'> | null | undefined,
 ) {
-  if (isAdmin(user)) return nav
   return nav
     .map((mod) => ({
       ...mod,
@@ -78,7 +81,6 @@ export function canAccessPath(
   pathname: string,
 ) {
   if (!user) return false
-  if (isAdmin(user)) return true
   if (pathname === '/' || pathname === '/dashboard') return true
   if (pathname === '/inspection/violations/new') {
     return (

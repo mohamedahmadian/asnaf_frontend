@@ -1,4 +1,5 @@
 import { Briefcase, Building2, CreditCard, FolderKanban, History, Layers } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppForm, FormField, inputClassName } from '../../components/ui/Form'
 import { SearchSelect } from '../../components/ui/SearchSelect'
@@ -19,6 +20,7 @@ export function CaseActivityStep({
   onPreviousOccupationChange,
   onPosCountChange,
   onSubmit,
+  actions,
 }: {
   unitTitle: string
   groupId: string
@@ -33,6 +35,7 @@ export function CaseActivityStep({
   onPreviousOccupationChange: (value: string) => void
   onPosCountChange: (value: string) => void
   onSubmit: () => void
+  actions?: ReactNode
 }) {
   const { t } = useTranslation()
   const jobOptions = groupId ? jobs.filter((item) => item.groupId === groupId) : jobs
@@ -130,6 +133,7 @@ export function CaseActivityStep({
           />
         </FormField>
       </div>
+      {actions}
     </AppForm>
   )
 }

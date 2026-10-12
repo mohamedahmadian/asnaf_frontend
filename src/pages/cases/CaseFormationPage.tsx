@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Briefcase,
+  CalendarDays,
   Check,
   FilePlus,
   Files,
   Fingerprint,
-  Hash,
   IdCard,
   Info,
   Landmark,
@@ -28,6 +28,7 @@ import {
   inputClassName,
 } from '../../components/ui/Form'
 import { CopyableDigits } from '../../components/ui/CopyableDigits'
+import { DateText } from '../../components/ui/DateText'
 import { FormCard, FormEmptyHint, FormSectionTitle, formCardBodyClassName } from '../../components/ui/FormLayout'
 import { formatNumber } from '../../lib/datetime'
 import { useDoubleSaveShortcut } from '../../hooks/useEscapeLeave'
@@ -74,6 +75,7 @@ type FormationCase = {
   id: string
   formationStep: number
   trackingCode: string | null
+  licenseIssuedAt: string | null
   activity: CaseActivity | null
   location: CaseLocation | null
 }
@@ -110,6 +112,7 @@ export function CaseFormationPage() {
   const [unitTitle, setUnitTitle] = useState('')
   const [activityGroupId, setActivityGroupId] = useState('')
   const [activityJobId, setActivityJobId] = useState('')
+  const [licenseIssuedAt, setLicenseIssuedAt] = useState<string | null>(null)
   const [previousOccupation, setPreviousOccupation] = useState('')
   const [posCount, setPosCount] = useState('')
   const [location, setLocation] = useState<LocationForm>(emptyLocationForm)
@@ -319,6 +322,7 @@ export function CaseFormationPage() {
     const resume = Math.min(Math.max(filled.formationStep, 0), FORMATION_STEPS.length - 1)
     setPerson(filled)
     setCaseId(file.id)
+    setLicenseIssuedAt(file.licenseIssuedAt)
     setStartNew(false)
     applyActivity(file.activity)
     assignLocation(locationFormFrom(file.location))
@@ -338,6 +342,7 @@ export function CaseFormationPage() {
     })
     setPerson(filled)
     setCaseId(null)
+    setLicenseIssuedAt(null)
     setStartNew(true)
     applyActivity(null)
     assignLocation(emptyLocationForm())
@@ -703,12 +708,6 @@ export function CaseFormationPage() {
         subtitle={
           pastIdentity && person ? (
             <span className="flex flex-wrap gap-1.5">
-              {person.caseTrackingCode ? (
-                <HeaderBadge icon={Hash}>
-                  <span className="text-ink-500">{t('cases.trackingCode')}</span>
-                  <CopyableDigits value={person.caseTrackingCode} />
-                </HeaderBadge>
-              ) : null}
               {fullName ? (
                 <HeaderBadge icon={UserRound}>
                   <span>{fullName}</span>
@@ -724,6 +723,12 @@ export function CaseFormationPage() {
                 <HeaderBadge icon={Briefcase}>
                   <span className="text-ink-500">{t('cases.activityJob')}</span>
                   <span>{activityJobTitle}</span>
+                </HeaderBadge>
+              ) : null}
+              {licenseIssuedAt ? (
+                <HeaderBadge icon={CalendarDays}>
+                  <span className="text-ink-500">{t('cases.listIssued')}</span>
+                  <DateText value={licenseIssuedAt} />
                 </HeaderBadge>
               ) : null}
             </span>
@@ -1041,7 +1046,9 @@ export function CaseFormationPage() {
         />
       ) : null}
 
-      {step === ISSUANCE_FORMATION_STEP && caseId ? <ActivityLicensePanel caseId={caseId} /> : null}
+      {step === ISSUANCE_FORMATION_STEP && caseId ? (
+        <ActivityLicensePanel caseId={caseId} onIssued={setLicenseIssuedAt} />
+      ) : null}
 
       {openCasePrompt ? (
         <OpenCaseModal

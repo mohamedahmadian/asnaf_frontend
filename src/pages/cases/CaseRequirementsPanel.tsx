@@ -11,7 +11,7 @@ import { SearchSelect } from '../../components/ui/SearchSelect'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { documentGenders, type DocumentGender, type DocumentItem, type Paginated } from '../../types/app'
 
-type RequestType = 'ISSUANCE' | 'RENEWAL' | 'LOCATION_CHANGE' | 'AUCTION'
+type RequestType = 'ISSUANCE' | 'RENEWAL' | 'LOCATION_CHANGE' | 'AUCTION' | 'STEWARDSHIP'
 
 type RequirementDocument = {
   id: string

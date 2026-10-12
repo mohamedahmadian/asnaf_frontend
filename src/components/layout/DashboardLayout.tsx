@@ -152,7 +152,7 @@ function menuMatchesSearch(
 
 export function DashboardLayout({ children }: { children?: ReactNode }) {
   const { user, logout } = useAuth()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
   const isLargeScreen = useIsLargeScreen()
@@ -360,9 +360,17 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
                   <NavLink
                     to="/dashboard"
                     onClick={() => setMobileOpen(false)}
-                    className="min-w-0 font-semibold leading-snug text-ink-900"
+                    aria-label={t('nav.panel')}
+                    className="min-w-0 text-[13px] font-semibold leading-snug text-ink-900"
                   >
-                    {t('nav.panel')}
+                    {i18n.language.split('-')[0] === 'fa' ? (
+                      <>
+                        <span className="block whitespace-nowrap">{t('nav.panelLine1')}</span>
+                        <span className="block whitespace-nowrap">{t('nav.panelLine2')}</span>
+                      </>
+                    ) : (
+                      t('nav.panel')
+                    )}
                   </NavLink>
                 </div>
                 <button

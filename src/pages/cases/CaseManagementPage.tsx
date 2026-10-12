@@ -1,4 +1,4 @@
-import { BadgeCheck, Briefcase, Files, FolderKanban, ListOrdered } from 'lucide-react'
+import { BadgeCheck, Briefcase, Files, FolderKanban, Gavel, IdCard, Layers, ListOrdered, MapPinned, RefreshCw, UserRound, type LucideIcon } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { FormField, PageHeader, caseShellClassName } from '../../components/ui/Form'
@@ -19,10 +19,53 @@ import { api } from '../../lib/api'
 import { DateText } from '../../components/ui/DateText'
 import { formatNumber, localizeDigits } from '../../lib/datetime'
 import type { Job, JobGroup, Paginated } from '../../types/app'
-import { FORMATION_STEPS } from './formation-types'
+import { FORMATION_STEPS, STEWARDSHIP_STEPS } from './formation-types'
+
+type CaseListKind = 'ISSUANCE' | 'RENEWAL' | 'LOCATION_CHANGE' | 'AUCTION' | 'STEWARD_REQUEST' | 'STEWARD_CARD'
+
+const CASE_KIND_STYLES: Record<CaseListKind, { row: string; edge: string; badge: string; icon: LucideIcon }> = {
+  ISSUANCE: {
+    row: 'bg-teal-50/80 hover:!bg-teal-50 focus:!bg-teal-50',
+    edge: 'border-s-teal-500',
+    badge: 'bg-white text-teal-800 ring-teal-300',
+    icon: BadgeCheck,
+  },
+  RENEWAL: {
+    row: 'bg-sky-50/80 hover:!bg-sky-50 focus:!bg-sky-50',
+    edge: 'border-s-sky-500',
+    badge: 'bg-white text-sky-800 ring-sky-300',
+    icon: RefreshCw,
+  },
+  LOCATION_CHANGE: {
+    row: 'bg-amber-50/80 hover:!bg-amber-50 focus:!bg-amber-50',
+    edge: 'border-s-amber-500',
+    badge: 'bg-white text-amber-900 ring-amber-300',
+    icon: MapPinned,
+  },
+  AUCTION: {
+    row: 'bg-rose-50/80 hover:!bg-rose-50 focus:!bg-rose-50',
+    edge: 'border-s-rose-400',
+    badge: 'bg-white text-rose-800 ring-rose-300',
+    icon: Gavel,
+  },
+  STEWARD_REQUEST: {
+    row: 'bg-violet-50/80 hover:!bg-violet-50 focus:!bg-violet-50',
+    edge: 'border-s-violet-500',
+    badge: 'bg-white text-violet-800 ring-violet-300',
+    icon: UserRound,
+  },
+  STEWARD_CARD: {
+    row: 'bg-fuchsia-50/80 hover:!bg-fuchsia-50 focus:!bg-fuchsia-50',
+    edge: 'border-s-fuchsia-500',
+    badge: 'bg-white text-fuchsia-800 ring-fuchsia-300',
+    icon: IdCard,
+  },
+}
 
 type CaseRow = {
   id: string
+  kind?: 'LICENSE' | 'STEWARDSHIP'
+  caseKind?: CaseListKind
   fullName: string
   nationalId: string | null
   formationStep: number
@@ -64,8 +107,10 @@ function CaseStepCell({
   licenseNumber,
   licenseIssuedAt,
   licenseExpiresAt,
+  kind,
 }: {
   step: number
+  kind?: 'LICENSE' | 'STEWARDSHIP'
   locale: string
   status: CaseRow['status']
   suspensionStartsAt: string | null
@@ -129,9 +174,10 @@ function CaseStepCell({
       </div>
     )
   }
-  const current = FORMATION_STEPS[step] ?? FORMATION_STEPS[0]
-  const onLastStep = step >= FORMATION_STEPS.length - 1
-  const next = onLastStep ? null : FORMATION_STEPS[step + 1]
+  const steps = kind === 'STEWARDSHIP' ? STEWARDSHIP_STEPS : FORMATION_STEPS
+  const current = steps[step] ?? steps[0]
+  const onLastStep = step >= steps.length - 1
+  const next = onLastStep ? null : steps[step + 1]
 
   return (
     <div className="flex flex-col items-center gap-1.5">
@@ -158,6 +204,7 @@ export function CaseManagementPage() {
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const step = searchParams.get('step') ?? ''
   const status = searchParams.get('status') ?? ''
+  const caseKind = searchParams.get('caseKind') ?? ''
   const jobGroupId = searchParams.get('jobGroupId') ?? ''
   const jobId = searchParams.get('jobId') ?? ''
 
@@ -174,7 +221,7 @@ export function CaseManagementPage() {
   )
 
   const query = useQuery({
-    queryKey: ['cases', 'list', q, page, step, status, jobGroupId, jobId, sortBy, sortDir],
+    queryKey: ['cases', 'list', q, page, step, status, caseKind, jobGroupId, jobId, sortBy, sortDir],
     queryFn: async () => {
       const { data } = await api.get<Paginated<CaseRow>>('/cases', {
         params: {
@@ -182,6 +229,7 @@ export function CaseManagementPage() {
           page,
           ...(step ? { step } : {}),
           ...(status ? { status } : {}),
+          ...(caseKind ? { caseKind } : {}),
           ...(jobGroupId ? { jobGroupId } : {}),
           ...(jobId ? { jobId } : {}),
           ...sortParams,
@@ -192,7 +240,7 @@ export function CaseManagementPage() {
   })
 
   const rows = query.data?.items ?? []
-  const filtered = Boolean(q || step || status || jobGroupId || jobId)
+  const filtered = Boolean(q || step || status || caseKind || jobGroupId || jobId)
 
   return (
     <div className={caseShellClassName}>
@@ -203,9 +251,26 @@ export function CaseManagementPage() {
         onSubmit={() => applySearch()}
         label={t('cases.listSearch')}
         placeholder={t('cases.listSearchPlaceholder')}
-        filtersActive={Boolean(step || status || jobGroupId || jobId)}
+        filtersActive={Boolean(step || status || caseKind || jobGroupId || jobId)}
         extra={
           <>
+            <FormField icon={Layers} label={t('cases.filterCaseKind')} htmlFor="case-filter-kind">
+              <SearchSelect
+                id="case-filter-kind"
+                value={caseKind}
+                onChange={(next) => setParams({ caseKind: next || undefined }, { resetPage: true })}
+                placeholder={t('cases.allCaseKinds')}
+                options={[
+                  { value: '', label: t('cases.allCaseKinds') },
+                  { value: 'ISSUANCE', label: t('cases.caseKinds.ISSUANCE') },
+                  { value: 'RENEWAL', label: t('cases.caseKinds.RENEWAL') },
+                  { value: 'LOCATION_CHANGE', label: t('cases.caseKinds.LOCATION_CHANGE') },
+                  { value: 'AUCTION', label: t('cases.caseKinds.AUCTION') },
+                  { value: 'STEWARD_REQUEST', label: t('cases.caseKinds.STEWARD_REQUEST') },
+                  { value: 'STEWARD_CARD', label: t('cases.caseKinds.STEWARD_CARD') },
+                ]}
+              />
+            </FormField>
             <FormField icon={ListOrdered} label={t('cases.filterStep')} htmlFor="case-filter-step">
               <SearchSelect
                 id="case-filter-step"
@@ -305,13 +370,22 @@ export function CaseManagementPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((item) => (
-              <tr key={item.id} className="border-t border-line">
-                <td className="px-4 py-3">
+            {rows.map((item) => {
+              const caseKind =
+                item.caseKind && item.caseKind in CASE_KIND_STYLES
+                  ? item.caseKind
+                  : item.kind === 'STEWARDSHIP'
+                    ? 'STEWARD_REQUEST'
+                    : 'ISSUANCE'
+              const kindStyle = CASE_KIND_STYLES[caseKind]
+              const KindIcon = kindStyle.icon
+              return (
+                <tr key={item.id} className={`border-t border-line ${kindStyle.row}`}>
+                <td className={`border-s-4 px-4 py-3 ${kindStyle.edge}`}>
                   {item.licenseNumber ? (
                     <span
                       dir="ltr"
-                      className="inline-flex rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-medium text-teal-900 ring-1 ring-teal-200"
+                      className="inline-flex rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-teal-900 ring-1 ring-teal-200"
                     >
                       {localizeDigits(item.licenseNumber, locale)}
                     </span>
@@ -319,7 +393,15 @@ export function CaseManagementPage() {
                     '—'
                   )}
                 </td>
-                <td className="px-4 py-3">{item.fullName || '—'}</td>
+                <td className="px-4 py-3">
+                  <span className="inline-flex flex-wrap items-center gap-2">
+                    {item.fullName || '—'}
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${kindStyle.badge}`}>
+                      <KindIcon className="size-3.5" aria-hidden />
+                      {t(`cases.caseKinds.${caseKind}`)}
+                    </span>
+                  </span>
+                </td>
                 <td className="px-4 py-3">
                   {item.nationalId ? <CaseNationalIdBadge value={item.nationalId} locale={locale} /> : '—'}
                 </td>
@@ -334,6 +416,7 @@ export function CaseManagementPage() {
                     licenseNumber={item.licenseNumber}
                     licenseIssuedAt={item.licenseIssuedAt}
                     licenseExpiresAt={item.licenseExpiresAt}
+                    kind={item.kind}
                   />
                 </td>
                 <td className={actionsColClassName}>
@@ -352,7 +435,8 @@ export function CaseManagementPage() {
                   />
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </TableCard>

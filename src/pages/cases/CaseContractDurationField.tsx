@@ -14,9 +14,10 @@ type GeneralSettings = {
   editAfterIssuance: boolean
   editorRoleId: string | null
   contractYears: number
+  stewardContractYears: number
 }
 
-export function CaseContractDurationField() {
+export function CaseContractDurationField({ scope = 'license' }: { scope?: 'license' | 'steward' }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [saving, setSaving] = useState(false)
@@ -28,16 +29,17 @@ export function CaseContractDurationField() {
   async function onChange(value: string) {
     if (!query.data) return
     const years = Number(value)
-    if (!Number.isInteger(years) || years === query.data.contractYears) return
+    const current = scope === 'steward' ? query.data.stewardContractYears : query.data.contractYears
+    if (!Number.isInteger(years) || years === current) return
     setSaving(true)
     try {
       const { data } = await api.put<GeneralSettings>('/cases/settings/general', {
         editAfterIssuance: query.data.editAfterIssuance,
         editorRoleId: query.data.editorRoleId,
-        contractYears: years,
+        ...(scope === 'steward' ? { stewardContractYears: years } : { contractYears: years }),
       })
       queryClient.setQueryData(['cases', 'general-settings'], data)
-      toast.success(t('cases.contractDurationSaved'))
+      toast.success(t(scope === 'steward' ? 'cases.cardValidityDurationSaved' : 'cases.contractDurationSaved'))
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('cases.saveFailed')))
     } finally {
@@ -48,20 +50,22 @@ export function CaseContractDurationField() {
   if (query.isLoading) return <LoadingState variant="inline" />
   if (!query.data) return <p className="text-sm text-red-700">{t('common.error')}</p>
 
-  const years = query.data.contractYears || 1
+  const years = (scope === 'steward' ? query.data.stewardContractYears : query.data.contractYears) || 1
+  const fieldId = scope === 'steward' ? 'case-steward-contract-years' : 'case-contract-years'
+  const label = t(scope === 'steward' ? 'cases.cardValidityDuration' : 'cases.contractDuration')
 
   return (
     <div className="w-full">
-      <FormField icon={CalendarClock} label={t('cases.contractDuration')} htmlFor="case-contract-years">
+      <FormField icon={CalendarClock} label={label} htmlFor={fieldId}>
         <SearchSelect
-          id="case-contract-years"
+          id={fieldId}
           value={String(years)}
           onChange={(value) => void onChange(value)}
           options={CONTRACT_YEARS.map((year) => ({
             value: String(year),
             label: t('cases.contractDurationOption', { count: formatNumber(year, i18n.language) }),
           }))}
-          placeholder={t('cases.contractDuration')}
+          placeholder={label}
           disabled={saving}
         />
       </FormField>

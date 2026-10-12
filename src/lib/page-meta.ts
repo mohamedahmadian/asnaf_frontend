@@ -383,6 +383,9 @@ export function getPageMeta(pathname: string): {
   if (/^\/cases\/[^/]+\/renewal(\/[^/]+)?$/.test(pathname)) {
     return { titleKey: 'cases.renewalDetails', subtitleKey: 'cases.renewalDetailsSubtitle' }
   }
+  if (/^\/cases\/[^/]+\/place-change(\/[^/]+)?$/.test(pathname)) {
+    return { titleKey: 'cases.locationDetails', subtitleKey: 'cases.locationDetailsSubtitle' }
+  }
   if (/^\/cases\/[^/]+\/auction\/new$/.test(pathname)) {
     return { titleKey: 'cases.auction.create', subtitleKey: 'cases.auction.createSubtitle' }
   }
@@ -394,6 +397,21 @@ export function getPageMeta(pathname: string): {
   }
   if (/^\/cases\/[^/]+\/auction$/.test(pathname)) {
     return { titleKey: 'cases.auction.title', subtitleKey: 'cases.auction.createSubtitle' }
+  }
+  if (/^\/cases\/[^/]+\/stewards\/new$/.test(pathname)) {
+    return { titleKey: 'cases.stewardship.addTitle', subtitleKey: 'cases.stewardship.addSubtitle' }
+  }
+  if (/^\/cases\/[^/]+\/stewardship\/card$/.test(pathname)) {
+    return { titleKey: 'cases.stewardship.cardTitle', subtitleKey: 'cases.stewardship.issueHint' }
+  }
+  if (/^\/cases\/[^/]+\/stewardship$/.test(pathname)) {
+    return { titleKey: 'cases.stewardship.requestTitle', subtitleKey: 'cases.stewardship.addSubtitle' }
+  }
+  if (/^\/cases\/[^/]+\/dossier\/edit$/.test(pathname)) {
+    return { titleKey: 'cases.dossierEdit', subtitleKey: 'cases.dossierEditSubtitle' }
+  }
+  if (/^\/cases\/[^/]+\/dossier$/.test(pathname)) {
+    return { titleKey: 'cases.dossierTitle', subtitleKey: 'cases.dossierSubtitle' }
   }
   if (/^\/cases\/[^/]+\/license$/.test(pathname)) {
     return { titleKey: 'cases.licenseTitle', subtitleKey: 'cases.licenseTitle' }

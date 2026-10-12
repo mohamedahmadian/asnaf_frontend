@@ -48,6 +48,7 @@ export function CaseIdentityFields({
   locale,
   onChange,
   onSubmit,
+  actions,
 }: {
   person: IdentityPerson
   countries: Country[]
@@ -55,6 +56,7 @@ export function CaseIdentityFields({
   locale: string
   onChange: <K extends keyof IdentityPerson>(key: K, value: IdentityPerson[K]) => void
   onSubmit: () => void
+  actions?: ReactNode
 }) {
   const { t } = useTranslation()
 
@@ -317,6 +319,7 @@ export function CaseIdentityFields({
           />
         </FormField>
       </IdentitySection>
+      {actions}
     </AppForm>
   )
 }

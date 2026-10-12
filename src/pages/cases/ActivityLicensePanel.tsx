@@ -103,7 +103,13 @@ export function ActivityLicenseSheet({ view }: { view: LicenseView }) {
   )
 }
 
-export function ActivityLicensePanel({ caseId }: { caseId: string }) {
+export function ActivityLicensePanel({
+  caseId,
+  onIssued,
+}: {
+  caseId: string
+  onIssued?: (issuedAt: string) => void
+}) {
   const { t } = useTranslation()
   const [busy, setBusy] = useState<'print' | 'download' | 'issue' | null>(null)
   const [issuedAt, setIssuedAt] = useState(() => todayIsoDate())
@@ -167,6 +173,7 @@ export function ActivityLicensePanel({ caseId }: { caseId: string }) {
       })
       toast.success(t('cases.issueLicenseDone'))
       setConfirming(false)
+      onIssued?.(issuedAt)
       await query.refetch()
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('cases.saveFailed')))

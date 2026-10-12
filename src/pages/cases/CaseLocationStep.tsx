@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   Building2,
   CalendarDays,
+  Copy,
   FileText,
   Hash,
   KeyRound,
@@ -16,7 +17,7 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AppForm, FormField, inputClassName } from '../../components/ui/Form'
+import { AppForm, Button, FormField, inputClassName } from '../../components/ui/Form'
 import { FormSectionTitle } from '../../components/ui/FormLayout'
 import { PersianDateField } from '../../components/ui/PersianDateField'
 import { SearchSelect } from '../../components/ui/SearchSelect'
@@ -30,20 +31,27 @@ import {
   type LocationForm,
 } from './formation-types'
 
+export type LocationSectionKey = 'place' | 'ownership' | 'lease' | 'contact' | 'position'
+
 function LocationSection({
   icon,
   title,
   children,
   className = 'grid gap-4 sm:grid-cols-2',
+  action,
 }: {
   icon: LucideIcon
   title: string
   children: ReactNode
   className?: string
+  action?: ReactNode
 }) {
   return (
     <section className="rounded-2xl border border-teal-100 bg-cream-50/60 p-4">
-      <FormSectionTitle icon={icon}>{title}</FormSectionTitle>
+      <FormSectionTitle icon={icon}>
+        <span className="min-w-0">{title}</span>
+        {action ? <span className="ms-auto shrink-0">{action}</span> : null}
+      </FormSectionTitle>
       <div className={className}>{children}</div>
     </section>
   )
@@ -96,6 +104,9 @@ export function CaseLocationStep({
   locale,
   onChange,
   onSubmit,
+  actions,
+  hideRegistrationPlace = false,
+  onUseCurrentSection,
 }: {
   value: LocationForm
   cities: City[]
@@ -104,10 +115,26 @@ export function CaseLocationStep({
   locale: string
   onChange: (patch: Partial<LocationForm>) => void
   onSubmit: () => void
+  actions?: ReactNode
+  /** در تغییر مکان، محل ثبت پرونده ثابت است و نشان داده نمی‌شود */
+  hideRegistrationPlace?: boolean
+  onUseCurrentSection?: (section: LocationSectionKey) => void
 }) {
   const { t } = useTranslation()
   const commercialComplex = value.establishment === 'COMMERCIAL_COMPLEX'
   const rented = value.ownership === 'RENTED'
+  const useCurrent = (section: LocationSectionKey) =>
+    onUseCurrentSection ? (
+      <Button
+        type="button"
+        variant="ghost"
+        className="px-3 py-1.5 text-xs whitespace-nowrap"
+        onClick={() => onUseCurrentSection(section)}
+      >
+        <Copy className="size-3.5" aria-hidden />
+        {t('cases.useCurrentSection')}
+      </Button>
+    ) : null
 
   return (
     <AppForm
@@ -117,7 +144,7 @@ export function CaseLocationStep({
       }}
       className="space-y-4"
     >
-      <LocationSection icon={MapPin} title={t('cases.locationSections.place')} className="grid gap-4">
+      <LocationSection icon={MapPin} title={t('cases.locationSections.place')} className="grid gap-4" action={useCurrent('place')}>
         <div className="grid items-end gap-4 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
           <FormField icon={MapPin} label={t('cases.premiseCity')} htmlFor="case-premise-city">
             <SearchSelect
@@ -220,7 +247,7 @@ export function CaseLocationStep({
         </div>
       </LocationSection>
 
-      <LocationSection icon={KeyRound} title={t('cases.locationSections.ownership')} className="grid items-end gap-4 sm:grid-cols-3">
+      <LocationSection icon={KeyRound} title={t('cases.locationSections.ownership')} className="grid items-end gap-4 sm:grid-cols-3" action={useCurrent('ownership')}>
         <FormField icon={KeyRound} label={t('cases.ownership')} htmlFor="case-ownership">
           <ChoicePills
             id="case-ownership"
@@ -254,7 +281,7 @@ export function CaseLocationStep({
       </LocationSection>
 
       {rented ? (
-        <LocationSection icon={FileText} title={t('cases.locationSections.lease')}>
+        <LocationSection icon={FileText} title={t('cases.locationSections.lease')} action={useCurrent('lease')}>
           <FormField icon={CalendarDays} label={t('cases.leaseIssuedAt')} htmlFor="case-lease-issued">
             <PersianDateField
               id="case-lease-issued"
@@ -288,7 +315,7 @@ export function CaseLocationStep({
         </LocationSection>
       ) : null}
 
-      <LocationSection icon={Phone} title={t('cases.locationSections.contact')} className="grid gap-4 sm:grid-cols-3">
+      <LocationSection icon={Phone} title={t('cases.locationSections.contact')} className="grid gap-4 sm:grid-cols-3" action={useCurrent('contact')}>
         <FormField icon={Phone} label={t('cases.premisePhone')} htmlFor="case-premise-phone">
           <input
             id="case-premise-phone"
@@ -318,19 +345,26 @@ export function CaseLocationStep({
         </FormField>
       </LocationSection>
 
-      <LocationSection icon={Signpost} title={t('cases.locationSections.position')} className="grid items-end gap-4 lg:grid-cols-3">
-        <FormField icon={Landmark} label={t('cases.registrationPlace')} htmlFor="case-registration-place">
-          <SearchSelect
-            id="case-registration-place"
-            value={value.registrationPlaceId}
-            onChange={(next) => onChange({ registrationPlaceId: next })}
-            placeholder={t('users.selectOptional')}
-            options={[
-              { value: '', label: t('users.selectOptional') },
-              ...places.map((place) => ({ value: place.id, label: place.title })),
-            ]}
-          />
-        </FormField>
+      <LocationSection
+        icon={Signpost}
+        title={t('cases.locationSections.position')}
+        className={hideRegistrationPlace ? 'grid items-end gap-4 lg:grid-cols-2' : 'grid items-end gap-4 lg:grid-cols-3'}
+        action={useCurrent('position')}
+      >
+        {hideRegistrationPlace ? null : (
+          <FormField icon={Landmark} label={t('cases.registrationPlace')} htmlFor="case-registration-place">
+            <SearchSelect
+              id="case-registration-place"
+              value={value.registrationPlaceId}
+              onChange={(next) => onChange({ registrationPlaceId: next })}
+              placeholder={t('users.selectOptional')}
+              options={[
+                { value: '', label: t('users.selectOptional') },
+                ...places.map((place) => ({ value: place.id, label: place.title })),
+              ]}
+            />
+          </FormField>
+        )}
         <FormField icon={Signpost} label={t('cases.geoPosition')} htmlFor="case-geo-position">
           <ChoicePills
             id="case-geo-position"
@@ -354,6 +388,7 @@ export function CaseLocationStep({
           />
         </FormField>
       </LocationSection>
+      {actions}
     </AppForm>
   )
 }

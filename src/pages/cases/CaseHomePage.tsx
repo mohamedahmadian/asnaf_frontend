@@ -13,6 +13,7 @@ import {
   Gavel,
   HandHeart,
   IdCard,
+  Info,
   MapPin,
   MapPinned,
   MapPinPlus,
@@ -60,6 +61,7 @@ import {
   SuspensionCountBadge,
   SuspensionFiles,
 } from './CaseSuspensions'
+import { CaseStewardsSection, type StewardRow } from './CaseStewardsSection'
 
 type CaseRequestRow = {
   id: string
@@ -81,6 +83,18 @@ function requestDone(status: CaseRequestRow['status']) {
 
 type CaseHome = {
   id: string
+  kind?: 'LICENSE' | 'STEWARDSHIP'
+  cardNumber?: string | null
+  hasOwnLicense?: boolean
+  host?: {
+    id: string
+    licenseNumber: string | null
+    businessUnitTitle: string | null
+    gender: 'MALE' | 'FEMALE' | null
+    firstName: string
+    lastName: string
+    fullName: string
+  } | null
   formationStep: number
   trackingCode: string | null
   businessUnitTitle: string | null
@@ -309,6 +323,17 @@ export function CaseHomePage() {
     queryFn: async () => (await api.get<CaseHome>(`/cases/${id}`)).data,
   })
   const item = query.data
+  const stewardWithoutLicense = Boolean(
+    item &&
+      item.kind === 'STEWARDSHIP' &&
+      !item.hasOwnLicense &&
+      item.requests.every((request) => request.type === 'STEWARDSHIP'),
+  )
+  const stewardsQuery = useQuery({
+    queryKey: ['cases', 'stewards', id],
+    enabled: Boolean(id) && item != null && item.kind !== 'STEWARDSHIP',
+    queryFn: async () => (await api.get<StewardRow[]>(`/cases/${id}/stewards`)).data,
+  })
   const activityDayCount = item?.licenseNumber ? activityDays(item) : null
   const openRequest = item?.requests.find((request) => request.status === 'OPEN') ?? null
   const revoked = item?.status === 'REVOKED'
@@ -417,8 +442,13 @@ export function CaseHomePage() {
             className={
               item.status === 'SUSPENDED' ? '!border-2 !border-amber-400' : undefined
             }
+            onClick={() => navigate(`/cases/${item.id}/dossier`)}
             icon={Briefcase}
-            title={item.businessUnitTitle || t('cases.details')}
+            title={
+              item.kind === 'STEWARDSHIP'
+                ? item.person.fullName || t('cases.stewardship.kind')
+                : item.businessUnitTitle || t('cases.details')
+            }
             titleExtra={
               item.licenseNumber || (activityDayCount != null && activityDayCount > 0) ? (
                 <span className="flex flex-wrap items-center gap-1.5">
@@ -469,6 +499,9 @@ export function CaseHomePage() {
               ) : undefined
             }
             action={
+              (item.violationCount > 0 && item.person.nationalId) ||
+              (item.suspensionCount ?? 0) > 0 ||
+              !stewardWithoutLicense ? (
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {item.violationCount > 0 && item.person.nationalId ? (
                   <ViolationCountBadge
@@ -486,13 +519,16 @@ export function CaseHomePage() {
                     onClick={() => setSuspensionsOpen(true)}
                   />
                 ) : null}
-                <RemainingDaysBadge
-                  issuedAt={item.licenseIssuedAt}
-                  expiresAt={item.licenseExpiresAt}
-                  label={t('cases.daysRemaining')}
-                  locale={locale}
-                />
+                {stewardWithoutLicense ? null : (
+                  <RemainingDaysBadge
+                    issuedAt={item.licenseIssuedAt}
+                    expiresAt={item.licenseExpiresAt}
+                    label={t('cases.daysRemaining')}
+                    locale={locale}
+                  />
+                )}
               </div>
+              ) : undefined
             }
           >
             <div className={formCardBodyClassName}>
@@ -506,6 +542,25 @@ export function CaseHomePage() {
                   {item.revokeReason}
                 </p>
               ) : null}
+              {stewardWithoutLicense ? (
+                <p
+                  role="status"
+                  onClick={(event) => event.stopPropagation()}
+                  className="flex items-start gap-2.5 rounded-2xl bg-amber-50 px-3 py-3 text-sm leading-7 text-amber-950 ring-1 ring-amber-200"
+                >
+                  <Info className="mt-1 size-4 shrink-0 text-amber-700" aria-hidden />
+                  <span>
+                    {t('cases.stewardship.noOwnLicense', {
+                      honorific:
+                        item.host?.gender === 'FEMALE'
+                          ? t('cases.inquiryHonorificFemale')
+                          : t('cases.inquiryHonorificMale'),
+                      name: item.host?.fullName || '—',
+                      unit: item.host?.businessUnitTitle || '—',
+                    })}
+                  </span>
+                </p>
+              ) : (
               <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
                 <FormFactTile
                   icon={CalendarDays}
@@ -532,13 +587,25 @@ export function CaseHomePage() {
                     </button>
                   ) : null}
                 </div>
-                <FormFactTile
-                  icon={MapPin}
-                  label={t('geo.city')}
-                  value={item.city ? geoName(item.city) : '—'}
-                  empty={!item.city}
-                />
+                <div className="relative min-w-0">
+                  <FormFactTile
+                    icon={MapPin}
+                    label={t('geo.city')}
+                    value={item.city ? geoName(item.city) : '—'}
+                    empty={!item.city}
+                    className="pb-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/cases/${item.id}/dossier`)}
+                    className="absolute end-2 bottom-2 z-20 inline-flex cursor-pointer items-center gap-1 rounded-xl bg-teal-500 px-2 py-1 text-[11px] font-medium text-white shadow-[0_3px_8px_rgba(46,189,182,0.35)] transition hover:bg-teal-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+                  >
+                    <Eye className="size-3" aria-hidden />
+                    {t('cases.viewDossier')}
+                  </button>
+                </div>
               </div>
+              )}
               {item.reactivatedAt && item.status !== 'REVOKED' ? (
                 <p className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-teal-50 px-3 py-2 text-sm text-teal-950 ring-1 ring-teal-100">
                   <span className="inline-flex items-center gap-1.5 font-medium">
@@ -574,6 +641,10 @@ export function CaseHomePage() {
             </div>
           </FormCard>
 
+          {item.kind !== 'STEWARDSHIP' ? (
+            <CaseStewardsSection caseId={item.id} items={stewardsQuery.data ?? []} />
+          ) : null}
+
           <FormCard icon={Files} title={t('cases.requestsTitle')}>
             <div className={formCardBodyClassName}>
               {picking ? (
@@ -598,7 +669,7 @@ export function CaseHomePage() {
                       key={type}
                       type="button"
                       variant="ghost"
-                      onClick={() => toast.message(t('cases.requestTypeLater'))}
+                      onClick={() => navigate(`/cases/${item.id}/stewards/new`)}
                     >
                       <Icon className="size-4" aria-hidden />
                       {t(`cases.requestTypes.${type}`)}
@@ -630,13 +701,19 @@ export function CaseHomePage() {
                             ? t(`cases.steps.${stepKey}`)
                             : t(`cases.requestStatus.${request.status}`)
                         const requestTo =
-                          request.type === 'ISSUANCE'
+                          request.type === 'STEWARDSHIP'
+                            ? request.status === 'OPEN'
+                              ? `/cases/${item.id}/stewardship`
+                              : `/cases/${item.id}/stewardship/card`
+                            : request.type === 'ISSUANCE'
                             ? caseRequestPath(item.id, item.person.nationalId)
                             : request.type === 'RENEWAL' && request.status !== 'OPEN'
                               ? `/cases/${item.id}/renewal/${request.id}`
-                              : request.status === 'OPEN'
-                                ? `/cases/${item.id}/process`
-                                : `/cases/${item.id}?stay=1`
+                              : request.type === 'LOCATION_CHANGE' && request.status !== 'OPEN'
+                                ? `/cases/${item.id}/place-change/${request.id}`
+                                : request.status === 'OPEN'
+                                  ? `/cases/${item.id}/process`
+                                  : `/cases/${item.id}?stay=1`
                         const TypeIcon = REQUEST_TYPE_ICONS[request.type]
                         const typeStyle = REQUEST_TYPE_STYLES[request.type]
                         return (
@@ -664,7 +741,7 @@ export function CaseHomePage() {
                                 <EntityRowActions
                                   viewTo={`/cases/${item.id}/auction/${request.id}`}
                                   viewLabel={request.status === 'OPEN' ? t('cases.continueRequest') : t('cases.viewRequest')}
-                                  viewClassName="w-[8.25rem]"
+                                  viewClassName={requestActionClassName}
                                   viewIcon={Eye}
                                   editTo={request.status === 'OPEN' ? `/cases/${item.id}/auction/${request.id}/edit` : undefined}
                                   rowOpensView={request.status !== 'OPEN'}
@@ -674,19 +751,31 @@ export function CaseHomePage() {
                                       : undefined
                                   }
                                 />
-                              ) : request.type === 'ISSUANCE' || request.type === 'RENEWAL' || request.type === 'LOCATION_CHANGE' ? (
+                              ) : request.type === 'ISSUANCE' || request.type === 'RENEWAL' || request.type === 'LOCATION_CHANGE' || request.type === 'STEWARDSHIP' ? (
                                 <EntityRowActions
                                   viewTo={requestTo}
                                   viewLabel={
-                                    issued || (request.type === 'RENEWAL' && request.status !== 'OPEN')
+                                    issued ||
+                                    ((request.type === 'RENEWAL' || request.type === 'LOCATION_CHANGE') &&
+                                      request.status !== 'OPEN')
                                       ? t('cases.viewRequest')
                                       : t('cases.continueRequest')
                                   }
-                                  viewClassName="w-[8.25rem]"
+                                  viewClassName={requestActionClassName}
                                   viewIcon={Eye}
                                   rowOpensView
+                                  extra={
+                                    request.type === 'STEWARDSHIP' && item.host ? (
+                                      <Link to={`/cases/${item.host.id}`}>
+                                        <Button type="button" variant="soft" className={requestActionClassName}>
+                                          <BadgeCheck className="size-3.5" aria-hidden />
+                                          {t('cases.stewardship.relatedLicense')}
+                                        </Button>
+                                      </Link>
+                                    ) : null
+                                  }
                                   onDelete={
-                                    canDeleteRequest(request.status)
+                                    request.type !== 'ISSUANCE' && canDeleteRequest(request.status)
                                       ? () => askDeleteRequest(request.id, request.number)
                                       : undefined
                                   }
@@ -711,9 +800,31 @@ export function CaseHomePage() {
 
           <FormCard icon={ClipboardList} title={t('cases.operationsTitle')}>
             <div className={formCardBodyClassName}>
+              {item.kind === 'STEWARDSHIP' ? (
+                <div className="flex flex-wrap justify-center gap-2">
+                  {item.cardNumber ? (
+                    <Button type="button" onClick={() => navigate(`/cases/${item.id}/stewardship/card`)}>
+                      <IdCard className="size-4" aria-hidden />
+                      {t('cases.stewardship.cardTitle')}
+                    </Button>
+                  ) : item.status !== 'REVOKED' ? (
+                    <Button type="button" onClick={() => navigate(`/cases/${item.id}/stewardship`)}>
+                      <IdCard className="size-4" aria-hidden />
+                      {t('cases.stewardship.continue')}
+                    </Button>
+                  ) : null}
+                  {item.host ? (
+                    <Button type="button" variant="ghost" onClick={() => navigate(`/cases/${item.host?.id}/dossier`)}>
+                      <BadgeCheck className="size-4" aria-hidden />
+                      {t('cases.viewLicense')}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : (
               <CaseOperations
                 suspended={item.status === 'SUSPENDED'}
                 revoked={item.status === 'REVOKED'}
+                stewardTo={`/cases/${item.id}/stewards/new`}
                 licenseTo={item.licenseNumber ? `/cases/${item.id}/license` : null}
                 violationTo={
                   item.person.nationalId
@@ -770,6 +881,7 @@ export function CaseHomePage() {
                   else toast.message(t('cases.requestTypeLater'))
                 }}
               />
+              )}
             </div>
           </FormCard>
         </div>
@@ -781,12 +893,14 @@ export function CaseHomePage() {
 function CaseOperations({
   onPick,
   licenseTo,
+  stewardTo,
   violationTo,
   suspended,
   revoked,
 }: {
   onPick: (key: string) => void
   licenseTo: string | null
+  stewardTo: string
   violationTo: string | null
   suspended: boolean
   revoked: boolean
@@ -817,6 +931,7 @@ function CaseOperations({
               icon={operation.icon}
               tone={operation.tone}
               label={t(`cases.operations.${operation.key}`)}
+              to={operation.key === 'issueStewardship' ? stewardTo : undefined}
               onClick={() => onPick(operation.key)}
             />
           ))}
@@ -933,17 +1048,19 @@ function DateBadge({
 function RequestDateCell({ request, part }: { request: CaseRequestRow; part: 'start' | 'end' }) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
-  const license = request.type === 'ISSUANCE' || request.type === 'RENEWAL'
+  const dated =
+    request.type === 'ISSUANCE' || request.type === 'RENEWAL' || request.type === 'STEWARDSHIP'
+  const stewardship = request.type === 'STEWARDSHIP'
   const value =
     part === 'start'
       ? request.type === 'AUCTION'
         ? request.auctionStartsAt
-        : license
+        : dated
           ? request.issuedAt
           : null
       : request.type === 'AUCTION'
         ? request.auctionEndsAt
-        : license
+        : dated
           ? request.expiresAt
           : null
   if (!value) return '—'
@@ -951,11 +1068,18 @@ function RequestDateCell({ request, part }: { request: CaseRequestRow; part: 'st
   const remainingText = remaining == null ? null : formatNumber(remaining, locale)
   const stacked = part === 'end' && remainingText != null
   const endUrgent = remaining != null && remaining < END_DATE_URGENT_DAYS
+  const label = stewardship
+    ? part === 'start'
+      ? t('cases.stewardship.cardIssued')
+      : t('cases.stewardship.cardExpires')
+    : part === 'start'
+      ? t('cases.issuedOn')
+      : t('cases.endsOn')
   return (
     <span className={stacked ? 'inline-flex flex-col items-center gap-1' : 'inline-flex flex-wrap items-center gap-1.5'}>
       <DateBadge
         tone={part === 'start' ? 'mint' : endUrgent ? 'red' : 'teal'}
-        label={part === 'start' ? t('cases.issuedOn') : t('cases.endsOn')}
+        label={label}
       >
         <DateText value={value} />
       </DateBadge>
@@ -982,6 +1106,8 @@ function CaseMetaBadge({ icon: Icon, label, value }: { icon: LucideIcon; label: 
 }
 
 const END_DATE_URGENT_DAYS = 30
+
+const requestActionClassName = '!h-8 !gap-1 !rounded-xl !px-2.5 !py-1 !text-xs [&_svg]:size-3.5'
 
 function activityDays(item: CaseHome) {
   const issued = item.requests

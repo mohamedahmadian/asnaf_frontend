@@ -16,6 +16,7 @@ type GeneralSettings = {
   editAfterIssuance: boolean
   editorRoleId: string | null
   contractYears: number
+  stewardContractYears: number
   roles: RoleOption[]
 }
 

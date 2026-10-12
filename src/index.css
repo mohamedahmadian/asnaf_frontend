@@ -2169,6 +2169,151 @@ th {
   --y: translateY(100%);
 }
 
+[data-sonner-toaster].app-toaster {
+  font-family: var(--font-sans);
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-styled='true'] {
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: 18px;
+  background: #fff;
+  color: var(--color-ink-900);
+  box-shadow:
+    0 14px 36px rgba(44, 42, 38, 0.1),
+    0 2px 8px rgba(46, 189, 182, 0.08);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.75;
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-styled='true']:focus-visible {
+  outline: none;
+  box-shadow:
+    0 14px 36px rgba(44, 42, 38, 0.1),
+    0 0 0 2px var(--color-teal-400);
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-styled='true']:has([data-description]) {
+  align-items: flex-start;
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-styled='true'] [data-icon] {
+  position: relative;
+  display: flex;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  border-radius: 15px;
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 8px 16px rgba(46, 189, 182, 0.22);
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-styled='true'] [data-icon] svg {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-type='success'] {
+  border-color: var(--color-teal-100);
+  background: linear-gradient(to inline-end, #f3fbfa, #fff 48%);
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-type='success'] [data-icon] {
+  background: linear-gradient(160deg, var(--color-teal-500), var(--color-mint-500));
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-type='info'] {
+  border-color: var(--color-teal-100);
+  background: linear-gradient(to inline-end, #f4fbfb, #fff 48%);
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-type='info'] [data-icon] {
+  background: linear-gradient(160deg, var(--color-teal-600), var(--color-teal-400));
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-type='warning'] {
+  border-color: var(--color-gold-100);
+  background: linear-gradient(to inline-end, #fffaf0, #fff 48%);
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-type='warning'] [data-icon] {
+  background: linear-gradient(160deg, var(--color-gold-500), var(--color-gold-400));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 8px 16px rgba(196, 146, 26, 0.22);
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-type='error'] {
+  border-color: #ffe4e6;
+  background: linear-gradient(to inline-end, #fff7f7, #fff 48%);
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-type='error'] [data-icon] {
+  background: linear-gradient(160deg, #fb7185, #e11d48);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 8px 16px rgba(225, 29, 72, 0.2);
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-type='loading'] [data-icon] {
+  color: var(--color-teal-700);
+  background: var(--color-teal-50);
+  box-shadow: inset 0 0 0 1px var(--color-teal-100);
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-type='default'] [data-icon]:not(:has(svg)),
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-type='normal'] [data-icon]:not(:has(svg)) {
+  display: none;
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-styled='true'] [data-title] {
+  font-weight: 500;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--color-ink-900);
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-styled='true']:has([data-description]) [data-title] {
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-styled='true'] [data-description] {
+  font-weight: 400;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--color-ink-500);
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-styled='true'] [data-button] {
+  height: 32px;
+  border-radius: 999px;
+  padding-inline: 12px;
+  background: var(--color-teal-500);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+[data-sonner-toaster].app-toaster [data-sonner-toast][data-styled='true'] [data-button][data-cancel] {
+  border: 1px solid var(--color-teal-400);
+  background: #fff;
+  color: var(--color-teal-800);
+  box-shadow: 0 4px 12px rgba(46, 189, 182, 0.12);
+}
+
 /* —— زائر کارت —— */
 .pilgrim-id-card {
   box-sizing: border-box;

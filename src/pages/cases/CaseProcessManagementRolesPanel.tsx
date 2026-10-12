@@ -11,7 +11,7 @@ import { useConfirmDelete } from '../../hooks/useConfirmDelete'
 import { api, getApiErrorMessage } from '../../lib/api'
 import type { AppRole } from '../../types/app'
 
-type RequestType = 'ISSUANCE' | 'RENEWAL' | 'LOCATION_CHANGE' | 'AUCTION'
+type RequestType = 'ISSUANCE' | 'RENEWAL' | 'LOCATION_CHANGE' | 'AUCTION' | 'STEWARDSHIP'
 
 type RoleRow = {
   id: string

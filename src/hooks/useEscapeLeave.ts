@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 const cancelFns = new Set<() => void>()
 const backFns = new Set<() => void>()
 let attached = false
+let pinned = 0
 
 function lastOf<T>(set: Set<T>): T | undefined {
   let value: T | undefined
@@ -17,19 +18,51 @@ function isEscapeBlocked() {
         '[aria-modal="true"]',
         '[role="listbox"]',
         '[role="menu"]',
-        '[data-enter-ignore]',
         '[data-nested-dialog]',
         '[data-confirm-toast]',
         '.rmdp-wrapper',
+        '[data-enter-ignore][aria-expanded="true"]',
       ].join(','),
     ),
   )
+}
+
+function enabledCancelButtons() {
+  return [...document.querySelectorAll<HTMLButtonElement>('[data-form-cancel]')].filter((button) => {
+    if (button.disabled) return false
+    return button.getClientRects().length > 0
+  })
+}
+
+function cancelOwner(button: HTMLButtonElement) {
+  if (button.dataset.formCancel) return button.dataset.formCancel
+  return button.closest('form')?.id ?? button
+}
+
+function pickCancelButton(buttons: HTMLButtonElement[]) {
+  const active = document.activeElement
+  const form = active instanceof Element ? active.closest('form') : null
+  if (form) {
+    const inForm = buttons.find((button) => form.contains(button) || button.dataset.formCancel === form.id)
+    if (inForm) return inForm
+  }
+  const owners = new Set(buttons.map(cancelOwner))
+  if (owners.size === 1) return buttons[0]
+  return null
 }
 
 function onKeyDown(event: KeyboardEvent) {
   if (event.key !== 'Escape' || event.repeat || event.isComposing) return
   if (event.defaultPrevented) return
   if (isEscapeBlocked()) return
+  const buttons = enabledCancelButtons()
+  if (buttons.length) {
+    const button = pickCancelButton(buttons)
+    if (!button) return
+    event.preventDefault()
+    button.click()
+    return
+  }
   const cancel = lastOf(cancelFns)
   if (cancel) {
     event.preventDefault()
@@ -50,9 +83,21 @@ function attach() {
 }
 
 function detachIfIdle() {
-  if (cancelFns.size || backFns.size) return
+  if (pinned || cancelFns.size || backFns.size) return
   document.removeEventListener('keydown', onKeyDown)
   attached = false
+}
+
+/** شنوندهٔ سراسری Escape تا انصراف فرم حتی بدون ثبت جداگانه هم کار کند */
+export function useFormEscapeListener() {
+  useEffect(() => {
+    pinned += 1
+    attach()
+    return () => {
+      pinned -= 1
+      detachIfIdle()
+    }
+  }, [])
 }
 
 function useEscapeAction(bucket: Set<() => void>, enabled: boolean, fn?: () => void) {

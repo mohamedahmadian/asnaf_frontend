@@ -1,22 +1,24 @@
-import { BadgeCheck, CalendarClock, CalendarDays, Check, MapPinned, RefreshCw, Store, type LucideIcon } from 'lucide-react'
+import { BadgeCheck, Briefcase, Building2, CalendarClock, CalendarDays, Check, Eye, FileText, Fingerprint, Hash, KeyRound, MapPin, MapPinned, Phone, RefreshCw, Ruler, Signpost, Store, UserRound, Users, X, type LucideIcon } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Button, FormField, PageHeader, caseShellClassName } from '../../components/ui/Form'
+import { Button, EntityNameSubtitle, FormField, PageHeader, caseShellClassName } from '../../components/ui/Form'
 import { PersianDateField } from '../../components/ui/PersianDateField'
 import { DateText } from '../../components/ui/DateText'
 import { CopyableDigits } from '../../components/ui/CopyableDigits'
 import { FormCard, FormFactTile, FormSectionTitle, formCardBodyClassName } from '../../components/ui/FormLayout'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { api, getApiErrorMessage } from '../../lib/api'
-import { addYearsIso, formatNumber } from '../../lib/datetime'
+import { addYearsIso, formatNumber, localizeDigits } from '../../lib/datetime'
+import { geoName } from '../../lib/geo'
 import { optimizeImageFile } from '../../lib/optimize-image'
-import type { City, CommercialComplex, RegistrationPlace } from '../../types/app'
+import type { City, CommercialComplex } from '../../types/app'
 import { CaseDocumentList } from './CaseDocumentList'
 import { CaseInquiriesStep } from './CaseInquiriesStep'
-import { CaseLocationStep } from './CaseLocationStep'
+import { CaseLocationStep, type LocationSectionKey } from './CaseLocationStep'
 import { CaseManagementReviewStep, type CaseManagementApproverRow } from './CaseManagementReviewStep'
 import { CasePlacesStep } from './CasePlacesStep'
 import type { CaseInquiryRow } from './inquiry-types'
@@ -24,6 +26,49 @@ import { emptyLocationForm, type DocumentTypeRow, type LocationForm, type Stored
 import { AuctionCaseSubtitle, AuctionStepRing } from './AuctionWizard'
 
 const RENEWAL_STEPS = ['terms', 'documents', 'inquiries', 'places', 'management', 'issue'] as const
+const LOCATION_STEPS = ['location', 'documents', 'inquiries', 'places', 'management'] as const
+type LocationStepName = (typeof LOCATION_STEPS)[number]
+const LOCATION_STEP_INDEX: Record<LocationStepName, number> = {
+  location: 0,
+  documents: 1,
+  inquiries: 2,
+  places: 3,
+  management: 4,
+}
+
+const LOCATION_SECTION_FIELDS: Record<LocationSectionKey, (keyof LocationForm)[]> = {
+  place: ['cityId', 'establishment', 'complexId', 'address', 'addressEn', 'floor', 'plaqueSeries', 'plaque', 'unitNo'],
+  ownership: ['ownership', 'area', 'deedNo'],
+  lease: ['leaseIssuedAt', 'leaseExpiresAt', 'leaseAgency', 'ownerName'],
+  contact: ['phone', 'fax', 'postalCode'],
+  position: ['geoPosition', 'publicAccess'],
+}
+
+type CurrentLocation = {
+  cityId: string | null
+  establishment: string | null
+  complexId: string | null
+  address: string | null
+  addressEn: string | null
+  plaque: string | null
+  plaqueSeries: string | null
+  floor: string | null
+  unitNo: string | null
+  postalCode: string | null
+  phone: string | null
+  fax: string | null
+  geoPosition: string | null
+  publicAccess: string | null
+  ownership: string | null
+  deedNo: string | null
+  area: string | number | null
+  leaseIssuedAt: string | null
+  leaseExpiresAt: string | null
+  leaseAgency: string | null
+  ownerName: string | null
+  city: { nameFa: string; nameEn: string } | null
+  complex: { name: string; nameEn: string } | null
+}
 
 type ProcessState = {
   id: string
@@ -33,6 +78,9 @@ type ProcessState = {
   type: 'RENEWAL' | 'LOCATION_CHANGE'
   formationStep: number
   licenseNumber: string | null
+  licenseIssuedAt: string | null
+  trackingCode: string | null
+  nationalId: string | null
   businessUnitTitle: string | null
   person: { firstName: string; lastName: string; fullName: string } | null
   jobGroupTitle: string | null
@@ -46,14 +94,14 @@ type ProcessState = {
     delayDays: number
   } | null
   location: LocationForm | null
+  currentLocation: CurrentLocation | null
 }
 
-function locationFrom(value: ProcessState['location']): LocationForm {
+function locationFrom(value: CurrentLocation | ProcessState['location']): LocationForm {
   const empty = emptyLocationForm()
   if (!value) return empty
   return {
     ...empty,
-    ...value,
     area: value.area == null || value.area === '' ? '' : String(value.area),
     cityId: value.cityId ?? '',
     establishment: value.establishment ?? 'INDEPENDENT',
@@ -69,7 +117,7 @@ function locationFrom(value: ProcessState['location']): LocationForm {
     fax: value.fax ?? '',
     geoPosition: value.geoPosition ?? '',
     publicAccess: value.publicAccess ?? '',
-    registrationPlaceId: value.registrationPlaceId ?? '',
+    registrationPlaceId: 'registrationPlaceId' in value ? (value.registrationPlaceId ?? '') : '',
     ownership: value.ownership ?? 'OWNED',
     deedNo: value.deedNo ?? '',
     leaseIssuedAt: value.leaseIssuedAt ?? '',
@@ -88,6 +136,7 @@ export function CaseProcessPage() {
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [location, setLocation] = useState<LocationForm | null>(null)
+  const [currentLocationOpen, setCurrentLocationOpen] = useState(false)
   const [viewStep, setViewStep] = useState<number | null>(null)
   const [renewalIssued, setRenewalIssued] = useState('')
   const [renewalExpires, setRenewalExpires] = useState('')
@@ -165,21 +214,25 @@ export function CaseProcessPage() {
     enabled: process.data?.type === 'LOCATION_CHANGE',
     queryFn: async () => (await api.get<CommercialComplex[]>('/commercial-complexes')).data,
   })
-  const places = useQuery({
-    queryKey: ['registration-places', 'lookup'],
-    enabled: process.data?.type === 'LOCATION_CHANGE',
-    queryFn: async () => (await api.get<RegistrationPlace[]>('/registration-places')).data,
-  })
 
   const item = process.data
   const form = location ?? (item ? locationFrom(item.location) : emptyLocationForm())
   const needsDocuments = requirements.isSuccess && (requirements.data ?? []).some((row) => row.isRequired)
-  const showDocumentsStep = item?.type === 'RENEWAL' ? needsDocuments : (requirements.data?.length ?? 0) > 0
-  const hideDocuments = item?.type === 'RENEWAL' && requirements.isSuccess && !needsDocuments
-  const renewalSteps =
-    item?.type === 'RENEWAL' && !needsDocuments
-      ? RENEWAL_STEPS.filter((name) => name !== 'documents')
-      : RENEWAL_STEPS
+  const wizard = item?.type === 'RENEWAL' || item?.type === 'LOCATION_CHANGE'
+  const showDocumentsStep = wizard ? needsDocuments : (requirements.data?.length ?? 0) > 0
+  const hideDocuments = wizard && requirements.isSuccess && !needsDocuments
+  const wizardSteps =
+    item?.type === 'LOCATION_CHANGE'
+      ? hideDocuments
+        ? LOCATION_STEPS.filter((name) => name !== 'documents')
+        : [...LOCATION_STEPS]
+      : hideDocuments
+        ? RENEWAL_STEPS.filter((name) => name !== 'documents')
+        : [...RENEWAL_STEPS]
+  function wizardIndex(name: string) {
+    if (item?.type === 'LOCATION_CHANGE') return LOCATION_STEP_INDEX[name as LocationStepName]
+    return RENEWAL_STEPS.indexOf(name as (typeof RENEWAL_STEPS)[number])
+  }
   const reached = item?.formationStep ?? 0
   const progress = hideDocuments && reached === 1 ? 2 : reached
   const serverStep = Math.min(viewStep ?? reached, reached)
@@ -211,7 +264,17 @@ export function CaseProcessPage() {
   }
 
   async function saveDraft() {
-    if (!item) return
+    if (!item) return false
+    if (
+      !form.cityId ||
+      !form.address.trim() ||
+      form.area === '' ||
+      Number.isNaN(Number(form.area)) ||
+      (form.establishment === 'COMMERCIAL_COMPLEX' && !form.complexId)
+    ) {
+      toast.error(t('cases.locationDraftIncomplete'))
+      return false
+    }
     setBusy(true)
     try {
       const commercialComplex = form.establishment === 'COMMERCIAL_COMPLEX'
@@ -231,7 +294,6 @@ export function CaseProcessPage() {
         fax: form.fax || null,
         geoPosition: form.geoPosition || null,
         publicAccess: form.publicAccess || null,
-        registrationPlaceId: form.registrationPlaceId || null,
         ownership: form.ownership,
         deedNo: form.deedNo || null,
         area: form.area === '' ? null : Number(form.area),
@@ -241,8 +303,10 @@ export function CaseProcessPage() {
         ownerName: form.ownership === 'RENTED' ? form.ownerName || null : null,
       })
       await process.refetch()
+      return true
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('cases.saveFailed')))
+      return false
     } finally {
       setBusy(false)
     }
@@ -301,9 +365,9 @@ export function CaseProcessPage() {
     return task
   }
 
-  function nextRenewalStep(from: number) {
+  function nextProcessStep(from: number) {
     let next = from + 1
-    if (item?.type === 'RENEWAL' && !showDocumentsStep && next === 1) next = 2
+    if ((item?.type === 'RENEWAL' || item?.type === 'LOCATION_CHANGE') && !showDocumentsStep && next === 1) next = 2
     return next
   }
 
@@ -313,11 +377,15 @@ export function CaseProcessPage() {
       const saved = await scheduleRenewalSave(true)
       if (!saved) return
     }
+    if (item?.type === 'LOCATION_CHANGE' && step === 0 && index !== step) {
+      const saved = await saveDraft()
+      if (!saved) return
+    }
     setViewStep(index)
   }
 
   useEffect(() => {
-    if (item?.type !== 'RENEWAL' || !hideDocuments || item.formationStep !== 1) return
+    if ((item?.type !== 'RENEWAL' && item?.type !== 'LOCATION_CHANGE') || !hideDocuments || item.formationStep !== 1) return
     let cancelled = false
     setBusy(true)
     void (async () => {
@@ -343,8 +411,12 @@ export function CaseProcessPage() {
       const saved = await scheduleRenewalSave(true)
       if (!saved) return
     }
+    if (item.type === 'LOCATION_CHANGE' && serverStep === 0) {
+      const saved = await saveDraft()
+      if (!saved) return
+    }
     if (serverStep < reached) {
-      setViewStep(Math.min(nextRenewalStep(serverStep), reached))
+      setViewStep(Math.min(nextProcessStep(serverStep), reached))
       return
     }
     setBusy(true)
@@ -356,7 +428,7 @@ export function CaseProcessPage() {
         navigate(`/cases/${id}?stay=1`)
         return
       }
-      await api.post('/cases/formation/process-step', { caseId: id, step: nextRenewalStep(serverStep) })
+      await api.post('/cases/formation/process-step', { caseId: id, step: nextProcessStep(serverStep) })
       setViewStep(null)
       await process.refetch()
     } catch (error) {
@@ -370,26 +442,28 @@ export function CaseProcessPage() {
   const renewal = item?.type === 'RENEWAL'
   const inquiriesPending = (inquiries.data ?? []).some((row) => row.status === 'PENDING')
   const reviewsPending = (reviews.data ?? []).some((row) => row.status === 'PENDING')
-  const stepTotal = renewalSteps.length
+  const stepTotal = wizardSteps.length
   const stepCurrent = Math.min(
-    renewalSteps.filter((name) => RENEWAL_STEPS.indexOf(name) <= progress).length,
+    wizardSteps.filter((name) => wizardIndex(name) <= progress).length,
     stepTotal,
   )
   const renewalActionLabel =
     step >= 5 ? t('cases.renewActivityLicense') : step === 4 ? t('cases.renewEconomicLicense') : t('cases.processContinue')
-  const renewalContinue = renewal ? (
+  const locationActionLabel = step >= 4 ? t('cases.processComplete') : t('cases.processContinue')
+  const wizardContinue = wizard ? (
     <Button
       type="button"
       disabled={
         busy ||
-        (step === 2 && inquiriesPending) ||
+        (step === 1 && (requirements.isLoading || stored.isLoading || documentsMissing)) ||
+        (step === 2 && (inquiries.isLoading || inquiriesPending)) ||
         (step === 3 && (placesReview.isLoading || !placesReview.data || placesReview.data.status === 'PENDING')) ||
-        (step === 4 && reviewsPending)
+        (step === 4 && (reviews.isLoading || reviewsPending))
       }
       onClick={() => void continueProcess()}
     >
       <BadgeCheck className="size-4" aria-hidden />
-      {renewalActionLabel}
+      {renewal ? renewalActionLabel : locationActionLabel}
     </Button>
   ) : null
 
@@ -399,11 +473,11 @@ export function CaseProcessPage() {
         icon={icon}
         title={renewal ? t('cases.renewCurrentLicense') : item ? t(`cases.requestTypes.${item.type}`) : t('cases.newRequest')}
         titleExtra={
-          renewal ? (
+          wizard ? (
             <AuctionStepRing
               currentLabel={formatNumber(stepCurrent, locale)}
               totalLabel={formatNumber(stepTotal, locale)}
-              ratio={stepCurrent / stepTotal}
+              ratio={stepTotal ? stepCurrent / stepTotal : 0}
               label={t('cases.stepOf', {
                 current: formatNumber(stepCurrent, locale),
                 total: formatNumber(stepTotal, locale),
@@ -421,26 +495,28 @@ export function CaseProcessPage() {
               businessUnitTitle={item.businessUnitTitle}
               licenseNumber={item.licenseNumber}
             />
+          ) : item?.type === 'LOCATION_CHANGE' ? (
+            <LocationCaseSubtitle item={item} locale={locale} />
           ) : (
             item?.number
           )
         }
         backTo={`/cases/${id}?stay=1`}
       />
-      {renewal ? (
+      {wizard ? (
         <ol
           className={`mb-5 grid grid-cols-2 gap-2 ${
-            renewalSteps.length > 5
+            wizardSteps.length > 5
               ? 'sm:grid-cols-3 lg:grid-cols-6'
-              : renewalSteps.length > 4
+              : wizardSteps.length > 4
                 ? 'sm:grid-cols-3 lg:grid-cols-5'
-                : renewalSteps.length > 3
+                : wizardSteps.length > 3
                   ? 'sm:grid-cols-4'
                   : 'sm:grid-cols-3'
           }`}
         >
-          {renewalSteps.map((name) => {
-            const index = RENEWAL_STEPS.indexOf(name)
+          {wizardSteps.map((name, position) => {
+            const index = wizardIndex(name)
             const done = index < progress
             const current = index === progress
             const docsMissing = index === 1 && (done || current) && documentsMissing
@@ -477,9 +553,11 @@ export function CaseProcessPage() {
                             : 'border-transparent bg-cream-100 text-ink-700'
                     }`}
                   >
-                    {formatNumber(renewalSteps.indexOf(name) + 1, locale)}
+                    {formatNumber(position + 1, locale)}
                   </span>
-                  <span className="text-center leading-5">{t(`cases.renewalSteps.${name}`)}</span>
+                  <span className="text-center leading-5">
+                    {t(item?.type === 'LOCATION_CHANGE' ? `cases.locationSteps.${name}` : `cases.renewalSteps.${name}`)}
+                  </span>
                   {docsMissing ? (
                     <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium leading-4 text-orange-700 ring-1 ring-orange-200">
                       {t('cases.requiredDocumentsPending')}
@@ -509,7 +587,7 @@ export function CaseProcessPage() {
               />
             ) : undefined
           }
-          action={renewalContinue}
+          action={wizardContinue}
         >
           <div className={formCardBodyClassName}>
             <section>
@@ -562,30 +640,52 @@ export function CaseProcessPage() {
         </FormCard>
       ) : null}
       {item?.type === 'LOCATION_CHANGE' && step === 0 ? (
-        <FormCard icon={MapPinned} title={t('cases.requestTypes.LOCATION_CHANGE')}>
+        <FormCard
+          icon={MapPinned}
+          title={t('cases.requestTypes.LOCATION_CHANGE')}
+          action={
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="ghost" onClick={() => setCurrentLocationOpen(true)}>
+                <Eye className="size-4" aria-hidden />
+                {t('cases.viewCurrentLocation')}
+              </Button>
+              {wizardContinue}
+            </div>
+          }
+        >
           <div className={formCardBodyClassName}>
             <CaseLocationStep
               value={form}
               cities={cities.data ?? []}
               complexes={complexes.data ?? []}
-              places={places.data ?? []}
+              places={[]}
               locale={locale}
+              hideRegistrationPlace
+              onUseCurrentSection={(section) => {
+                if (!item.currentLocation) return
+                const current = locationFrom(item.currentLocation)
+                const patch = Object.fromEntries(
+                  LOCATION_SECTION_FIELDS[section].map((key) => [key, current[key]]),
+                ) as Partial<LocationForm>
+                setLocation({ ...form, ...patch })
+                toast.success(t('cases.currentSectionFilled'))
+              }}
               onChange={(patch) => setLocation({ ...form, ...patch })}
-              onSubmit={() => void saveDraft()}
+              onSubmit={() => void continueProcess()}
             />
           </div>
         </FormCard>
       ) : null}
       {item && step === 1 && showDocumentsStep ? (
-        <FormCard icon={icon} title={t('cases.activityDocumentsTitle')} action={item.type === 'RENEWAL' ? renewalContinue : undefined}>
+        <FormCard icon={icon} title={t('cases.activityDocumentsTitle')} action={wizard ? wizardContinue : undefined}>
           <div className={formCardBodyClassName}>
             <CaseDocumentList
               items={requirements.data ?? []}
               stored={stored.data ?? []}
               uploadingId={uploadingId}
               disabled={false}
-              layout={item.type === 'RENEWAL' ? 'tabs' : 'grid'}
-              emphasizeRequired={item.type === 'RENEWAL'}
+              layout={wizard ? 'tabs' : 'grid'}
+              emphasizeRequired={wizard}
               onFile={(documentId, file) => void upload(documentId, file)}
             />
           </div>
@@ -598,7 +698,7 @@ export function CaseProcessPage() {
           loading={inquiries.isLoading}
           autoAdvance={false}
           showAdvance={false}
-          headerAction={item.type === 'RENEWAL' ? renewalContinue : undefined}
+          headerAction={wizard ? wizardContinue : undefined}
           onAdvanced={() => undefined}
           onRewound={() => {
             setViewStep(null)
@@ -614,7 +714,7 @@ export function CaseProcessPage() {
           loading={placesReview.isLoading}
           autoAdvance={false}
           showAdvance={false}
-          headerAction={renewalContinue}
+          headerAction={wizardContinue}
           onAdvanced={() => undefined}
           onRewound={() => {
             setViewStep(null)
@@ -630,7 +730,7 @@ export function CaseProcessPage() {
           loading={reviews.isLoading}
           autoAdvance={false}
           showAdvance={false}
-          headerAction={item.type === 'RENEWAL' ? renewalContinue : undefined}
+          headerAction={wizard ? wizardContinue : undefined}
           onAdvanced={() => undefined}
           onRewound={() => {
             setViewStep(null)
@@ -640,7 +740,7 @@ export function CaseProcessPage() {
         />
       ) : null}
       {item?.type === 'RENEWAL' && item.renewal && step === 5 ? (
-        <FormCard icon={BadgeCheck} title={t('cases.renewalSteps.issue')} action={renewalContinue}>
+        <FormCard icon={BadgeCheck} title={t('cases.renewalSteps.issue')} action={wizardContinue}>
           <div className={formCardBodyClassName}>
             <div className="grid gap-3 sm:grid-cols-2">
               <FormFactTile
@@ -691,7 +791,7 @@ export function CaseProcessPage() {
           </div>
         </FormCard>
       ) : null}
-      {item && item.type !== 'RENEWAL' && !(item.type === 'LOCATION_CHANGE' && step === 0) ? (
+      {item && !wizard ? (
         <div className="flex justify-end">
           <Button
             type="button"
@@ -709,16 +809,185 @@ export function CaseProcessPage() {
           </Button>
         </div>
       ) : null}
+      {currentLocationOpen && item?.currentLocation ? (
+        <CurrentLocationDialog
+          place={item.currentLocation}
+          locale={locale}
+          onClose={() => setCurrentLocationOpen(false)}
+        />
+      ) : null}
     </div>
   )
 }
 
-function ProcessBadge({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: ReactNode }) {
+function ProcessBadge({ icon: Icon, label, value }: { icon: LucideIcon; label?: string; value: ReactNode }) {
   return (
     <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-ink-800 shadow-[0_4px_10px_rgba(20,40,40,0.05)] ring-1 ring-teal-100">
       <Icon className="size-3.5 shrink-0 text-teal-600" aria-hidden />
-      <span className="text-ink-500">{label}</span>
+      {label ? <span className="text-ink-500">{label}</span> : null}
       <span>{value}</span>
     </span>
+  )
+}
+
+function LocationCaseSubtitle({ item, locale }: { item: ProcessState; locale: string }) {
+  const { t } = useTranslation()
+  const personName =
+    [item.person?.firstName, item.person?.lastName].filter(Boolean).join(' ') || item.person?.fullName?.trim() || ''
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <EntityNameSubtitle icon={MapPinned} label={t('cases.requestNumber')} name={localizeDigits(item.number, locale)} />
+      {personName ? <ProcessBadge icon={UserRound} value={personName} /> : null}
+      {item.nationalId ? (
+        <ProcessBadge icon={Fingerprint} label={t('users.nationalId')} value={<CopyableDigits value={item.nationalId} />} />
+      ) : null}
+      {item.jobTitle ? <ProcessBadge icon={Briefcase} label={t('cases.activityJob')} value={item.jobTitle} /> : null}
+      {item.licenseIssuedAt ? (
+        <ProcessBadge icon={CalendarDays} label={t('cases.listIssued')} value={<DateText value={item.licenseIssuedAt} />} />
+      ) : null}
+    </span>
+  )
+}
+
+function LocationFacts({ icon, title, children }: { icon: LucideIcon; title: string; children: ReactNode }) {
+  return (
+    <section className="space-y-3">
+      <FormSectionTitle icon={icon}>{title}</FormSectionTitle>
+      <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">{children}</div>
+    </section>
+  )
+}
+
+function shownDigits(value: string | null | undefined, locale: string) {
+  const text = value?.trim()
+  return text ? localizeDigits(text, locale) : null
+}
+
+function CurrentLocationDialog({
+  place,
+  locale,
+  onClose,
+}: {
+  place: CurrentLocation
+  locale: string
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.repeat) return
+      event.preventDefault()
+      onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [onClose])
+
+  const rented = place.ownership === 'RENTED'
+  const complexName = place.complex
+    ? locale === 'en' || locale === 'hi'
+      ? place.complex.nameEn || place.complex.name
+      : place.complex.name || place.complex.nameEn
+    : null
+  const area = place.area == null || place.area === '' || Number.isNaN(Number(place.area)) ? null : formatNumber(Number(place.area), locale)
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-ink-900/30 p-4 pt-[8vh]"
+      data-nested-dialog
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="current-location-title"
+      onClick={onClose}
+    >
+      <div className="mb-8 w-full max-w-3xl" onClick={(event) => event.stopPropagation()}>
+        <FormCard
+          icon={MapPinned}
+          title={<span id="current-location-title">{t('cases.currentLocationTitle')}</span>}
+          action={
+            <Button type="button" variant="ghost" icon className="size-9" onClick={onClose} aria-label={t('common.close')}>
+              <X className="size-4" aria-hidden />
+            </Button>
+          }
+        >
+          <div className="space-y-6 p-5 sm:p-6">
+            <LocationFacts icon={MapPin} title={t('cases.locationSections.place')}>
+              <FormFactTile icon={MapPin} label={t('cases.premiseCity')} value={place.city ? geoName(place.city, locale) : '—'} empty={!place.city} />
+              <FormFactTile
+                icon={Store}
+                label={t('cases.establishment')}
+                value={place.establishment ? t(`cases.establishments.${place.establishment}`) : '—'}
+                empty={!place.establishment}
+                tone="mint"
+              />
+              {place.establishment === 'COMMERCIAL_COMPLEX' ? (
+                <FormFactTile icon={Building2} label={t('cases.complex')} value={complexName || '—'} empty={!complexName} />
+              ) : null}
+              <FormFactTile className="sm:col-span-2" icon={MapPin} label={t('cases.premiseAddress')} value={place.address?.trim() || '—'} empty={!place.address?.trim()} />
+              <FormFactTile className="sm:col-span-2" icon={MapPin} label={t('cases.premiseAddressEn')} value={place.addressEn?.trim() || '—'} empty={!place.addressEn?.trim()} tone="mint" />
+              <FormFactTile icon={Hash} label={t('cases.floor')} value={shownDigits(place.floor, locale) || '—'} empty={!place.floor?.trim()} />
+              <FormFactTile icon={Hash} label={t('cases.plaqueSeries')} value={shownDigits(place.plaqueSeries, locale) || '—'} empty={!place.plaqueSeries?.trim()} tone="mint" />
+              <FormFactTile icon={Hash} label={t('cases.plaque')} value={shownDigits(place.plaque, locale) || '—'} empty={!place.plaque?.trim()} />
+              <FormFactTile icon={Hash} label={t('cases.unitNo')} value={shownDigits(place.unitNo, locale) || '—'} empty={!place.unitNo?.trim()} tone="mint" />
+            </LocationFacts>
+            <LocationFacts icon={KeyRound} title={t('cases.locationSections.ownership')}>
+              <FormFactTile
+                icon={KeyRound}
+                label={t('cases.ownership')}
+                value={place.ownership ? t(`cases.ownerships.${place.ownership}`) : '—'}
+                empty={!place.ownership}
+              />
+              <FormFactTile icon={Ruler} label={t('cases.buildingArea')} value={area || '—'} empty={!area} tone="mint" />
+              <FormFactTile icon={FileText} label={t('cases.deedNo')} value={shownDigits(place.deedNo, locale) || '—'} empty={!place.deedNo?.trim()} />
+            </LocationFacts>
+            {rented ? (
+              <LocationFacts icon={FileText} title={t('cases.locationSections.lease')}>
+                <FormFactTile
+                  icon={CalendarDays}
+                  label={t('cases.leaseIssuedAt')}
+                  value={place.leaseIssuedAt ? <DateText value={place.leaseIssuedAt} /> : '—'}
+                  empty={!place.leaseIssuedAt}
+                />
+                <FormFactTile
+                  icon={CalendarDays}
+                  label={t('cases.leaseExpiresAt')}
+                  value={place.leaseExpiresAt ? <DateText value={place.leaseExpiresAt} /> : '—'}
+                  empty={!place.leaseExpiresAt}
+                  tone="mint"
+                />
+                <FormFactTile icon={Store} label={t('cases.leaseAgency')} value={place.leaseAgency?.trim() || '—'} empty={!place.leaseAgency?.trim()} />
+                <FormFactTile icon={Users} label={t('cases.ownerName')} value={place.ownerName?.trim() || '—'} empty={!place.ownerName?.trim()} tone="mint" />
+              </LocationFacts>
+            ) : null}
+            <LocationFacts icon={Phone} title={t('cases.locationSections.contact')}>
+              <FormFactTile icon={Phone} label={t('cases.premisePhone')} value={shownDigits(place.phone, locale) || '—'} empty={!place.phone?.trim()} />
+              <FormFactTile icon={Phone} label={t('cases.premiseFax')} value={shownDigits(place.fax, locale) || '—'} empty={!place.fax?.trim()} tone="mint" />
+              <FormFactTile icon={Hash} label={t('cases.premisePostalCode')} value={shownDigits(place.postalCode, locale) || '—'} empty={!place.postalCode?.trim()} />
+            </LocationFacts>
+            <LocationFacts icon={Signpost} title={t('cases.locationSections.position')}>
+              <FormFactTile
+                icon={Signpost}
+                label={t('cases.geoPosition')}
+                value={place.geoPosition ? t(`cases.geoPositions.${place.geoPosition}`) : '—'}
+                empty={!place.geoPosition}
+              />
+              <FormFactTile
+                icon={Users}
+                label={t('cases.publicAccess')}
+                value={place.publicAccess ? t(`cases.publicAccesses.${place.publicAccess}`) : '—'}
+                empty={!place.publicAccess}
+                tone="mint"
+              />
+            </LocationFacts>
+          </div>
+        </FormCard>
+      </div>
+    </div>,
+    document.body,
   )
 }
