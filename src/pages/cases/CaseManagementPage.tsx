@@ -27,49 +27,67 @@ import { FORMATION_STEPS, STEWARDSHIP_STEPS } from './formation-types'
 
 type CaseListKind = 'ISSUANCE' | 'RENEWAL' | 'LOCATION_CHANGE' | 'AUCTION' | 'STEWARD_REQUEST' | 'STEWARD_CARD'
 
-const CASE_KIND_STYLES: Record<CaseListKind, { row: string; edge: string; badge: string; icon: LucideIcon }> = {
+const CASE_KIND_STYLES: Record<CaseListKind, { badge: string; icon: LucideIcon }> = {
   ISSUANCE: {
-    row: 'bg-teal-50/80 hover:!bg-teal-50 focus:!bg-teal-50',
-    edge: 'border-s-teal-500',
     badge: 'bg-white text-teal-800 ring-teal-300',
     icon: BadgeCheck,
   },
   RENEWAL: {
-    row: 'bg-sky-50/80 hover:!bg-sky-50 focus:!bg-sky-50',
-    edge: 'border-s-sky-500',
     badge: 'bg-white text-sky-800 ring-sky-300',
     icon: RefreshCw,
   },
   LOCATION_CHANGE: {
-    row: 'bg-amber-50/80 hover:!bg-amber-50 focus:!bg-amber-50',
-    edge: 'border-s-amber-500',
     badge: 'bg-white text-amber-900 ring-amber-300',
     icon: MapPinned,
   },
   AUCTION: {
-    row: 'bg-rose-50/80 hover:!bg-rose-50 focus:!bg-rose-50',
-    edge: 'border-s-rose-400',
     badge: 'bg-white text-rose-800 ring-rose-300',
     icon: Gavel,
   },
   STEWARD_REQUEST: {
-    row: 'bg-violet-50/80 hover:!bg-violet-50 focus:!bg-violet-50',
-    edge: 'border-s-violet-500',
     badge: 'bg-white text-violet-800 ring-violet-300',
     icon: UserRound,
   },
   STEWARD_CARD: {
-    row: 'bg-fuchsia-50/80 hover:!bg-fuchsia-50 focus:!bg-fuchsia-50',
-    edge: 'border-s-fuchsia-500',
     badge: 'bg-white text-fuchsia-800 ring-fuchsia-300',
     icon: IdCard,
   },
+}
+
+const CASE_STATUS_STYLES: Record<CaseRow['status'], { row: string; edge: string }> = {
+  ACTIVE: {
+    row: 'bg-teal-50/80 hover:!bg-teal-50 focus:!bg-teal-50',
+    edge: 'border-s-teal-500',
+  },
+  SUSPENDED: {
+    row: 'bg-amber-50/80 hover:!bg-amber-50 focus:!bg-amber-50',
+    edge: 'border-s-amber-500',
+  },
+  REVOKED: {
+    row: 'bg-rose-50/80 hover:!bg-rose-50 focus:!bg-rose-50',
+    edge: 'border-s-rose-400',
+  },
+}
+
+const NAME_REQUEST_LIMIT = 4
+
+type CaseRequestBadge = {
+  type: 'ISSUANCE' | 'RENEWAL' | 'LOCATION_CHANGE' | 'STEWARDSHIP' | 'AUCTION'
+  status: 'OPEN' | 'ISSUED' | 'COMPLETED' | 'REJECTED' | 'CANCELLED'
+}
+
+function requestBadgeKind(request: CaseRequestBadge): CaseListKind {
+  if (request.type === 'STEWARDSHIP') {
+    return request.status === 'ISSUED' || request.status === 'COMPLETED' ? 'STEWARD_CARD' : 'STEWARD_REQUEST'
+  }
+  return request.type
 }
 
 type CaseRow = {
   id: string
   kind?: 'LICENSE' | 'STEWARDSHIP'
   caseKind?: CaseListKind
+  requests?: CaseRequestBadge[]
   fullName: string
   nationalId: string | null
   formationStep: number
@@ -80,6 +98,61 @@ type CaseRow = {
   licenseExpiresAt: string | null
   job: { id: string; title: string } | null
   jobTitle: string | null
+}
+
+function NameRequestCell({
+  item,
+  caseKind,
+  locale,
+}: {
+  item: CaseRow
+  caseKind: CaseListKind
+  locale: string
+}) {
+  const { t } = useTranslation()
+  const kinds =
+    item.requests && item.requests.length > 0 ? item.requests.map(requestBadgeKind) : [caseKind]
+  const visible = kinds.slice(0, NAME_REQUEST_LIMIT)
+  const extra = kinds.length - visible.length
+  const firstRow = visible.slice(0, 2)
+  const lastRow = visible.slice(2)
+  const badge = (kind: CaseListKind, index: number) => {
+    const style = CASE_KIND_STYLES[kind]
+    const Icon = style.icon
+    return (
+      <span
+        key={`${kind}-${index}`}
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${style.badge}`}
+      >
+        <Icon className="size-3.5" aria-hidden />
+        {t(`cases.caseKinds.${kind}`)}
+      </span>
+    )
+  }
+  const more =
+    extra > 0 ? (
+      <span
+        className="inline-flex items-center rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-ink-600 ring-1 ring-ink-200"
+        title={t('cases.moreRequests')}
+        aria-label={t('cases.moreRequests')}
+      >
+        +{formatNumber(extra, locale)}
+      </span>
+    ) : null
+  return (
+    <div className="flex flex-col items-start gap-1.5">
+      <span>{item.fullName || '—'}</span>
+      <span className="inline-flex flex-col items-start gap-1">
+        <span className="inline-grid grid-cols-2 gap-1">{firstRow.map(badge)}</span>
+        {lastRow.length > 0 ? (
+          <span className={extra > 0 ? 'inline-flex items-center gap-1' : 'inline-grid grid-cols-2 gap-1'}>
+            {lastRow.map((kind, index) => badge(kind, index + firstRow.length))}
+            {more}
+          </span>
+        ) : null}
+      </span>
+    </div>
+  )
 }
 
 function CaseNationalIdBadge({ value, locale }: { value: string; locale: string }) {
@@ -93,21 +166,10 @@ function CaseNationalIdBadge({ value, locale }: { value: string; locale: string 
   )
 }
 
-function remainingLicenseDays(expiresAt: string | null) {
-  if (!expiresAt) return null
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(expiresAt)
-  if (!match) return null
-  const end = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
-  const now = new Date()
-  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
-  return Math.max(0, Math.round((end - today) / 86_400_000))
-}
-
 function CaseStepCell({
   step,
   locale,
   status,
-  suspensionStartsAt,
   licenseNumber,
   licenseIssuedAt,
   licenseExpiresAt,
@@ -117,64 +179,37 @@ function CaseStepCell({
   kind?: 'LICENSE' | 'STEWARDSHIP'
   locale: string
   status: CaseRow['status']
-  suspensionStartsAt: string | null
   licenseNumber: string | null
   licenseIssuedAt: string | null
   licenseExpiresAt: string | null
 }) {
   const { t } = useTranslation()
-  if (status === 'SUSPENDED') {
+  const hasLicense = Boolean(licenseNumber || licenseIssuedAt || licenseExpiresAt)
+  if (hasLicense || status === 'SUSPENDED' || status === 'REVOKED') {
+    const statusTone =
+      status === 'REVOKED'
+        ? 'bg-rose-50 text-rose-800 ring-rose-200'
+        : status === 'SUSPENDED'
+          ? 'bg-amber-50 text-amber-900 ring-amber-200'
+          : 'bg-mint-50 text-teal-900 ring-mint-200'
     return (
       <div className="flex flex-col items-center gap-1 text-xs leading-5">
-        <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-0.5 font-medium text-amber-900 ring-1 ring-amber-200">
-          {t('cases.caseStatuses.SUSPENDED')}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="text-ink-500">{t('cases.suspendStartsAt')}:</span>
-          {suspensionStartsAt ? (
-            <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-900 ring-1 ring-amber-200">
-              <DateText value={suspensionStartsAt} />
-            </span>
-          ) : (
-            '—'
-          )}
-        </span>
-      </div>
-    )
-  }
-  if (licenseNumber) {
-    const remaining = remainingLicenseDays(licenseExpiresAt)
-    const remainingText = remaining == null ? null : formatNumber(remaining, locale)
-    return (
-      <div className="flex flex-col items-center gap-1 text-xs leading-5">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="text-ink-500">{t('cases.listIssued')}:</span>
-          {licenseIssuedAt ? (
+        {hasLicense ? (
+          <span dir="ltr" className="inline-flex items-center justify-center gap-1.5">
             <span className="inline-flex rounded-full bg-mint-50 px-2 py-0.5 font-medium text-teal-900 ring-1 ring-mint-200">
-              <DateText value={licenseIssuedAt} />
+              {licenseIssuedAt ? <DateText value={licenseIssuedAt} /> : '—'}
             </span>
-          ) : (
-            '—'
-          )}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="text-ink-500">{t('cases.listExpires')}:</span>
-          {licenseExpiresAt ? (
+            <span className="text-ink-400" aria-hidden>
+              -
+            </span>
             <span className="inline-flex rounded-full bg-teal-50 px-2 py-0.5 font-medium text-teal-900 ring-1 ring-teal-200">
-              <DateText value={licenseExpiresAt} />
+              {licenseExpiresAt ? <DateText value={licenseExpiresAt} /> : '—'}
             </span>
-          ) : (
-            '—'
-          )}
-        </span>
-        {remainingText != null ? (
-          <span
-            className="inline-flex min-w-5 items-center justify-center rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold leading-none text-teal-900 ring-1 ring-teal-200"
-            aria-label={t('cases.listDaysRemaining', { count: remainingText })}
-          >
-            {remainingText}
           </span>
         ) : null}
+        <span className={`inline-flex rounded-full px-2.5 py-0.5 font-medium ring-1 ${statusTone}`}>
+          {t(`cases.caseStatuses.${status}`)}
+        </span>
       </div>
     )
   }
@@ -426,11 +461,10 @@ export function CaseManagementPage() {
                   : item.kind === 'STEWARDSHIP'
                     ? 'STEWARD_REQUEST'
                     : 'ISSUANCE'
-              const kindStyle = CASE_KIND_STYLES[caseKind]
-              const KindIcon = kindStyle.icon
+              const statusStyle = CASE_STATUS_STYLES[item.status]
               return (
-                <tr key={item.id} className={`border-t border-line ${kindStyle.row}`}>
-                <td className={`border-s-4 px-4 py-3 ${kindStyle.edge}`}>
+                <tr key={item.id} className={`border-t border-line ${statusStyle.row}`}>
+                <td className={`border-s-4 px-4 py-3 ${statusStyle.edge}`}>
                   {item.licenseNumber ? (
                     <span
                       dir="ltr"
@@ -443,13 +477,7 @@ export function CaseManagementPage() {
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  <span className="inline-flex flex-wrap items-center gap-2">
-                    {item.fullName || '—'}
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${kindStyle.badge}`}>
-                      <KindIcon className="size-3.5" aria-hidden />
-                      {t(`cases.caseKinds.${caseKind}`)}
-                    </span>
-                  </span>
+                  <NameRequestCell item={item} caseKind={caseKind} locale={locale} />
                 </td>
                 <td className="px-4 py-3">
                   {item.nationalId ? <CaseNationalIdBadge value={item.nationalId} locale={locale} /> : '—'}
@@ -461,7 +489,6 @@ export function CaseManagementPage() {
                     step={item.formationStep}
                     locale={locale}
                     status={item.status}
-                    suspensionStartsAt={item.suspensionStartsAt}
                     licenseNumber={item.licenseNumber}
                     licenseIssuedAt={item.licenseIssuedAt}
                     licenseExpiresAt={item.licenseExpiresAt}

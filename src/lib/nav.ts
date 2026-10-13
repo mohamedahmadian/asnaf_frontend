@@ -80,10 +80,25 @@ export const APP_NAV: NavModule[] = withManagementLast([
     ],
   },
   {
+    code: 'reports',
+    nameKey: 'modules.reports',
+    icon: 'chart-column',
+    sortOrder: 3,
+    menus: [
+      {
+        code: 'reports.expiring-cases',
+        nameKey: 'menus.expiringCases',
+        path: '/reports/expiring-cases',
+        icon: 'calendar-clock',
+        sortOrder: 1,
+      },
+    ],
+  },
+  {
     code: 'finance',
     nameKey: 'modules.finance',
     icon: 'wallet',
-    sortOrder: 3,
+    sortOrder: 4,
     menus: [
       {
         code: 'finance.bank-accounts',
@@ -112,7 +127,7 @@ export const APP_NAV: NavModule[] = withManagementLast([
     code: 'inspection',
     nameKey: 'modules.inspectionComplaints',
     icon: 'scale',
-    sortOrder: 4,
+    sortOrder: 5,
     menus: [
       {
         code: 'inspection.violations.register',
@@ -148,7 +163,7 @@ export const APP_NAV: NavModule[] = withManagementLast([
     code: 'base-info',
     nameKey: 'modules.baseInfo',
     icon: 'globe',
-    sortOrder: 5,
+    sortOrder: 6,
     menus: [
       {
         code: 'base-info.job-types',
@@ -240,7 +255,7 @@ export const APP_NAV: NavModule[] = withManagementLast([
     code: 'sms',
     nameKey: 'modules.sms',
     icon: 'message-square',
-    sortOrder: 6,
+    sortOrder: 7,
     menus: [
       {
         code: 'sms.settings',
@@ -262,7 +277,7 @@ export const APP_NAV: NavModule[] = withManagementLast([
     code: 'management',
     nameKey: 'modules.management',
     icon: 'user-cog',
-    sortOrder: 7,
+    sortOrder: 8,
     menus: [
       {
         code: 'management.userRegister',

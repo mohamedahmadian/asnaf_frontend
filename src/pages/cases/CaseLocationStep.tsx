@@ -160,37 +160,39 @@ export function CaseLocationStep({
               }))}
             />
           </FormField>
-          <FormField icon={Store} label={t('cases.establishment')} htmlFor="case-establishment">
-            <ChoicePills
-              id="case-establishment"
-              value={value.establishment}
-              onChange={(next) =>
-                onChange({
-                  establishment: next,
-                  complexId: next === 'COMMERCIAL_COMPLEX' ? value.complexId : '',
-                })
-              }
-              options={PREMISE_ESTABLISHMENTS.map((item) => ({
-                value: item,
-                label: t(`cases.establishments.${item}`),
-              }))}
-            />
-          </FormField>
+          <div className={`grid min-w-0 items-end gap-4 ${commercialComplex ? 'sm:grid-cols-2' : ''}`}>
+            <FormField icon={Store} label={t('cases.establishment')} htmlFor="case-establishment">
+              <ChoicePills
+                id="case-establishment"
+                value={value.establishment}
+                onChange={(next) =>
+                  onChange({
+                    establishment: next,
+                    complexId: next === 'COMMERCIAL_COMPLEX' ? value.complexId : '',
+                  })
+                }
+                options={PREMISE_ESTABLISHMENTS.map((item) => ({
+                  value: item,
+                  label: t(`cases.establishments.${item}`),
+                }))}
+              />
+            </FormField>
+            {commercialComplex ? (
+              <FormField icon={Building2} label={t('cases.complex')} htmlFor="case-complex">
+                <SearchSelect
+                  id="case-complex"
+                  value={value.complexId}
+                  onChange={(next) => onChange({ complexId: next })}
+                  placeholder={t('users.selectOptional')}
+                  options={[
+                    { value: '', label: t('users.selectOptional') },
+                    ...complexes.map((item) => ({ value: item.id, label: item.name })),
+                  ]}
+                />
+              </FormField>
+            ) : null}
+          </div>
         </div>
-        {commercialComplex ? (
-          <FormField icon={Building2} label={t('cases.complex')} htmlFor="case-complex">
-            <SearchSelect
-              id="case-complex"
-              value={value.complexId}
-              onChange={(next) => onChange({ complexId: next })}
-              placeholder={t('users.selectOptional')}
-              options={[
-                { value: '', label: t('users.selectOptional') },
-                ...complexes.map((item) => ({ value: item.id, label: item.name })),
-              ]}
-            />
-          </FormField>
-        ) : null}
         <FormField icon={MapPin} label={t('cases.premiseAddress')} htmlFor="case-premise-address">
           <textarea
             id="case-premise-address"

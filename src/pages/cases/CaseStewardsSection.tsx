@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../../components/ui/Form'
 import { ActionsTh, EntityRowActions, TableCard, actionsColClassName } from '../../components/ui/ListControls'
+import { DateText } from '../../components/ui/DateText'
 import { FormCard } from '../../components/ui/FormLayout'
 import { localizeDigits } from '../../lib/datetime'
 import { CaseStewardRevokeDialog } from './CaseSuspensions'
@@ -16,6 +17,8 @@ export type StewardRow = {
   requestNumber: string | null
   requestStatus: string | null
   cardNumber: string | null
+  cardIssuedAt: string | null
+  cardExpiresAt: string | null
   revokeSource: 'HOST' | 'STEWARD' | 'LICENSE' | null
 }
 
@@ -58,14 +61,21 @@ export function CaseStewardsSection({ caseId, items }: { caseId: string; items: 
                   <th className="px-4 py-3 text-start font-medium">{t('users.fullName')}</th>
                   <th className="px-4 py-3 text-start font-medium">{t('users.nationalId')}</th>
                   <th className="px-4 py-3 text-start font-medium">{t('cases.stewardship.cardNumber')}</th>
+                  <th className="px-4 py-3 text-start font-medium">{t('cases.stewardship.cardIssuedOn')}</th>
+                  <th className="px-4 py-3 text-start font-medium">{t('cases.stewardship.cardExpiresOn')}</th>
                   <th className="px-4 py-3 text-start font-medium">{t('cases.listStep')}</th>
                   <ActionsTh />
                 </tr>
               </thead>
               <tbody>
                 {items.map((row) => {
-                  const issued = Boolean(row.cardNumber) && row.status !== 'REVOKED' && row.requestStatus !== 'OPEN'
-                  const viewTo = issued ? `/cases/${row.id}/stewardship/card` : `/cases/${row.id}/stewardship`
+                  const revoked = row.status === 'REVOKED'
+                  const issued = Boolean(row.cardNumber) && !revoked && row.requestStatus !== 'OPEN'
+                  const viewTo = revoked
+                    ? `/cases/${row.id}/dossier`
+                    : issued
+                      ? `/cases/${row.id}/stewardship/card`
+                      : `/cases/${row.id}/stewardship`
                   return (
                     <tr key={row.id} className="border-t border-line">
                       <td className="px-4 py-3">
@@ -84,11 +94,17 @@ export function CaseStewardsSection({ caseId, items }: { caseId: string; items: 
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        {issued && row.cardNumber
+                        {row.cardNumber
                           ? localizeDigits(row.cardNumber, locale)
                           : row.requestNumber
                             ? localizeDigits(row.requestNumber, locale)
                             : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {row.cardIssuedAt ? <DateText value={row.cardIssuedAt} /> : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {row.cardExpiresAt ? <DateText value={row.cardExpiresAt} /> : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -100,7 +116,13 @@ export function CaseStewardsSection({ caseId, items }: { caseId: string; items: 
                       <td className={actionsColClassName}>
                         <EntityRowActions
                           viewTo={viewTo}
-                          viewLabel={issued ? t('cases.stewardship.viewCard') : t('cases.stewardship.continue')}
+                          viewLabel={
+                            revoked
+                              ? t('cases.viewDossier')
+                              : issued
+                                ? t('cases.stewardship.viewCard')
+                                : t('cases.stewardship.continue')
+                          }
                           viewIcon={issued ? IdCard : Eye}
                           rowOpensView
                           rowTo={issued ? `/cases/${row.id}/stewardship` : undefined}

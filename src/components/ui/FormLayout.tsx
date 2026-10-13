@@ -239,6 +239,7 @@ export function FormFactTile({
   compact = false,
   className = '',
   onClick,
+  action,
 }: {
   icon: LucideIcon
   label: string
@@ -249,6 +250,7 @@ export function FormFactTile({
   compact?: boolean
   className?: string
   onClick?: () => void
+  action?: ReactNode
 }) {
   const colors = formToneClass[tone]
   const copyDigits = useCopyDigits()
@@ -258,7 +260,7 @@ export function FormFactTile({
   const display = usingCopy ? <CopyableDigits value={copyValue} /> : value
   return (
     <article
-      className={`relative z-10 flex min-w-0 items-start overflow-hidden rounded-2xl border ${colors.wrap} ${
+      className={`relative z-10 flex min-w-0 ${action ? 'items-center' : 'items-start'} overflow-hidden rounded-2xl border ${colors.wrap} ${
         compact ? 'gap-2 px-2.5 py-1.5' : 'gap-3 px-3 py-3'
       } ${canCopy || onClick ? 'cursor-pointer' : ''} ${onClick ? 'transition hover:ring-2 hover:ring-teal-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300' : ''} ${className}`}
       data-enter-ignore={canCopy || onClick ? '' : undefined}
@@ -282,7 +284,7 @@ export function FormFactTile({
       >
         <Icon className={compact ? 'size-3.5' : 'size-4'} aria-hidden />
       </span>
-      <div className="min-w-0">
+      <div className={`min-w-0 ${action ? 'flex-1' : ''}`}>
         <p className="text-[11px] font-medium text-ink-500">{label}</p>
         <div
           className={`font-semibold break-words ${compact ? 'mt-px text-[13px]' : 'mt-0.5 text-sm'} ${
@@ -292,6 +294,7 @@ export function FormFactTile({
           {display}
         </div>
       </div>
+      {action ? <div className="ms-auto shrink-0 self-center">{action}</div> : null}
     </article>
   )
 }

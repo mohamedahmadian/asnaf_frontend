@@ -1,11 +1,11 @@
-import { BadgeCheck, Briefcase, Building2, CalendarClock, CalendarDays, Check, Eye, FileText, Fingerprint, Hash, KeyRound, MapPin, MapPinned, Phone, RefreshCw, Ruler, Signpost, Store, UserRound, Users, X, type LucideIcon } from 'lucide-react'
+import { BadgeCheck, Building2, CalendarClock, CalendarDays, Check, Eye, FileText, FolderKanban, Hash, IdCard, KeyRound, MapPin, MapPinned, Phone, RefreshCw, Ruler, Signpost, Store, UserRound, Users, X, type LucideIcon } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Button, EntityNameSubtitle, FormField, PageHeader, caseShellClassName } from '../../components/ui/Form'
+import { AppForm, Button, EntityNameSubtitle, FormField, PageHeader, caseShellClassName, inputClassName } from '../../components/ui/Form'
 import { PersianDateField } from '../../components/ui/PersianDateField'
 import { DateText } from '../../components/ui/DateText'
 import { CopyableDigits } from '../../components/ui/CopyableDigits'
@@ -26,7 +26,7 @@ import { emptyLocationForm, type DocumentTypeRow, type LocationForm, type Stored
 import { AuctionCaseSubtitle, AuctionStepRing } from './AuctionWizard'
 
 const RENEWAL_STEPS = ['terms', 'documents', 'inquiries', 'places', 'management', 'issue'] as const
-const LOCATION_STEPS = ['location', 'documents', 'inquiries', 'places', 'management'] as const
+const LOCATION_STEPS = ['location', 'documents', 'inquiries', 'places', 'management', 'request'] as const
 type LocationStepName = (typeof LOCATION_STEPS)[number]
 const LOCATION_STEP_INDEX: Record<LocationStepName, number> = {
   location: 0,
@@ -34,6 +34,7 @@ const LOCATION_STEP_INDEX: Record<LocationStepName, number> = {
   inquiries: 2,
   places: 3,
   management: 4,
+  request: 5,
 }
 
 const LOCATION_SECTION_FIELDS: Record<LocationSectionKey, (keyof LocationForm)[]> = {
@@ -81,6 +82,7 @@ type ProcessState = {
   licenseIssuedAt: string | null
   trackingCode: string | null
   nationalId: string | null
+  phone: string | null
   businessUnitTitle: string | null
   person: { firstName: string; lastName: string; fullName: string } | null
   jobGroupTitle: string | null
@@ -378,7 +380,7 @@ export function CaseProcessPage() {
       const saved = await scheduleRenewalSave(true)
       if (!saved) return
     }
-    if (item?.type === 'LOCATION_CHANGE' && step === 0 && index !== step) {
+    if (item?.type === 'LOCATION_CHANGE' && (step === 0 || step === 5) && index !== step) {
       const saved = await saveDraft()
       if (!saved) return
     }
@@ -412,7 +414,7 @@ export function CaseProcessPage() {
       const saved = await scheduleRenewalSave(true)
       if (!saved) return
     }
-    if (item.type === 'LOCATION_CHANGE' && serverStep === 0) {
+    if (item.type === 'LOCATION_CHANGE' && (serverStep === 0 || serverStep === 5)) {
       const saved = await saveDraft()
       if (!saved) return
     }
@@ -422,7 +424,7 @@ export function CaseProcessPage() {
     }
     setBusy(true)
     try {
-      const finalStep = item.type === 'RENEWAL' ? 5 : 4
+      const finalStep = item.type === 'RENEWAL' || item.type === 'LOCATION_CHANGE' ? 5 : 4
       if (serverStep >= finalStep) {
         await api.post('/cases/formation/complete', { caseId: id, step: finalStep })
         toast.success(item.type === 'RENEWAL' ? t('cases.renewLicenseDone') : t('cases.processCompleted'))
@@ -448,9 +450,28 @@ export function CaseProcessPage() {
     wizardSteps.filter((name) => wizardIndex(name) <= progress).length,
     stepTotal,
   )
+  const nextStepName = (() => {
+    const next = nextProcessStep(step)
+    const names = item?.type === 'LOCATION_CHANGE' ? LOCATION_STEPS : RENEWAL_STEPS
+    return names[next]
+  })()
+  const wizardStepTitle = (name: string) =>
+    t(
+      item?.type === 'LOCATION_CHANGE'
+        ? name === 'location'
+          ? 'cases.locationPlaceContract'
+          : `cases.locationSteps.${name}`
+        : `cases.renewalSteps.${name}`,
+    )
   const renewalActionLabel =
-    step >= 5 ? t('cases.renewActivityLicense') : step === 4 ? t('cases.renewEconomicLicense') : t('cases.processContinue')
-  const locationActionLabel = step >= 4 ? t('cases.processComplete') : t('cases.processContinue')
+    step >= 5
+      ? t('cases.renewActivityLicense')
+      : nextStepName
+        ? t('cases.processContinueToStep', { step: wizardStepTitle(nextStepName) })
+        : t('cases.processContinue')
+  const locationActionLabel = nextStepName
+    ? t('cases.processContinueToStep', { step: wizardStepTitle(nextStepName) })
+    : t('cases.processContinue')
   const wizardContinue = wizard ? (
     <Button
       type="button"
@@ -497,7 +518,7 @@ export function CaseProcessPage() {
               licenseNumber={item.licenseNumber}
             />
           ) : item?.type === 'LOCATION_CHANGE' ? (
-            <LocationCaseSubtitle item={item} locale={locale} />
+            <LocationCaseSubtitle item={item} />
           ) : (
             item?.number
           )
@@ -520,7 +541,7 @@ export function CaseProcessPage() {
             const index = wizardIndex(name)
             const done = index < progress
             const current = index === progress
-            const docsMissing = index === 1 && (done || current) && documentsMissing
+            const docsMissing = name === 'documents' && (done || current) && documentsMissing
             const tone = docsMissing
               ? 'cursor-pointer border-orange-400 bg-white text-ink-800'
               : done
@@ -557,7 +578,13 @@ export function CaseProcessPage() {
                     {formatNumber(position + 1, locale)}
                   </span>
                   <span className="text-center leading-5">
-                    {t(item?.type === 'LOCATION_CHANGE' ? `cases.locationSteps.${name}` : `cases.renewalSteps.${name}`)}
+                    {t(
+                      item?.type === 'LOCATION_CHANGE'
+                        ? name === 'location'
+                          ? 'cases.locationPlaceContract'
+                          : `cases.locationSteps.${name}`
+                        : `cases.renewalSteps.${name}`,
+                    )}
                   </span>
                   {docsMissing ? (
                     <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium leading-4 text-orange-700 ring-1 ring-orange-200">
@@ -591,22 +618,11 @@ export function CaseProcessPage() {
           action={wizardContinue}
         >
           <div className={formCardBodyClassName}>
+            <RenewalCurrentSection renewal={item.renewal} locale={locale} />
             <section>
-              <FormSectionTitle icon={CalendarClock}>{t('cases.renewalCurrentLicense')}</FormSectionTitle>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <FormFactTile icon={CalendarClock} label={t('cases.renewalCurrentIssued')} value={<DateText value={item.renewal.currentIssuedAt} />} />
-                <FormFactTile icon={CalendarClock} label={t('cases.renewalCurrentExpires')} value={<DateText value={item.renewal.currentExpiresAt} />} />
-                {item.renewal.delayDays > 0 ? (
-                  <FormFactTile
-                    icon={CalendarClock}
-                    label={t('cases.renewalDelay')}
-                    value={t('cases.renewalDelayDays', { count: formatNumber(item.renewal.delayDays, locale) })}
-                  />
-                ) : null}
-              </div>
-            </section>
-            <section>
-              <FormSectionTitle icon={RefreshCw}>{t('cases.renewalNextLicense')}</FormSectionTitle>
+              <FormSectionTitle icon={RefreshCw}>
+                <RenewalNextTitle years={item.contractYears} locale={locale} />
+              </FormSectionTitle>
               <div className="grid gap-3 sm:grid-cols-2">
                 <FormField icon={CalendarDays} label={t('cases.renewalNextIssued')} htmlFor="renewal-next-issued">
                   <PersianDateField
@@ -643,7 +659,7 @@ export function CaseProcessPage() {
       {item?.type === 'LOCATION_CHANGE' && step === 0 ? (
         <FormCard
           icon={MapPinned}
-          title={t('cases.requestTypes.LOCATION_CHANGE')}
+          title={t('cases.locationPlaceContract')}
           action={
             <div className="flex flex-wrap items-center gap-2">
               <Button type="button" variant="ghost" onClick={() => setCurrentLocationOpen(true)}>
@@ -675,6 +691,67 @@ export function CaseProcessPage() {
               onSubmit={() => void continueProcess()}
             />
           </div>
+        </FormCard>
+      ) : null}
+      {item?.type === 'LOCATION_CHANGE' && step === 5 ? (
+        <FormCard icon={MapPinned} title={t('cases.locationSteps.request')}>
+          <AppForm
+            onSubmit={(event) => {
+              event.preventDefault()
+              void continueProcess()
+            }}
+            className={formCardBodyClassName}
+          >
+            <section className="space-y-3">
+              <FormSectionTitle icon={MapPin}>{t('cases.locationCurrentAddress')}</FormSectionTitle>
+              <FormField icon={MapPin} label={t('cases.premiseAddress')} htmlFor="location-current-address">
+                <textarea
+                  id="location-current-address"
+                  readOnly
+                  rows={2}
+                  className={`${inputClassName()} bg-cream-100`}
+                  value={item.currentLocation?.address ?? ''}
+                />
+              </FormField>
+              <FormField icon={Hash} label={t('cases.premisePostalCode')} htmlFor="location-current-postal">
+                <input
+                  id="location-current-postal"
+                  readOnly
+                  inputMode="numeric"
+                  className={`${inputClassName()} digit-field bg-cream-100`}
+                  value={item.currentLocation?.postalCode ?? ''}
+                />
+              </FormField>
+            </section>
+            <section className="space-y-3">
+              <FormSectionTitle icon={MapPin}>{t('cases.locationNewAddress')}</FormSectionTitle>
+              <FormField icon={MapPin} label={t('cases.premiseAddress')} htmlFor="location-new-address">
+                <textarea
+                  id="location-new-address"
+                  required
+                  rows={2}
+                  className={inputClassName()}
+                  value={form.address}
+                  onChange={(event) => setLocation({ ...form, address: event.target.value })}
+                />
+              </FormField>
+              <FormField icon={Hash} label={t('cases.premisePostalCode')} htmlFor="location-new-postal">
+                <input
+                  id="location-new-postal"
+                  inputMode="numeric"
+                  className={`${inputClassName()} digit-field`}
+                  value={form.postalCode}
+                  onChange={(event) => setLocation({ ...form, postalCode: event.target.value })}
+                />
+              </FormField>
+            </section>
+            <div className="flex justify-center pt-2">
+              <Button type="submit" disabled={busy}>
+                <BadgeCheck className="size-4" aria-hidden />
+                {t('cases.locationRequestIssue')}
+              </Button>
+            </div>
+          </AppForm>
         </FormCard>
       ) : null}
       {item && step === 1 && showDocumentsStep ? (
@@ -743,7 +820,7 @@ export function CaseProcessPage() {
         />
       ) : null}
       {item?.type === 'RENEWAL' && item.renewal && step === 5 ? (
-        <FormCard icon={BadgeCheck} title={t('cases.renewalSteps.issue')} action={wizardContinue}>
+        <FormCard icon={BadgeCheck} title={t('cases.renewalSteps.issue')}>
           <div className={formCardBodyClassName}>
             <div className="grid gap-3 sm:grid-cols-2">
               <FormFactTile
@@ -759,8 +836,11 @@ export function CaseProcessPage() {
                 tone="mint"
               />
             </div>
+            <RenewalCurrentSection renewal={item.renewal} locale={locale} />
             <section>
-              <FormSectionTitle icon={RefreshCw}>{t('cases.renewalNextLicense')}</FormSectionTitle>
+              <FormSectionTitle icon={RefreshCw}>
+                <RenewalNextTitle years={item.contractYears} locale={locale} />
+              </FormSectionTitle>
               <div className="grid gap-3 sm:grid-cols-2">
                 <FormField icon={CalendarDays} label={t('cases.renewalNextIssued')} htmlFor="renewal-issue-issued">
                   <PersianDateField
@@ -791,6 +871,7 @@ export function CaseProcessPage() {
                 </FormField>
               </div>
             </section>
+            <div className="flex justify-center pt-2">{wizardContinue}</div>
           </div>
         </FormCard>
       ) : null}
@@ -823,6 +904,44 @@ export function CaseProcessPage() {
   )
 }
 
+function RenewalNextTitle({ years, locale }: { years: number; locale: string }) {
+  const { t } = useTranslation()
+  return (
+    <>
+      <span>{t('cases.renewalNextLicense')}</span>
+      <span className="font-medium text-ink-500">
+        ({t('cases.contractDurationOption', { count: formatNumber(years || 1, locale) })})
+      </span>
+    </>
+  )
+}
+
+function RenewalCurrentSection({
+  renewal,
+  locale,
+}: {
+  renewal: NonNullable<ProcessState['renewal']>
+  locale: string
+}) {
+  const { t } = useTranslation()
+  return (
+    <section>
+      <FormSectionTitle icon={CalendarClock}>{t('cases.renewalCurrentLicense')}</FormSectionTitle>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <FormFactTile icon={CalendarClock} label={t('cases.renewalCurrentIssued')} value={<DateText value={renewal.currentIssuedAt} />} />
+        <FormFactTile icon={CalendarClock} label={t('cases.renewalCurrentExpires')} value={<DateText value={renewal.currentExpiresAt} />} />
+        {renewal.delayDays > 0 ? (
+          <FormFactTile
+            icon={CalendarClock}
+            label={t('cases.renewalDelay')}
+            value={t('cases.renewalDelayDays', { count: formatNumber(renewal.delayDays, locale) })}
+          />
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
 function ProcessBadge({ icon: Icon, label, value }: { icon: LucideIcon; label?: string; value: ReactNode }) {
   return (
     <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-ink-800 shadow-[0_4px_10px_rgba(20,40,40,0.05)] ring-1 ring-teal-100">
@@ -833,20 +952,53 @@ function ProcessBadge({ icon: Icon, label, value }: { icon: LucideIcon; label?: 
   )
 }
 
-function LocationCaseSubtitle({ item, locale }: { item: ProcessState; locale: string }) {
+function DetailHeaderBadge({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5 rounded-2xl bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-800">
+      <Icon className="size-4 shrink-0" aria-hidden />
+      {children}
+    </span>
+  )
+}
+
+function LocationCaseSubtitle({ item }: { item: ProcessState }) {
   const { t } = useTranslation()
   const personName =
     [item.person?.firstName, item.person?.lastName].filter(Boolean).join(' ') || item.person?.fullName?.trim() || ''
   return (
     <span className="flex flex-wrap items-center gap-1.5">
-      <EntityNameSubtitle icon={MapPinned} label={t('cases.requestNumber')} name={localizeDigits(item.number, locale)} />
-      {personName ? <ProcessBadge icon={UserRound} value={personName} /> : null}
-      {item.nationalId ? (
-        <ProcessBadge icon={Fingerprint} label={t('users.nationalId')} value={<CopyableDigits value={item.nationalId} />} />
+      {personName ? <EntityNameSubtitle icon={UserRound} name={personName} /> : null}
+      {item.phone ? (
+        <DetailHeaderBadge icon={Phone}>
+          <CopyableDigits value={item.phone} />
+        </DetailHeaderBadge>
       ) : null}
-      {item.jobTitle ? <ProcessBadge icon={Briefcase} label={t('cases.activityJob')} value={item.jobTitle} /> : null}
+      {item.nationalId ? (
+        <DetailHeaderBadge icon={IdCard}>
+          <CopyableDigits value={item.nationalId} />
+        </DetailHeaderBadge>
+      ) : null}
+      {item.jobGroupTitle ? (
+        <DetailHeaderBadge icon={FolderKanban}>
+          <span>{item.jobGroupTitle}</span>
+        </DetailHeaderBadge>
+      ) : null}
+      {item.businessUnitTitle ? (
+        <DetailHeaderBadge icon={Building2}>
+          <span className="text-teal-700">{t('cases.listJobTitle')}</span>
+          <span>{item.businessUnitTitle}</span>
+        </DetailHeaderBadge>
+      ) : null}
+      {item.licenseNumber ? (
+        <DetailHeaderBadge icon={BadgeCheck}>
+          <span className="text-teal-700">{t('cases.jobLicense')}</span>
+          <CopyableDigits value={item.licenseNumber} />
+        </DetailHeaderBadge>
+      ) : null}
       {item.licenseIssuedAt ? (
-        <ProcessBadge icon={CalendarDays} label={t('cases.listIssued')} value={<DateText value={item.licenseIssuedAt} />} />
+        <DetailHeaderBadge icon={CalendarDays}>
+          <DateText value={item.licenseIssuedAt} />
+        </DetailHeaderBadge>
       ) : null}
     </span>
   )

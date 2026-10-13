@@ -1,11 +1,11 @@
-import { BadgeCheck, Building2, CalendarDays, Check, FileBadge2, Fingerprint, IdCard, UserRound, type LucideIcon } from 'lucide-react'
+import { BadgeCheck, Building2, CalendarDays, Check, Eye, FileBadge2, IdCard, UserRound, type LucideIcon } from 'lucide-react'
 import { type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Button, FormField, PageHeader, caseShellClassName } from '../../components/ui/Form'
+import { Button, EntityNameSubtitle, FormField, PageHeader, caseShellClassName } from '../../components/ui/Form'
 import { CopyableDigits } from '../../components/ui/CopyableDigits'
 import { DateText } from '../../components/ui/DateText'
 import { FormCard, FormEmptyHint, FormFactTile, FormSectionTitle, formCardBodyClassName } from '../../components/ui/FormLayout'
@@ -220,12 +220,12 @@ export function CaseStewardshipPage() {
   }
 
   async function continueStep() {
-    if (step === 0) {
-      const saved = await saveIdentity()
-      if (!saved) return
-    }
     setAdvancing(true)
     try {
+      if (step === 0) {
+        const saved = await saveIdentity()
+        if (!saved) return null
+      }
       const { data } = await api.post<{ formationStep: number }>(`/cases/${id}/stewardship/step`, { step: step + 1 })
       setViewStep(null)
       await queryClient.invalidateQueries({ queryKey: ['cases', 'stewardship', id] })
@@ -237,6 +237,17 @@ export function CaseStewardshipPage() {
     } finally {
       setAdvancing(false)
     }
+  }
+
+  async function saveIdentityAndOpenInquiries() {
+    if (step === 0 && reached === 0) {
+      await continueStep()
+      return
+    }
+    const saved = await saveIdentity()
+    if (!saved) return
+    toast.success(t('cases.saved'))
+    if (open) setViewStep(1)
   }
 
   async function issueCard() {
@@ -282,6 +293,9 @@ export function CaseStewardshipPage() {
     )
   }
   const holderName = identity ? `${identity.firstName} ${identity.lastName}`.replace(/\s+/g, ' ').trim() : ''
+  const hostPersonName = item.host
+    ? [item.host.firstName, item.host.lastName].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim() || item.host.fullName.trim()
+    : ''
 
   return (
     <div className={caseShellClassName}>
@@ -289,21 +303,17 @@ export function CaseStewardshipPage() {
         icon={IdCard}
         title={t('cases.stewardship.requestTitle')}
         subtitle={
-          <span className="flex flex-wrap gap-1.5">
-            {holderName ? (
-              <HeaderBadge icon={UserRound}>
-                <span>{holderName}</span>
-              </HeaderBadge>
-            ) : null}
+          <span className="flex flex-wrap items-center gap-1.5">
+            {holderName ? <EntityNameSubtitle icon={UserRound} name={holderName} /> : null}
             {identity?.nationalId ? (
-              <HeaderBadge icon={Fingerprint}>
-                <span className="text-ink-500">{t('users.nationalId')}</span>
+              <HeaderBadge icon={IdCard}>
+                <span className="text-teal-700">{t('users.nationalId')}</span>
                 <CopyableDigits value={identity.nationalId} />
               </HeaderBadge>
             ) : null}
             {item.host?.licenseNumber ? (
               <HeaderBadge icon={BadgeCheck}>
-                <span className="text-ink-500">{t('cases.stewardship.hostLicense')}</span>
+                <span className="text-teal-700">{t('cases.stewardship.hostLicense')}</span>
                 <CopyableDigits value={item.host.licenseNumber} />
               </HeaderBadge>
             ) : null}
@@ -311,7 +321,7 @@ export function CaseStewardshipPage() {
         }
         backTo={review ? `/cases/${id}?stay=1` : item.host ? `/cases/${item.host.id}/dossier` : `/cases/${id}`}
       />
-      {item.host ? <HostStrip host={item.host} /> : null}
+      {item.host ? <HostBar host={item.host} /> : null}
       <ol className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
         {STEWARDSHIP_STEPS.map((key, index) => {
           const done = review ? index <= reached : index < reached
@@ -360,7 +370,7 @@ export function CaseStewardshipPage() {
           title={t('cases.steps.identity')}
           action={
             review ? undefined : (
-            <Button type="button" disabled={saving} onClick={() => void saveIdentity().then((saved) => saved && toast.success(t('cases.saved')))}>
+            <Button type="button" disabled={saving || advancing} onClick={() => void saveIdentityAndOpenInquiries()}>
               <Check className="size-4" aria-hidden />
               {t('cases.saveIdentity')}
             </Button>
@@ -393,7 +403,7 @@ export function CaseStewardshipPage() {
                   setPerson((current) => ({ ...(current ?? identity), [key]: value }))
                 }
                 onSubmit={() => {
-                  if (!review) void saveIdentity()
+                  if (!review) void saveIdentityAndOpenInquiries()
                 }}
               />
             ) : (
@@ -465,18 +475,7 @@ export function CaseStewardshipPage() {
         />
       ) : null}
       {step === 4 ? (
-        <FormCard
-          icon={BadgeCheck}
-          title={t('cases.stewardship.issueTitle')}
-          action={
-            review ? undefined : (
-            <Button type="button" disabled={advancing} onClick={() => void issueCard()}>
-              <Check className="size-4" aria-hidden />
-              {t('cases.stewardship.issueTitle')}
-            </Button>
-            )
-          }
-        >
+        <FormCard icon={BadgeCheck} title={t('cases.stewardship.issueTitle')}>
           <div className={formCardBodyClassName}>
             <FormSectionTitle icon={FileBadge2} className="">
               {t('cases.stewardship.relatedLicense')}
@@ -544,6 +543,22 @@ export function CaseStewardshipPage() {
               </FormField>
             </div>
             )}
+            {!review ? (
+              <div className="flex justify-center">
+                <Button
+                  type="button"
+                  disabled={advancing}
+                  className="h-auto max-w-full whitespace-normal text-center"
+                  onClick={() => void issueCard()}
+                >
+                  <Check className="size-4 shrink-0" aria-hidden />
+                  {t('cases.stewardship.issueFor', {
+                    steward: holderName || '—',
+                    host: hostPersonName || '—',
+                  })}
+                </Button>
+              </div>
+            ) : null}
           </div>
         </FormCard>
       ) : null}
@@ -626,27 +641,40 @@ function isoUtcDay(value: string) {
 
 function HeaderBadge({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
   return (
-    <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-ink-800 shadow-[0_4px_10px_rgba(20,40,40,0.05)] ring-1 ring-teal-100">
-      <Icon className="size-3.5 shrink-0 text-teal-600" aria-hidden />
+    <span className="inline-flex max-w-full items-center gap-1.5 rounded-2xl bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-800">
+      <Icon className="size-4 shrink-0" aria-hidden />
       {children}
     </span>
   )
 }
 
-function HostStrip({ host }: { host: NonNullable<StewardState['host']> }) {
+function HostBar({ host }: { host: NonNullable<StewardState['host']> }) {
   const { t } = useTranslation()
-  const hostName = [host.firstName, host.lastName].filter(Boolean).join(' ') || host.fullName || ''
+  const navigate = useNavigate()
+  const lastName = host.lastName.trim()
+  const unitTitle = host.businessUnitTitle?.trim() ?? ''
   return (
-    <div className="mb-4 grid gap-2 sm:grid-cols-3">
-      <FormFactTile icon={UserRound} label={t('cases.stewardship.hostFullName')} value={hostName || '—'} empty={!hostName} tone="teal" />
-      <FormFactTile
-        icon={Building2}
-        label={t('cases.unitTitle')}
-        value={host.businessUnitTitle || '—'}
-        empty={!host.businessUnitTitle}
-        tone="mint"
-      />
-      <FormFactTile icon={BadgeCheck} label={t('cases.stewardship.hostLicense')} copyValue={host.licenseNumber} />
+    <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-3">
+        <FormFactTile icon={UserRound} label={t('users.lastName')} value={lastName || '—'} empty={!lastName} tone="teal" />
+        <FormFactTile
+          icon={Building2}
+          label={t('cases.unitTitle')}
+          value={unitTitle || '—'}
+          empty={!unitTitle}
+          tone="mint"
+        />
+        <FormFactTile icon={BadgeCheck} label={t('cases.stewardship.hostLicense')} copyValue={host.licenseNumber} />
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        className="ms-auto shrink-0 !px-3 !py-1.5 !text-xs"
+        onClick={() => navigate(`/cases/${host.id}`)}
+      >
+        <Eye className="size-3.5" aria-hidden />
+        {t('cases.stewardship.viewHostLicense')}
+      </Button>
     </div>
   )
 }

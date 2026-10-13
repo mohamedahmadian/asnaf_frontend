@@ -1,10 +1,9 @@
 import {
   BadgeCheck,
-  Ban,
   Briefcase,
   Building2,
   CalendarDays,
-  ClipboardList,
+  Eye,
   Fingerprint,
   FolderKanban,
   IdCard,
@@ -12,17 +11,16 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { useState, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate } from 'react-router-dom'
-import { PageHeader, caseShellClassName } from '../../components/ui/Form'
+import { useNavigate } from 'react-router-dom'
+import { Button, PageHeader, caseShellClassName } from '../../components/ui/Form'
 import { CopyableDigits } from '../../components/ui/CopyableDigits'
-import { FormCard, FormEmptyHint, FormFactTile, formCardBodyClassName } from '../../components/ui/FormLayout'
+import { FormCard, FormEmptyHint, FormFactTile } from '../../components/ui/FormLayout'
 import { DateText } from '../../components/ui/DateText'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { api } from '../../lib/api'
 import { localizeDigits } from '../../lib/datetime'
-import { CaseRevokeDialog } from './CaseSuspensions'
 
 type CardState = {
   id: string
@@ -48,7 +46,6 @@ export function CaseStewardCard({ caseId }: { caseId: string }) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const navigate = useNavigate()
-  const [revokeOpen, setRevokeOpen] = useState(false)
   const query = useQuery({
     queryKey: ['cases', 'stewardship', caseId],
     enabled: Boolean(caseId),
@@ -132,7 +129,19 @@ export function CaseStewardCard({ caseId }: { caseId: string }) {
                 label={t('cases.unitTitle')}
                 value={item.host?.businessUnitTitle || '—'}
                 empty={!item.host?.businessUnitTitle}
-                onClick={item.host?.businessUnitTitle ? openHost : undefined}
+                action={
+                  hostPath ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="!px-2.5 !py-1 !text-xs"
+                      onClick={() => navigate(hostPath)}
+                    >
+                      <Eye className="size-3.5" aria-hidden />
+                      {t('cases.stewardship.viewHostLicense')}
+                    </Button>
+                  ) : undefined
+                }
               />
               <FormFactTile
                 icon={FolderKanban}
@@ -152,84 +161,9 @@ export function CaseStewardCard({ caseId }: { caseId: string }) {
               ) : null}
             </div>
           </FormCard>
-          {hostPath || item.status !== 'REVOKED' ? (
-            <FormCard icon={ClipboardList} title={t('cases.operationsTitle')}>
-              <div className={`${formCardBodyClassName} flex flex-wrap justify-center gap-2`}>
-                {hostPath ? (
-                  <OperationButton icon={BadgeCheck} tone="teal" label={t('cases.stewardship.viewHost')} to={hostPath} />
-                ) : null}
-                {item.status === 'REVOKED' ? null : (
-                  <OperationButton
-                    icon={Ban}
-                    tone="rose"
-                    label={t('cases.stewardship.revokeSteward')}
-                    onClick={() => setRevokeOpen(true)}
-                  />
-                )}
-              </div>
-            </FormCard>
-          ) : null}
         </div>
       ) : null}
-      {revokeOpen ? (
-        <CaseRevokeDialog
-          caseId={caseId}
-          path={`/cases/${caseId}/stewardship/revocation`}
-          body={{ source: 'STEWARD' }}
-          title={t('cases.stewardship.revokeSteward')}
-          successMessage={t('cases.stewardship.revokeSaved')}
-          onClose={() => setRevokeOpen(false)}
-        />
-      ) : null}
     </div>
-  )
-}
-
-function OperationButton({
-  icon: Icon,
-  label,
-  tone,
-  onClick,
-  to,
-}: {
-  icon: LucideIcon
-  label: string
-  tone: 'teal' | 'rose'
-  onClick?: () => void
-  to?: string
-}) {
-  const styles =
-    tone === 'rose'
-      ? {
-          button:
-            'border-red-200 bg-red-50/80 text-red-800 shadow-[0_3px_10px_rgba(220,38,38,0.1)] hover:border-red-300 hover:bg-red-50',
-          icon: 'bg-red-100 text-red-700',
-        }
-      : {
-          button:
-            'border-teal-200 bg-white text-ink-800 shadow-[0_3px_10px_rgba(46,189,182,0.12)] hover:border-teal-400 hover:bg-teal-50',
-          icon: 'bg-teal-50 text-teal-600',
-        }
-  const className = `inline-flex cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300 ${styles.button}`
-  const content = (
-    <>
-      <span className={`flex size-7 shrink-0 items-center justify-center rounded-xl ${styles.icon}`}>
-        <Icon className="size-3.5" aria-hidden />
-      </span>
-      {label}
-    </>
-  )
-  if (to) {
-    return (
-      <Link to={to} className={className}>
-        {content}
-      </Link>
-    )
-  }
-  return (
-    <button type="button" onClick={onClick} className={className}>
-      {content}
-    </button>
   )
 }
 

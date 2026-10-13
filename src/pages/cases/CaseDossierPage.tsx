@@ -32,7 +32,7 @@ import { FormCard, FormEmptyHint, FormFactTile, FormSectionTitle } from '../../c
 import { FormTabs } from '../../components/ui/FormTabs'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { api } from '../../lib/api'
-import { formatNumber, localizeDigits } from '../../lib/datetime'
+import { formatDate, formatNumber, localizeDigits } from '../../lib/datetime'
 import { useGeoName } from '../../lib/geo'
 import type { Religion, UserGender } from '../../types/app'
 import type { CaseActivity, CaseLocation, EducationLevel, PreviousOccupation } from './formation-types'
@@ -191,11 +191,15 @@ export function CaseDossierPage() {
             {tab === 'activity' ? <ActivityPanel item={item} /> : null}
             {tab === 'location' ? <LocationPanel item={item} /> : null}
             {tab === 'documents' ? <DocumentsPanel item={item} /> : null}
-            <DetailActions
-              editTo={`${caseDossierPath(item.id)}/edit?${editQuery}`}
-              editLabel={t('cases.dossierEdit')}
-              className="mt-2"
-            />
+            {item.canEditCase ? (
+              <DetailActions
+                editTo={`${caseDossierPath(item.id)}/edit?${editQuery}`}
+                editLabel={t('cases.dossierEdit')}
+                className="mt-2"
+              />
+            ) : (
+              <FormEmptyHint>{t('cases.dossierEditLocked')}</FormEmptyHint>
+            )}
           </div>
         </FormCard>
       ) : null}
@@ -551,6 +555,11 @@ function LocationHistoryDialog({
   onClose: () => void
 }) {
   const { t } = useTranslation()
+  const [activeId, setActiveId] = useState(items[0]?.id ?? '')
+  useEffect(() => {
+    if (items.some((row) => row.id === activeId)) return
+    setActiveId(items[0]?.id ?? '')
+  }, [activeId, items])
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -565,6 +574,8 @@ function LocationHistoryDialog({
       document.removeEventListener('keydown', onKey)
     }
   }, [onClose])
+
+  const active = items.find((row) => row.id === activeId) ?? items[0]
 
   return createPortal(
     <div
@@ -585,26 +596,50 @@ function LocationHistoryDialog({
             </Button>
           }
         >
-          <div className="space-y-6 p-5 sm:p-6">
-            {items.length === 0 ? <FormEmptyHint>{t('cases.locationHistoryEmpty')}</FormEmptyHint> : null}
-            {items.map((row) => (
-              <article key={row.id} className="space-y-4 rounded-2xl border border-teal-100 bg-cream-50/70 p-4">
-                <p className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-ink-800">
-                  <CalendarDays className="size-4 text-teal-600" aria-hidden />
-                  <span>{t('cases.locationHistoryFrom')}</span>
-                  {row.startedAt ? <DateText value={row.startedAt} withTime /> : '—'}
-                  <span>{t('cases.locationHistoryUntil')}</span>
-                  {row.endedAt ? <DateText value={row.endedAt} withTime /> : '—'}
-                </p>
-                <PlaceFacts place={row} locale={locale} />
-              </article>
-            ))}
-          </div>
+          {items.length === 0 ? (
+            <div className="p-5 sm:p-6">
+              <FormEmptyHint>{t('cases.locationHistoryEmpty')}</FormEmptyHint>
+            </div>
+          ) : (
+            <>
+              <FormTabs
+                tabs={items.map((row) => ({
+                  id: row.id,
+                  label: locationHistoryRange(row, locale, t),
+                  icon: MapPin,
+                }))}
+                value={active?.id ?? ''}
+                onChange={setActiveId}
+              />
+              {active ? (
+                <div id={`form-panel-${active.id}`} role="tabpanel" aria-labelledby={`form-tab-${active.id}`} className="space-y-4 p-5 sm:p-6">
+                  <p className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-ink-800">
+                    <CalendarDays className="size-4 text-teal-600" aria-hidden />
+                    <span>{t('cases.locationHistoryFrom')}</span>
+                    {active.startedAt ? <DateText value={active.startedAt} /> : '—'}
+                    <span>{t('cases.locationHistoryUntil')}</span>
+                    {active.endedAt ? <DateText value={active.endedAt} /> : '—'}
+                  </p>
+                  <PlaceFacts place={active} locale={locale} />
+                </div>
+              ) : null}
+            </>
+          )}
         </FormCard>
       </div>
     </div>,
     document.body,
   )
+}
+
+function locationHistoryRange(
+  row: CaseDossier['locationHistory'][number],
+  locale: string,
+  t: (key: string) => string,
+) {
+  const from = row.startedAt ? formatDate(row.startedAt, locale) : '—'
+  const until = row.endedAt ? formatDate(row.endedAt, locale) : '—'
+  return `${t('cases.locationHistoryFrom')} ${from} ${t('cases.locationHistoryUntil')} ${until}`
 }
 
 function DocumentsPanel({ item }: { item: CaseDossier }) {

@@ -34,6 +34,7 @@ import { CaseInquiryDetailPage } from './pages/cases/CaseInquiryDetailPage'
 import { CaseInquiryLetterPage } from './pages/cases/CaseInquiryLetterPage'
 import { CaseManagementPage } from './pages/cases/CaseManagementPage'
 import { CaseReportsPage } from './pages/cases/CaseReportsPage'
+import { ExpiringCasesPage } from './pages/reports/ExpiringCasesPage'
 import { CaseSettingsPage } from './pages/cases/CaseSettingsPage'
 import { CaseStewardCardPage, CaseStewardshipPage } from './pages/cases/CaseStewardshipPage'
 import { CaseStewardNewPage } from './pages/cases/CaseStewardNewPage'
@@ -303,6 +304,7 @@ export default function App() {
                     }
                   />
                   <Route path="/cases/reports" element={<CaseReportsPage />} />
+                  <Route path="/reports/expiring-cases" element={<ExpiringCasesPage />} />
                   <Route path="/cases/settings" element={<CaseSettingsPage />} />
                   <Route path="/cases/:id/auction/new" element={<CaseAuctionFormPage />} />
                   <Route path="/cases/:id/auction/:requestId/edit" element={<CaseAuctionFormPage />} />

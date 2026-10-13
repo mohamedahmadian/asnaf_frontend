@@ -16,8 +16,8 @@ import {
   MapPin,
   MapPinned,
   MapPinPlus,
+  MessageSquareText,
   Phone,
-  Plus,
   RefreshCw,
   RotateCcw,
   ShieldAlert,
@@ -104,6 +104,7 @@ type CaseHome = {
   status: 'ACTIVE' | 'SUSPENDED' | 'REVOKED'
   revokeReason: string | null
   revokedAt: string | null
+  revokedBy: { id: string; fullName: string } | null
   reactivatedAt: string | null
   suspensionCount: number
   suspensions: {
@@ -159,15 +160,6 @@ const REQUEST_TYPE_STYLES = {
   },
 } as const
 
-const LATER_REQUESTS = [
-  { type: 'STEWARDSHIP', icon: UserRound },
-] as const
-
-const PROCESS_REQUESTS = [
-  { type: 'RENEWAL', icon: RefreshCw },
-  { type: 'LOCATION_CHANGE', icon: MapPinned },
-] as const
-
 const CASE_OPERATIONS = [
   { key: 'renewLicense', icon: RefreshCw, tone: 'teal' },
   { key: 'issueAuction', icon: Gavel, tone: 'teal' },
@@ -215,10 +207,59 @@ function suspensionDayCount(startsAt: string, endsAt: string) {
   return { total, ratio: elapsed / total }
 }
 
+function RevokedNotice({
+  revokedAt,
+  revokedByName,
+  reason,
+}: {
+  revokedAt: string | null
+  revokedByName: string | null
+  reason: string | null
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+      <div className="flex min-w-0 items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-3">
+        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600">
+          <CalendarClock className="size-4" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[11px] font-medium text-red-800/80">{t('cases.revokedAt')}</p>
+          <div className="mt-0.5 text-sm font-semibold text-ink-900">
+            {revokedAt ? <DateText value={revokedAt} withTime /> : '—'}
+          </div>
+        </div>
+      </div>
+      <div className="flex min-w-0 items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-3">
+        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600">
+          <UserRound className="size-4" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[11px] font-medium text-red-800/80">{t('cases.revokedBy')}</p>
+          <p className="mt-0.5 text-sm font-semibold break-words text-ink-900">{revokedByName || '—'}</p>
+        </div>
+      </div>
+      <div className="flex min-w-0 items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-3 sm:col-span-2">
+        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600">
+          <MessageSquareText className="size-4" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[11px] font-medium text-red-800/80">{t('cases.revokeNote')}</p>
+          <p className="mt-0.5 whitespace-pre-wrap text-sm font-semibold leading-6 break-words text-ink-900">
+            {reason || '—'}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ActiveSuspensionNotice({
   suspension,
+  onLift,
 }: {
   suspension: CaseHome['suspensions'][number] | null
+  onLift: () => void
 }) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
@@ -227,18 +268,24 @@ function ActiveSuspensionNotice({
   const span = suspension.endsAt ? suspensionDayCount(suspension.startsAt, suspension.endsAt) : null
   return (
     <div className="space-y-2 rounded-2xl bg-amber-50 px-3 py-3 text-sm text-amber-950 ring-1 ring-amber-200">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="text-amber-800/80">{t('cases.suspendStartsAt')}</span>
-          <DateText value={suspension.startsAt} />
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="text-amber-800/80">{t('cases.suspendEndsAt')}</span>
-          {suspension.endsAt ? <DateText value={suspension.endsAt} /> : '—'}
-        </span>
-        {span ? (
-          <SuspensionDaysChart total={span.total} ratio={span.ratio} locale={locale} label={t('cases.suspensionDays')} />
-        ) : null}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="text-amber-800/80">{t('cases.suspendStartsAt')}</span>
+            <DateText value={suspension.startsAt} />
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="text-amber-800/80">{t('cases.suspendEndsAt')}</span>
+            {suspension.endsAt ? <DateText value={suspension.endsAt} /> : '—'}
+          </span>
+          {span ? (
+            <SuspensionDaysChart total={span.total} ratio={span.ratio} locale={locale} label={t('cases.suspensionDays')} />
+          ) : null}
+        </div>
+        <Button type="button" variant="soft" className="ms-auto shrink-0" onClick={onLift}>
+          <CirclePlay className="size-4" aria-hidden />
+          {t('cases.liftAction')}
+        </Button>
       </div>
       <p className="whitespace-pre-wrap leading-6">{suspension.reason}</p>
       <SuspensionFiles files={attachments} />
@@ -265,7 +312,7 @@ function SuspensionDaysChart({
   const daysLabel = formatNumber(total, locale)
   return (
     <div
-      className="ms-auto flex items-center gap-2 rounded-2xl bg-white/80 px-2.5 py-1.5 ring-1 ring-amber-200"
+      className="flex items-center gap-2 rounded-2xl bg-white/80 px-2.5 py-1.5 ring-1 ring-amber-200"
       role="img"
       aria-label={`${daysLabel} ${label}`}
     >
@@ -308,7 +355,6 @@ export function CaseHomePage() {
   const admin = isAdmin(user)
   const geoName = useGeoName()
   const locale = i18n.language.split('-')[0] ?? 'fa'
-  const [picking, setPicking] = useState(false)
   const [violationsOpen, setViolationsOpen] = useState(false)
   const [suspensionsOpen, setSuspensionsOpen] = useState(false)
   const [suspendOpen, setSuspendOpen] = useState(false)
@@ -334,8 +380,6 @@ export function CaseHomePage() {
   })
   const activityDayCount = item?.licenseNumber ? activityDays(item) : null
   const openRequest = item?.requests.find((request) => request.status === 'OPEN') ?? null
-  const revoked = item?.status === 'REVOKED'
-  const canStart = Boolean(item?.licenseNumber) && !openRequest && !revoked
   const redirecting = Boolean(item && !showHome && openRequest?.type === 'ISSUANCE')
 
   function canDeleteRequest(status: CaseRequestRow['status']) {
@@ -403,7 +447,11 @@ export function CaseHomePage() {
     <div className={caseShellClassName}>
       <PageHeader
         icon={Files}
-        title={t('cases.details')}
+        title={
+          item?.kind === 'STEWARDSHIP'
+            ? t('cases.stewardCaseDetails')
+            : t('cases.licenseCaseDetails')
+        }
         subtitle={
           item ? (
             <span className="flex flex-wrap items-center gap-1.5">
@@ -424,21 +472,17 @@ export function CaseHomePage() {
           ) : undefined
         }
         backTo="/cases"
-        action={
-          canStart ? (
-            <Button type="button" variant="soft" onClick={() => setPicking((current) => !current)}>
-              <Plus className="size-4" aria-hidden />
-              {t('cases.newRequest')}
-            </Button>
-          ) : null
-        }
       />
       {query.isLoading || redirecting ? <LoadingState /> : null}
       {item && !redirecting ? (
         <div className="space-y-4">
           <FormCard
             className={
-              item.status === 'SUSPENDED' ? '!border-2 !border-amber-400' : undefined
+              item.status === 'REVOKED'
+                ? '!border-2 !border-red-500'
+                : item.status === 'SUSPENDED'
+                  ? '!border-2 !border-amber-400'
+                  : undefined
             }
             onClick={() => navigate(`/cases/${item.id}/dossier`)}
             icon={Briefcase}
@@ -484,7 +528,7 @@ export function CaseHomePage() {
                   {item.status === 'SUSPENDED' ? (
                     <span className="case-suspension-blink inline-flex max-w-full items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900 shadow-[0_4px_10px_rgba(217,119,6,0.08)] ring-1 ring-amber-200">
                       <CirclePause className="size-3.5 shrink-0" aria-hidden />
-                      {t('cases.suspensionActive')}
+                      {t('cases.caseStatuses.SUSPENDED')}
                     </span>
                   ) : null}
                   {item.job?.group ? (
@@ -533,12 +577,15 @@ export function CaseHomePage() {
               {item.status === 'SUSPENDED' ? (
                 <ActiveSuspensionNotice
                   suspension={item.suspensions.find((row) => row.active) ?? null}
+                  onLift={() => setLiftOpen(true)}
                 />
               ) : null}
-              {item.status === 'REVOKED' && item.revokeReason ? (
-                <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm leading-6 text-red-900 ring-1 ring-red-100">
-                  {item.revokeReason}
-                </p>
+              {item.status === 'REVOKED' ? (
+                <RevokedNotice
+                  revokedAt={item.revokedAt}
+                  revokedByName={item.revokedBy?.fullName ?? null}
+                  reason={item.revokeReason}
+                />
               ) : null}
               {stewardWithoutLicense ? (
                 <div
@@ -549,14 +596,11 @@ export function CaseHomePage() {
                   <p className="flex min-w-0 flex-1 items-start gap-2.5">
                     <Info className="mt-1 size-4 shrink-0 text-amber-700" aria-hidden />
                     <span>
-                      {t('cases.stewardship.noOwnLicense', {
-                        honorific:
-                          item.host?.gender === 'FEMALE'
-                            ? t('cases.inquiryHonorificFemale')
-                            : t('cases.inquiryHonorificMale'),
-                        name: item.host?.fullName || '—',
-                        unit: item.host?.businessUnitTitle || '—',
-                      })}
+                      {t('cases.stewardship.noOwnLicenseLead')}{' '}
+                      <StewardInlineBadge value={item.host?.businessUnitTitle || '—'} />{' '}
+                      {t('cases.stewardship.noOwnLicenseMid')}{' '}
+                      <StewardInlineBadge value={item.host?.fullName || '—'} />{' '}
+                      {t('cases.stewardship.noOwnLicenseEnd')}
                     </span>
                   </p>
                   {item.host ? (
@@ -667,36 +711,6 @@ export function CaseHomePage() {
 
           <FormCard icon={Files} title={t('cases.requestsTitle')}>
             <div className={formCardBodyClassName}>
-              {picking ? (
-                <div className="mb-4 flex flex-wrap gap-2">
-                  {PROCESS_REQUESTS.map(({ type, icon: Icon }) => (
-                    <Button
-                      key={type}
-                      type="button"
-                      variant="ghost"
-                      onClick={() => void startRequest(type)}
-                    >
-                      <Icon className="size-4" aria-hidden />
-                      {t(`cases.requestTypes.${type}`)}
-                    </Button>
-                  ))}
-                  <Button type="button" variant="ghost" onClick={openAuction}>
-                    <Gavel className="size-4" aria-hidden />
-                    {t('cases.requestTypes.AUCTION')}
-                  </Button>
-                  {LATER_REQUESTS.map(({ type, icon: Icon }) => (
-                    <Button
-                      key={type}
-                      type="button"
-                      variant="ghost"
-                      onClick={() => navigate(`/cases/${item.id}/stewards/new`)}
-                    >
-                      <Icon className="size-4" aria-hidden />
-                      {t(`cases.requestTypes.${type}`)}
-                    </Button>
-                  ))}
-                </div>
-              ) : null}
               {item.requests.length === 0 ? (
                 <FormEmptyHint>{t('cases.requestsEmpty')}</FormEmptyHint>
               ) : (
@@ -1107,6 +1121,14 @@ function RequestDateCell({ request, part }: { request: CaseRequestRow; part: 'st
           {remainingText}
         </span>
       ) : null}
+    </span>
+  )
+}
+
+function StewardInlineBadge({ value }: { value: string }) {
+  return (
+    <span className="mx-0.5 inline-flex max-w-full items-center rounded-full bg-white px-2.5 py-0.5 align-middle text-sm font-bold text-amber-950 shadow-[0_2px_6px_rgba(120,80,20,0.08)] ring-1 ring-amber-300">
+      {value}
     </span>
   )
 }

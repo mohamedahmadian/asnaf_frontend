@@ -374,6 +374,9 @@ export function getPageMeta(pathname: string): {
   if (pathname.startsWith('/cases/places')) {
     return { titleKey: 'menus.casePlaces', subtitleKey: 'cases.placesSubtitle' }
   }
+  if (pathname.startsWith('/reports/expiring-cases')) {
+    return { titleKey: 'menus.expiringCases', subtitleKey: 'cases.expiring.subtitle' }
+  }
   if (pathname.startsWith('/cases/reports')) {
     return { titleKey: 'menus.caseReports', subtitleKey: 'cases.reportsSubtitle' }
   }

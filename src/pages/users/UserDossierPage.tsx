@@ -1,13 +1,17 @@
 import {
   BadgeCheck,
+  Ban,
   Briefcase,
   CalendarClock,
   CalendarDays,
+  CirclePause,
   Files,
   FolderKanban,
   Hourglass,
   IdCard,
+  Info,
   KeyRound,
+  MessageSquareText,
   MapPin,
   Phone,
   Send,
@@ -40,20 +44,46 @@ import { api, getImageUrl } from '../../lib/api'
 import { formatNumber } from '../../lib/datetime'
 import { useGeoName } from '../../lib/geo'
 import type { ManagedUser } from '../../types/app'
-import { FORMATION_STEPS } from '../cases/formation-types'
+import { FORMATION_STEPS, STEWARDSHIP_STEPS } from '../cases/formation-types'
+
+type GeoCity = { nameFa: string; nameEn: string }
+
+type CaseFileStatus = 'ACTIVE' | 'SUSPENDED' | 'REVOKED'
+
+type HostLicense = {
+  licenseNumber: string | null
+  licenseIssuedAt: string | null
+  licenseExpiresAt: string | null
+  city: GeoCity | null
+  nationalId: string | null
+  fullName: string | null
+  status?: CaseFileStatus
+  revokeReason?: string | null
+  revokedAt?: string | null
+  revokedBy?: { fullName: string } | null
+}
 
 type PersonCase = {
   id: string
+  kind?: 'LICENSE' | 'STEWARDSHIP'
+  status?: CaseFileStatus
+  revokeReason?: string | null
+  revokedAt?: string | null
+  revokedBy?: { fullName: string } | null
   formationStep: number
   licenseNumber: string | null
   licenseIssuedAt: string | null
   licenseExpiresAt: string | null
+  cardNumber?: string | null
+  cardIssuedAt?: string | null
+  cardExpiresAt?: string | null
+  host?: HostLicense | null
   premiseOwnership: 'OWNED' | 'RENTED' | null
   leaseIssuedAt: string | null
   leaseExpiresAt: string | null
   job: { id: string; title: string; group: { id: string; title: string } | null } | null
   jobTitle: string | null
-  city: { nameFa: string; nameEn: string } | null
+  city: GeoCity | null
 }
 
 export function UserDossierPage() {
@@ -189,15 +219,23 @@ function CaseSummaryCard({
 }) {
   const { t } = useTranslation()
   const geoName = useGeoName()
-  const issued = Boolean(item.licenseNumber)
+  const steward = item.kind === 'STEWARDSHIP'
+  const issued = steward ? Boolean(item.cardNumber) : Boolean(item.licenseNumber)
   const unit = item.jobTitle?.trim() ?? ''
   const job = item.job?.title?.trim() ?? ''
   const group = item.job?.group?.title?.trim() ?? ''
   const title = unit || t('users.dossierCaseFallback')
+  const steps = steward ? STEWARDSHIP_STEPS : FORMATION_STEPS
+  const headerStatus = steward ? item.host?.status ?? 'ACTIVE' : item.status ?? 'ACTIVE'
+  const showHeaderStatus = steward
+    ? Boolean(item.host) || headerStatus !== 'ACTIVE'
+    : issued || headerStatus !== 'ACTIVE'
+  const stewardRevoked = steward && item.status === 'REVOKED'
 
   return (
     <FormCard
-      className="h-full"
+      className={stewardRevoked ? 'h-full ring-2 ring-red-400 hover:!ring-red-400' : 'h-full'}
+      headerClassName={stewardRevoked ? '!from-red-100 !via-red-50 !to-red-50' : undefined}
       icon={Briefcase}
       title={title}
       subtitle={
@@ -210,12 +248,12 @@ function CaseSummaryCard({
           </span>
         ) : undefined
       }
-      chips={issued ? <CaseStatusChip item={item} locale={locale} /> : undefined}
+      chips={showHeaderStatus ? <CaseStatusChip status={headerStatus} /> : undefined}
       action={
         issued ? (
           <RemainingDaysRing
-            issuedAt={item.licenseIssuedAt}
-            expiresAt={item.licenseExpiresAt}
+            issuedAt={steward ? item.cardIssuedAt ?? null : item.licenseIssuedAt}
+            expiresAt={steward ? item.cardExpiresAt ?? null : item.licenseExpiresAt}
             locale={locale}
           />
         ) : undefined
@@ -223,8 +261,11 @@ function CaseSummaryCard({
       onClick={onOpen}
     >
       <div className={formCardBodyClassName}>
-        {issued ? (
+        {steward ? (
+          <StewardCaseBody item={item} issued={issued} locale={locale} />
+        ) : issued ? (
           <div className="space-y-3">
+            {item.status === 'REVOKED' ? <RevokeDetails item={item} /> : null}
             <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
               <FormFactTile
                 icon={BadgeCheck}
@@ -275,10 +316,157 @@ function CaseSummaryCard({
             ) : null}
           </div>
         ) : (
-          <IssuingHint stepLabel={t(`cases.steps.${FORMATION_STEPS[item.formationStep] ?? FORMATION_STEPS[0]}`)} />
+          <div className="space-y-3">
+            {item.status === 'REVOKED' ? <RevokeDetails item={item} /> : null}
+            <IssuingHint stepLabel={t(`cases.steps.${steps[item.formationStep] ?? steps[0]}`)} />
+          </div>
         )}
       </div>
     </FormCard>
+  )
+}
+
+function StewardCaseBody({ item, issued, locale }: { item: PersonCase; issued: boolean; locale: string }) {
+  const { t } = useTranslation()
+  const geoName = useGeoName()
+  const host = item.host
+  const city = host?.city ?? null
+  const step = STEWARDSHIP_STEPS[item.formationStep] ?? STEWARDSHIP_STEPS[0]
+
+  return (
+    <div className="space-y-3">
+      <div
+        role="status"
+        className="flex items-start gap-2.5 rounded-2xl bg-teal-50 px-3 py-3 text-sm font-semibold leading-7 text-teal-900 ring-1 ring-teal-200"
+      >
+        <Info className="mt-1 size-4 shrink-0 text-teal-600" aria-hidden />
+        <span>{t('users.dossierStewardAlert')}</span>
+      </div>
+      {host?.status === 'REVOKED' ? <RevokeDetails item={host} /> : null}
+      <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+        <FormFactTile
+          icon={BadgeCheck}
+          label={t('cases.licenseNumber')}
+          copyValue={host?.licenseNumber ?? null}
+          tone="teal"
+        />
+        <FormFactTile
+          icon={MapPin}
+          label={t('geo.city')}
+          value={city ? geoName(city) : '—'}
+          empty={!city}
+          tone="mint"
+        />
+        <FormFactTile
+          icon={CalendarDays}
+          label={t('users.dossierLicenseIssued')}
+          value={host?.licenseIssuedAt ? <DateText value={host.licenseIssuedAt} /> : '—'}
+          empty={!host?.licenseIssuedAt}
+          tone="ink"
+        />
+        <FormFactTile
+          icon={CalendarClock}
+          label={t('users.dossierLicenseExpires')}
+          value={host?.licenseExpiresAt ? <DateText value={host.licenseExpiresAt} /> : '—'}
+          empty={!host?.licenseExpiresAt}
+          tone="teal"
+        />
+        <FormFactTile
+          icon={IdCard}
+          label={t('users.nationalId')}
+          copyValue={host?.nationalId ?? null}
+          tone="mint"
+        />
+        <FormFactTile
+          icon={UserRound}
+          label={t('cases.stewardship.hostFullName')}
+          value={host?.fullName?.trim() || '—'}
+          empty={!host?.fullName?.trim()}
+          tone="ink"
+        />
+      </div>
+      <FormSectionTitle icon={IdCard} className="mb-0">
+        {t('cases.stewardship.cardTitle')}
+        <CaseStatusChip status={item.status ?? 'ACTIVE'} />
+      </FormSectionTitle>
+      {item.status === 'REVOKED' ? <RevokeDetails item={item} /> : null}
+      <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+        <FormFactTile
+          icon={CalendarDays}
+          label={t('users.dossierStewardCardIssued')}
+          value={item.cardIssuedAt ? <DateText value={item.cardIssuedAt} /> : '—'}
+          empty={!item.cardIssuedAt}
+          tone="teal"
+        />
+        <FormFactTile
+          icon={CalendarClock}
+          label={t('users.dossierStewardCardExpires')}
+          value={item.cardExpiresAt ? <DateText value={item.cardExpiresAt} /> : '—'}
+          empty={!item.cardExpiresAt}
+          tone="mint"
+        />
+      </div>
+      {issued ? null : <IssuingHint stepLabel={t(`cases.steps.${step}`)} />}
+      {item.premiseOwnership === 'RENTED' ? (
+        <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+          <FormFactTile
+            icon={KeyRound}
+            label={t('users.dossierLeaseExpires')}
+            value={item.leaseExpiresAt ? <DateText value={item.leaseExpiresAt} /> : '—'}
+            empty={!item.leaseExpiresAt}
+            tone="mint"
+          />
+          <div className="flex items-center justify-center rounded-2xl border border-mint-100 bg-gradient-to-b from-mint-50 to-white px-3 py-3">
+            <RemainingDaysRing
+              issuedAt={item.leaseIssuedAt}
+              expiresAt={item.leaseExpiresAt}
+              locale={locale}
+              label={t('users.dossierLeaseDays')}
+            />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function RevokeDetails({
+  item,
+}: {
+  item: {
+    revokedAt?: string | null
+    revokedBy?: { fullName: string } | null
+    revokeReason?: string | null
+  }
+}) {
+  const { t } = useTranslation()
+  const reason = item.revokeReason?.trim() ?? ''
+  const revokedByName = item.revokedBy?.fullName?.trim() ?? ''
+  return (
+    <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+      <FormFactTile
+        icon={CalendarClock}
+        label={t('cases.revokedAt')}
+        value={item.revokedAt ? <DateText value={item.revokedAt} withTime /> : '—'}
+        empty={!item.revokedAt}
+        tone="ink"
+      />
+      <FormFactTile
+        icon={UserRound}
+        label={t('cases.revokedBy')}
+        value={revokedByName || '—'}
+        empty={!revokedByName}
+        tone="ink"
+      />
+      <FormFactTile
+        icon={MessageSquareText}
+        label={t('cases.revokeNote')}
+        value={reason || '—'}
+        empty={!reason}
+        tone="ink"
+        className="sm:col-span-2"
+      />
+    </div>
   )
 }
 
@@ -388,24 +576,29 @@ function RemainingDaysRing({
   )
 }
 
-function CaseStatusChip({ item, locale }: { item: PersonCase; locale: string }) {
+const CASE_STATUS_CHIP: Record<CaseFileStatus, { className: string; icon: typeof BadgeCheck }> = {
+  ACTIVE: {
+    className: 'bg-teal-500 text-white ring-teal-500',
+    icon: BadgeCheck,
+  },
+  SUSPENDED: {
+    className: 'case-suspension-blink bg-amber-50 text-amber-900 ring-amber-200',
+    icon: CirclePause,
+  },
+  REVOKED: {
+    className: 'bg-red-50 text-red-800 ring-red-200',
+    icon: Ban,
+  },
+}
+
+function CaseStatusChip({ status }: { status: CaseFileStatus }) {
   const { t } = useTranslation()
-  const current = FORMATION_STEPS[item.formationStep] ?? FORMATION_STEPS[0]
-  const issued = Boolean(item.licenseNumber)
+  const tone = CASE_STATUS_CHIP[status]
+  const Icon = tone.icon
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full py-1 ps-1 pe-2.5 text-[11px] font-medium ring-1 ${
-        issued ? 'bg-teal-500 text-white ring-teal-500' : 'bg-white text-teal-900 ring-teal-100'
-      }`}
-    >
-      {issued ? (
-        <BadgeCheck className="ms-1 size-3.5" aria-hidden />
-      ) : (
-        <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-teal-500 px-1 text-[10px] font-semibold text-white">
-          {formatNumber(item.formationStep + 1, locale)}
-        </span>
-      )}
-      {t(`cases.steps.${current}`)}
+    <span className={`inline-flex items-center gap-1.5 rounded-full py-1 ps-1 pe-2.5 text-[11px] font-medium ring-1 ${tone.className}`}>
+      <Icon className="ms-1 size-3.5" aria-hidden />
+      {t(`cases.caseStatuses.${status}`)}
     </span>
   )
 }

@@ -2,13 +2,14 @@ import { Briefcase, Files, MapPin, UserRound, type LucideIcon } from 'lucide-rea
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { EntityNameSubtitle, FormActions, PageHeader, caseShellClassName } from '../../components/ui/Form'
 import { FormCard, FormEmptyHint, FormSectionTitle } from '../../components/ui/FormLayout'
 import { FormTabs } from '../../components/ui/FormTabs'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { api, getApiErrorMessage } from '../../lib/api'
+import { useNavigationHistory } from '../../lib/navigation-history'
 import { formatNumber } from '../../lib/datetime'
 import { normalizeNationalId } from '../../lib/national-id'
 import { optimizeImageFile } from '../../lib/optimize-image'
@@ -69,7 +70,7 @@ export function CaseDossierEditPage() {
 
 function DossierEditor({ item }: { item: CaseDossier }) {
   const { t, i18n } = useTranslation()
-  const navigate = useNavigate()
+  const { goBack } = useNavigationHistory()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const requested = searchParams.get('tab')
@@ -176,7 +177,7 @@ function DossierEditor({ item }: { item: CaseDossier }) {
           : null
 
   function leave() {
-    navigate(caseDossierPath(item.id))
+    goBack(caseDossierPath(item.id))
   }
 
   async function refresh() {
@@ -352,6 +353,8 @@ function DossierEditor({ item }: { item: CaseDossier }) {
       if (activity) {
         body.append('caseId', item.id)
         body.append('jobId', activity.jobId)
+      } else {
+        body.append('editCaseId', item.id)
       }
       body.append('file', prepared)
       await api.post('/cases/formation/documents', body)
@@ -371,7 +374,9 @@ function DossierEditor({ item }: { item: CaseDossier }) {
     setRemovingId(documentId)
     try {
       await api.delete(`/cases/formation/documents/${documentId}`, {
-        params: activity ? { userId: item.person.id, caseId: item.id } : { userId: item.person.id },
+        params: activity
+          ? { userId: item.person.id, caseId: item.id }
+          : { userId: item.person.id, editCaseId: item.id },
       })
       toast.success(t('cases.documentRemoved'))
       await queryClient.invalidateQueries({
@@ -388,7 +393,7 @@ function DossierEditor({ item }: { item: CaseDossier }) {
   const actions = (label: string) => (
     <FormActions submitLabel={label} cancelLabel={t('common.cancel')} submitting={saving} onCancel={leave} />
   )
-  const locked = !item.canEditCase && tab !== 'identity'
+  const locked = !item.canEditCase
 
   return (
     <FormCard icon={Files} title={item.businessUnitTitle || item.person.fullName}>
