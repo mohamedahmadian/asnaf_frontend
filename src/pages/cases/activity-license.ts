@@ -10,7 +10,7 @@ export type ActivityLicense = {
   firstName: string
   lastName: string
   lastNameEn: string | null
-  fatherName: string | null
+  gender: 'MALE' | 'FEMALE' | null
   birthDate: string | null
   nationalityFa: string | null
   nationalityEn: string | null
@@ -21,6 +21,7 @@ export type ActivityLicense = {
   activityTitleEn: string | null
   photoId: string | null
   address: string | null
+  addressEn: string | null
   plaque: string | null
   floor: string | null
   unitNo: string | null
@@ -62,8 +63,12 @@ type LicenseCopy = {
   expiresEn: string
   name: string
   nameEn: string
-  father: string
-  fatherEn: string
+  gender: string
+  genderEn: string
+  male: string
+  maleEn: string
+  female: string
+  femaleEn: string
   birth: string
   birthEn: string
   nationality: string
@@ -105,9 +110,10 @@ function addressLine(
   const floor = side === 'fa' ? copy.floor : 'Floor'
   const unit = side === 'fa' ? copy.unit : 'Unit'
   const postal = side === 'fa' ? copy.postal : 'Postal'
+  const street = side === 'fa' ? license.address : license.addressEn
   const parts = [
     complex,
-    license.address,
+    street,
     license.plaque ? `${plaque} ${license.plaque}` : null,
     license.floor ? `${floor} ${license.floor}` : null,
     license.unitNo ? `${unit} ${license.unitNo}` : null,
@@ -134,8 +140,8 @@ export function buildLicenseView(
   photoUrl: string | null,
 ): LicenseView {
   const fullName = `${license.firstName} ${license.lastName}`.replace(/\s+/g, ' ').trim()
-  const familyEn = license.lastNameEn?.trim() || license.lastName
-  const nameEn = `${license.firstName} ${familyEn}`.replace(/\s+/g, ' ').trim()
+  const genderFa = license.gender === 'MALE' ? copy.male : license.gender === 'FEMALE' ? copy.female : null
+  const genderEn = license.gender === 'MALE' ? copy.maleEn : license.gender === 'FEMALE' ? copy.femaleEn : null
   return {
     org: copy.org,
     orgEn: copy.orgEn,
@@ -166,13 +172,13 @@ export function buildLicenseView(
         fa: copy.name,
         en: copy.nameEn,
         faValue: text(fullName),
-        enValue: text(nameEn),
+        enValue: text(license.lastNameEn),
       },
       {
-        fa: copy.father,
-        en: copy.fatherEn,
-        faValue: text(license.fatherName),
-        enValue: text(license.fatherName),
+        fa: copy.gender,
+        en: copy.genderEn,
+        faValue: text(genderFa),
+        enValue: text(genderEn),
       },
       {
         fa: copy.birth,

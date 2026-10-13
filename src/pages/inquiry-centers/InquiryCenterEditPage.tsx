@@ -1,5 +1,5 @@
 import { ScanSearch } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ export function InquiryCenterEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['inquiry-center', id],
     enabled: Boolean(id),
@@ -21,7 +22,7 @@ export function InquiryCenterEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -45,6 +46,8 @@ export function InquiryCenterEditPage() {
         }}
         onSubmit={async (payload) => {
           await api.patch(`/inquiry-centers/${id}`, payload)
+          await queryClient.invalidateQueries({ queryKey: ['inquiry-center', id] })
+          await queryClient.invalidateQueries({ queryKey: ['inquiry-centers'] })
           toast.success(t('inquiryCenters.updated'))
           navigate('/base-info/inquiry-centers')
         }}

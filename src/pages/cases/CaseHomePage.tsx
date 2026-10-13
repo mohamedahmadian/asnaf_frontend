@@ -11,7 +11,6 @@ import {
   Files,
   FolderKanban,
   Gavel,
-  HandHeart,
   IdCard,
   Info,
   MapPin,
@@ -175,7 +174,6 @@ const CASE_OPERATIONS = [
   { key: 'issueStewardship', icon: IdCard, tone: 'teal' },
   { key: 'changeLocation', icon: MapPinned, tone: 'teal' },
   { key: 'renewWithLocation', icon: MapPinPlus, tone: 'teal' },
-  { key: 'issueServiceCard', icon: HandHeart, tone: 'teal' },
 ] as const
 
 const CASE_SENSITIVE_OPERATIONS = [
@@ -543,24 +541,35 @@ export function CaseHomePage() {
                 </p>
               ) : null}
               {stewardWithoutLicense ? (
-                <p
+                <div
                   role="status"
                   onClick={(event) => event.stopPropagation()}
-                  className="flex items-start gap-2.5 rounded-2xl bg-amber-50 px-3 py-3 text-sm leading-7 text-amber-950 ring-1 ring-amber-200"
+                  className="flex flex-wrap items-center gap-3 rounded-2xl bg-amber-50 px-3 py-3 text-sm leading-7 text-amber-950 ring-1 ring-amber-200"
                 >
-                  <Info className="mt-1 size-4 shrink-0 text-amber-700" aria-hidden />
-                  <span>
-                    {t('cases.stewardship.noOwnLicense', {
-                      honorific:
-                        item.host?.gender === 'FEMALE'
-                          ? t('cases.inquiryHonorificFemale')
-                          : t('cases.inquiryHonorificMale'),
-                      name: item.host?.fullName || '—',
-                      unit: item.host?.businessUnitTitle || '—',
-                    })}
-                  </span>
-                </p>
+                  <p className="flex min-w-0 flex-1 items-start gap-2.5">
+                    <Info className="mt-1 size-4 shrink-0 text-amber-700" aria-hidden />
+                    <span>
+                      {t('cases.stewardship.noOwnLicense', {
+                        honorific:
+                          item.host?.gender === 'FEMALE'
+                            ? t('cases.inquiryHonorificFemale')
+                            : t('cases.inquiryHonorificMale'),
+                        name: item.host?.fullName || '—',
+                        unit: item.host?.businessUnitTitle || '—',
+                      })}
+                    </span>
+                  </p>
+                  {item.host ? (
+                    <Link to={`/cases/${item.host.id}`} className="shrink-0">
+                      <Button type="button" variant="soft">
+                        <BadgeCheck className="size-4" aria-hidden />
+                        {t('cases.stewardship.relatedLicense')}
+                      </Button>
+                    </Link>
+                  ) : null}
+                </div>
               ) : (
+              <>
               <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
                 <FormFactTile
                   icon={CalendarDays}
@@ -587,24 +596,35 @@ export function CaseHomePage() {
                     </button>
                   ) : null}
                 </div>
-                <div className="relative min-w-0">
-                  <FormFactTile
-                    icon={MapPin}
-                    label={t('geo.city')}
-                    value={item.city ? geoName(item.city) : '—'}
-                    empty={!item.city}
-                    className="pb-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/cases/${item.id}/dossier`)}
-                    className="absolute end-2 bottom-2 z-20 inline-flex cursor-pointer items-center gap-1 rounded-xl bg-teal-500 px-2 py-1 text-[11px] font-medium text-white shadow-[0_3px_8px_rgba(46,189,182,0.35)] transition hover:bg-teal-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
-                  >
-                    <Eye className="size-3" aria-hidden />
-                    {t('cases.viewDossier')}
-                  </button>
-                </div>
+                <FormFactTile
+                  icon={MapPin}
+                  label={t('geo.city')}
+                  value={item.city ? geoName(item.city) : '—'}
+                  empty={!item.city}
+                />
               </div>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  className={requestActionClassName}
+                  onClick={() => navigate(`/cases/${item.id}/dossier`)}
+                >
+                  <Eye className="size-3.5" aria-hidden />
+                  {t('cases.viewDossier')}
+                </Button>
+                {item.licenseNumber ? (
+                  <Button
+                    type="button"
+                    variant="soft"
+                    className={requestActionClassName}
+                    onClick={() => navigate(`/cases/${item.id}/license`)}
+                  >
+                    <BadgeCheck className="size-3.5" aria-hidden />
+                    {t('cases.viewLicense')}
+                  </Button>
+                ) : null}
+              </div>
+              </>
               )}
               {item.reactivatedAt && item.status !== 'REVOKED' ? (
                 <p className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-teal-50 px-3 py-2 text-sm text-teal-950 ring-1 ring-teal-100">
@@ -700,11 +720,11 @@ export function CaseHomePage() {
                           request.status === 'OPEN' && request.type === 'ISSUANCE'
                             ? t(`cases.steps.${stepKey}`)
                             : t(`cases.requestStatus.${request.status}`)
-                        const requestTo =
-                          request.type === 'STEWARDSHIP'
-                            ? request.status === 'OPEN'
-                              ? `/cases/${item.id}/stewardship`
-                              : `/cases/${item.id}/stewardship/card`
+                        const stewardshipDone = request.type === 'STEWARDSHIP' && request.status !== 'OPEN' && Boolean(item.cardNumber)
+                        const requestTo = stewardshipDone
+                          ? `/cases/${item.id}/stewardship/card`
+                          : request.type === 'STEWARDSHIP'
+                            ? `/cases/${item.id}/stewardship`
                             : request.type === 'ISSUANCE'
                             ? caseRequestPath(item.id, item.person.nationalId)
                             : request.type === 'RENEWAL' && request.status !== 'OPEN'
@@ -755,15 +775,18 @@ export function CaseHomePage() {
                                 <EntityRowActions
                                   viewTo={requestTo}
                                   viewLabel={
-                                    issued ||
-                                    ((request.type === 'RENEWAL' || request.type === 'LOCATION_CHANGE') &&
-                                      request.status !== 'OPEN')
-                                      ? t('cases.viewRequest')
-                                      : t('cases.continueRequest')
+                                    stewardshipDone
+                                      ? t('cases.stewardship.viewCard')
+                                      : issued ||
+                                          ((request.type === 'RENEWAL' || request.type === 'LOCATION_CHANGE') &&
+                                            request.status !== 'OPEN')
+                                        ? t('cases.viewRequest')
+                                        : t('cases.continueRequest')
                                   }
                                   viewClassName={requestActionClassName}
-                                  viewIcon={Eye}
+                                  viewIcon={stewardshipDone ? IdCard : Eye}
                                   rowOpensView
+                                  rowTo={stewardshipDone ? `/cases/${item.id}/stewardship` : undefined}
                                   extra={
                                     request.type === 'STEWARDSHIP' && item.host ? (
                                       <Link to={`/cases/${item.host.id}`}>
@@ -825,7 +848,6 @@ export function CaseHomePage() {
                 suspended={item.status === 'SUSPENDED'}
                 revoked={item.status === 'REVOKED'}
                 stewardTo={`/cases/${item.id}/stewards/new`}
-                licenseTo={item.licenseNumber ? `/cases/${item.id}/license` : null}
                 violationTo={
                   item.person.nationalId
                     ? `${violationCreatePath()}?${new URLSearchParams({
@@ -840,8 +862,7 @@ export function CaseHomePage() {
                     key === 'changeLocation' ||
                     key === 'issueAuction' ||
                     key === 'issueStewardship' ||
-                    key === 'renewWithLocation' ||
-                    key === 'issueServiceCard'
+                    key === 'renewWithLocation'
                   if (item.status === 'REVOKED' && startsRequest) {
                     toast.error(t('cases.revokedNoRequest'))
                     return
@@ -892,14 +913,12 @@ export function CaseHomePage() {
 
 function CaseOperations({
   onPick,
-  licenseTo,
   stewardTo,
   violationTo,
   suspended,
   revoked,
 }: {
   onPick: (key: string) => void
-  licenseTo: string | null
   stewardTo: string
   violationTo: string | null
   suspended: boolean
@@ -922,9 +941,6 @@ function CaseOperations({
     <div className="space-y-3">
       {suspended ? null : (
         <div className="flex flex-wrap justify-center gap-2">
-          {licenseTo ? (
-            <CaseOperationButton icon={BadgeCheck} tone="teal" label={t('cases.viewLicense')} to={licenseTo} />
-          ) : null}
           {CASE_OPERATIONS.map((operation) => (
             <CaseOperationButton
               key={operation.key}

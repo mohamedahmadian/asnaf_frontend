@@ -1,5 +1,5 @@
 import { FileCheck } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ export function DocumentEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['document', id],
     enabled: Boolean(id),
@@ -21,7 +22,7 @@ export function DocumentEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -41,6 +42,8 @@ export function DocumentEditPage() {
         }}
         onSubmit={async (payload) => {
           await api.patch(`/documents/${id}`, payload)
+          await queryClient.invalidateQueries({ queryKey: ['document', id] })
+          await queryClient.invalidateQueries({ queryKey: ['documents'] })
           toast.success(t('documents.updated'))
           navigate('/base-info/documents')
         }}

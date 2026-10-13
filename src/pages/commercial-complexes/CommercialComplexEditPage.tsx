@@ -1,5 +1,5 @@
 import { Building2 } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -17,6 +17,7 @@ export function CommercialComplexEditPage() {
   const { t } = useTranslation()
   const { complexId } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const name = useComplexName()
   const query = useQuery({
     queryKey: ['commercial-complex', complexId],
@@ -27,7 +28,7 @@ export function CommercialComplexEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -48,6 +49,8 @@ export function CommercialComplexEditPage() {
         }}
         onSubmit={async (payload) => {
           await api.patch(commercialComplexApi(complexId!), payload)
+          await queryClient.invalidateQueries({ queryKey: ['commercial-complex', complexId] })
+          await queryClient.invalidateQueries({ queryKey: ['commercial-complexes'] })
           toast.success(t('commercialComplexes.updated'))
           navigate(commercialComplexesPath())
         }}

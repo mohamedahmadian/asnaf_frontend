@@ -23,7 +23,7 @@ export function AccountPage() {
     },
   })
 
-  if (!profile.data) {
+  if (!profile.data || !profile.isFetchedAfterMount) {
     return <LoadingState />
   }
 

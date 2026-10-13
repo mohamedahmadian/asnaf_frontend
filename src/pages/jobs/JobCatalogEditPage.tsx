@@ -1,5 +1,5 @@
 import { HardHat } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -13,6 +13,7 @@ export function JobCatalogEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['jobs-catalog', id],
     enabled: Boolean(id),
@@ -22,7 +23,7 @@ export function JobCatalogEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -49,6 +50,8 @@ export function JobCatalogEditPage() {
         }}
         onSubmit={async (payload) => {
           await api.patch(jobCatalogApi(id!), payload)
+          await queryClient.invalidateQueries({ queryKey: ['jobs-catalog'] })
+          await queryClient.invalidateQueries({ queryKey: ['jobs', 'lookup'] })
           toast.success(t('jobCatalog.updated'))
           navigate(jobsCatalogPath())
         }}

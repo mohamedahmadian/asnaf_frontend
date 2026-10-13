@@ -1,5 +1,5 @@
 import { History, UserRound, MapPin } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -18,6 +18,7 @@ export function UserLocationPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['user', id],
     enabled: Boolean(id),
@@ -27,7 +28,7 @@ export function UserLocationPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -51,6 +52,8 @@ export function UserLocationPage() {
         onSubmit={async (payload) => {
           try {
             await api.patch(`/users/${id}/location`, payload)
+            await queryClient.invalidateQueries({ queryKey: ['user', id] })
+            await queryClient.invalidateQueries({ queryKey: ['users'] })
             toast.success(t('location.saved'))
             navigate('/users')
           } catch (error) {

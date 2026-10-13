@@ -83,9 +83,10 @@ export function CaseStewardshipPage() {
   })
   const item = state.data
   const reached = item?.formationStep ?? 0
-  const step = viewStep != null && viewStep <= reached ? viewStep : reached
   const requestId = item?.request?.id
   const open = item?.request?.status === 'OPEN' && item.status !== 'REVOKED'
+  const review = Boolean(item) && !open
+  const step = viewStep != null && viewStep <= reached ? viewStep : review ? 0 : reached
 
   const countries = useQuery({
     queryKey: ['countries', 'lookup'],
@@ -280,10 +281,6 @@ export function CaseStewardshipPage() {
       </div>
     )
   }
-  if (item.cardNumber || !open) {
-    return <CaseStewardCard caseId={id} />
-  }
-
   const holderName = identity ? `${identity.firstName} ${identity.lastName}`.replace(/\s+/g, ' ').trim() : ''
 
   return (
@@ -312,13 +309,13 @@ export function CaseStewardshipPage() {
             ) : null}
           </span>
         }
-        backTo={item.host ? `/cases/${item.host.id}/dossier` : `/cases/${id}`}
+        backTo={review ? `/cases/${id}?stay=1` : item.host ? `/cases/${item.host.id}/dossier` : `/cases/${id}`}
       />
       {item.host ? <HostStrip host={item.host} /> : null}
       <ol className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
         {STEWARDSHIP_STEPS.map((key, index) => {
-          const done = index < reached
-          const current = index === reached
+          const done = review ? index <= reached : index < reached
+          const current = !review && index === reached
           const tone = done
             ? 'cursor-pointer border-emerald-400 bg-white text-ink-800'
             : current
@@ -362,10 +359,12 @@ export function CaseStewardshipPage() {
           icon={UserRound}
           title={t('cases.steps.identity')}
           action={
+            review ? undefined : (
             <Button type="button" disabled={saving} onClick={() => void saveIdentity().then((saved) => saved && toast.success(t('cases.saved')))}>
               <Check className="size-4" aria-hidden />
               {t('cases.saveIdentity')}
             </Button>
+            )
           }
         >
           <div className={formCardBodyClassName}>
@@ -389,10 +388,13 @@ export function CaseStewardshipPage() {
                 countries={countries.data ?? []}
                 jobs={(jobs.data ?? []).filter((row) => row.isActive)}
                 locale={locale}
+                locked={review}
                 onChange={(key, value) =>
                   setPerson((current) => ({ ...(current ?? identity), [key]: value }))
                 }
-                onSubmit={() => void saveIdentity()}
+                onSubmit={() => {
+                  if (!review) void saveIdentity()
+                }}
               />
             ) : (
               <CaseDocumentList
@@ -401,9 +403,10 @@ export function CaseStewardshipPage() {
                 uploadingId={uploadingId}
                 removingId={removingId}
                 disabled={!identity.id}
+                readOnly={review}
                 layout="tabs"
                 onFile={(documentId, file) => void upload(documentId, file)}
-                onDelete={(documentId) => void removeDocument(documentId)}
+                onDelete={review ? undefined : (documentId) => void removeDocument(documentId)}
               />
             )}
             <div className="flex justify-end">{continueButton}</div>
@@ -416,10 +419,12 @@ export function CaseStewardshipPage() {
           caseId={id}
           items={inquiries.data ?? []}
           loading={inquiries.isLoading}
-          autoAdvance={false}
+          autoAdvance={open && reached === 1 && step === 1}
           showAdvance={false}
+          locked={review}
           headerAction={continueButton}
           onAdvanced={() => undefined}
+          onAutoAdvance={() => void continueStep()}
           onRewound={() => {
             setViewStep(null)
             void state.refetch()
@@ -431,10 +436,12 @@ export function CaseStewardshipPage() {
           caseId={id}
           item={placesReview.data ?? null}
           loading={placesReview.isLoading}
-          autoAdvance={false}
+          autoAdvance={open && reached === 2 && step === 2}
           showAdvance={false}
+          locked={review}
           headerAction={continueButton}
           onAdvanced={() => undefined}
+          onAutoAdvance={() => void continueStep()}
           onRewound={() => {
             setViewStep(null)
             void state.refetch()
@@ -448,6 +455,7 @@ export function CaseStewardshipPage() {
           loading={reviews.isLoading}
           autoAdvance={false}
           showAdvance={false}
+          locked={review}
           headerAction={continueButton}
           onAdvanced={() => undefined}
           onRewound={() => {
@@ -461,10 +469,12 @@ export function CaseStewardshipPage() {
           icon={BadgeCheck}
           title={t('cases.stewardship.issueTitle')}
           action={
+            review ? undefined : (
             <Button type="button" disabled={advancing} onClick={() => void issueCard()}>
               <Check className="size-4" aria-hidden />
               {t('cases.stewardship.issueTitle')}
             </Button>
+            )
           }
         >
           <div className={formCardBodyClassName}>
@@ -495,11 +505,34 @@ export function CaseStewardshipPage() {
                 label={t('cases.daysRemaining')}
               />
             </div>
-            {cardYears != null ? (
+            {!review && cardYears != null ? (
               <p className="text-sm text-ink-600">
                 {t('cases.stewardship.issueDurationHint', { count: formatNumber(cardYears, locale) })}
               </p>
             ) : null}
+            {review ? (
+              <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+                <FormFactTile
+                  icon={IdCard}
+                  label={t('cases.stewardship.cardNumber')}
+                  copyValue={item.cardNumber}
+                  tone="teal"
+                />
+                <FormFactTile
+                  icon={CalendarDays}
+                  label={t('cases.stewardship.cardIssued')}
+                  value={item.cardIssuedAt ? <DateText value={item.cardIssuedAt} /> : '—'}
+                  empty={!item.cardIssuedAt}
+                  tone="mint"
+                />
+                <FormFactTile
+                  icon={CalendarDays}
+                  label={t('cases.stewardship.cardExpires')}
+                  value={item.cardExpiresAt ? <DateText value={item.cardExpiresAt} /> : '—'}
+                  empty={!item.cardExpiresAt}
+                />
+              </div>
+            ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField icon={CalendarDays} label={t('cases.stewardship.cardIssued')} htmlFor="steward-issued-at">
                 <PersianDateField id="steward-issued-at" value={issuedAt || undefined} onChange={(next) => setIssuedAt(next ?? '')} />
@@ -510,6 +543,7 @@ export function CaseStewardshipPage() {
                 </p>
               </FormField>
             </div>
+            )}
           </div>
         </FormCard>
       ) : null}

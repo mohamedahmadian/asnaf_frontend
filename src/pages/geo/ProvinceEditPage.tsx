@@ -1,5 +1,5 @@
 import { Map } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ export function ProvinceEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['province', id],
     enabled: Boolean(id),
@@ -28,7 +29,7 @@ export function ProvinceEditPage() {
     },
   })
 
-  if (!query.data || !countries.data) {
+  if (!query.data || !query.isFetchedAfterMount || !countries.data) {
     return <LoadingState />
   }
 
@@ -52,6 +53,8 @@ export function ProvinceEditPage() {
         countries={countries.data}
         onSubmit={async (payload) => {
           await api.patch(`/provinces/${id}`, payload)
+          await queryClient.invalidateQueries({ queryKey: ['province', id] })
+          await queryClient.invalidateQueries({ queryKey: ['provinces'] })
           toast.success(t('provinces.updated'))
           navigate('/base-info/provinces')
         }}

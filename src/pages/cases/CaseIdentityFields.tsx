@@ -49,6 +49,7 @@ export function CaseIdentityFields({
   onChange,
   onSubmit,
   actions,
+  locked = false,
 }: {
   person: IdentityPerson
   countries: Country[]
@@ -57,6 +58,7 @@ export function CaseIdentityFields({
   onChange: <K extends keyof IdentityPerson>(key: K, value: IdentityPerson[K]) => void
   onSubmit: () => void
   actions?: ReactNode
+  locked?: boolean
 }) {
   const { t } = useTranslation()
 
@@ -64,10 +66,11 @@ export function CaseIdentityFields({
     <AppForm
       onSubmit={(event) => {
         event.preventDefault()
-        onSubmit()
+        if (!locked) onSubmit()
       }}
       className="space-y-4"
     >
+      <fieldset disabled={locked} className="min-w-0 space-y-4 border-0 p-0">
       <IdentitySection icon={UserRound} title={t('cases.identitySections.personal')}>
         <FormField icon={UserRound} label={t('users.firstName')} htmlFor="case-first-name">
           <input
@@ -319,6 +322,7 @@ export function CaseIdentityFields({
           />
         </FormField>
       </IdentitySection>
+      </fieldset>
       {actions}
     </AppForm>
   )

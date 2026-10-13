@@ -1,6 +1,6 @@
 import { KeyRound, Send, UserRound } from 'lucide-react'
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -21,6 +21,7 @@ export function UserEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [smsOpen, setSmsOpen] = useState(false)
   const [passwordOpen, setPasswordOpen] = useState(false)
   const query = useQuery({
@@ -32,7 +33,7 @@ export function UserEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -61,6 +62,8 @@ export function UserEditPage() {
         onCancel={() => navigate(`/users/${id}`)}
         onSubmit={async (payload) => {
           await api.patch(`/users/${query.data.id}`, payload)
+          await queryClient.invalidateQueries({ queryKey: ['user', id] })
+          await queryClient.invalidateQueries({ queryKey: ['users'] })
           toast.success(t('users.updated'))
           navigate('/users')
         }}

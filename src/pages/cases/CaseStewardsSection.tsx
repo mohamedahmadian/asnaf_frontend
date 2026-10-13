@@ -100,9 +100,10 @@ export function CaseStewardsSection({ caseId, items }: { caseId: string; items: 
                       <td className={actionsColClassName}>
                         <EntityRowActions
                           viewTo={viewTo}
-                          viewLabel={issued ? t('cases.viewRequest') : t('cases.stewardship.continue')}
-                          viewIcon={Eye}
+                          viewLabel={issued ? t('cases.stewardship.viewCard') : t('cases.stewardship.continue')}
+                          viewIcon={issued ? IdCard : Eye}
                           rowOpensView
+                          rowTo={issued ? `/cases/${row.id}/stewardship` : undefined}
                           extra={
                             row.status === 'REVOKED' ? null : (
                               <Button

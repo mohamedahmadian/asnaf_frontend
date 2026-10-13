@@ -84,16 +84,17 @@ function GeneralSettingsForm({ initial }: { initial: GeneralSettings }) {
           offLabel={t('geo.inactive')}
         />
       </FormField>
-      <FormField icon={Shield} label={t('cases.editAfterIssuanceRole')} htmlFor="case-edit-after-issuance-role">
-        <SearchSelect
-          id="case-edit-after-issuance-role"
-          value={editorRoleId}
-          onChange={setEditorRoleId}
-          placeholder={t('cases.editAfterIssuanceRolePlaceholder')}
-          options={options}
-        />
-      </FormField>
-      <p className="text-sm leading-7 text-ink-500">{t('cases.editAfterIssuanceHint')}</p>
+      {editAfterIssuance ? (
+        <FormField icon={Shield} label={t('cases.editAfterIssuanceRole')} htmlFor="case-edit-after-issuance-role">
+          <SearchSelect
+            id="case-edit-after-issuance-role"
+            value={editorRoleId}
+            onChange={setEditorRoleId}
+            placeholder={t('cases.editAfterIssuanceRolePlaceholder')}
+            options={options}
+          />
+        </FormField>
+      ) : null}
       <FormActions
         headerIcons={false}
         submitting={saving}

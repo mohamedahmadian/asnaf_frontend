@@ -1,5 +1,5 @@
 import { Rows3 } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -13,6 +13,7 @@ export function CommercialLaneEditPage() {
   const { t } = useTranslation()
   const { complexId = '', floorId = '', laneId = '' } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['commercial-lane', complexId, floorId, laneId],
     enabled: Boolean(complexId && floorId && laneId),
@@ -22,7 +23,7 @@ export function CommercialLaneEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -41,6 +42,8 @@ export function CommercialLaneEditPage() {
         }}
         onSubmit={async (payload) => {
           await api.patch(commercialLaneApi(complexId, floorId, laneId), payload)
+          await queryClient.invalidateQueries({ queryKey: ['commercial-lane', complexId, floorId, laneId] })
+          await queryClient.invalidateQueries({ queryKey: ['commercial-lanes', complexId, floorId] })
           toast.success(t('commercialLanes.updated'))
           navigate(commercialLanesPath(complexId, floorId))
         }}

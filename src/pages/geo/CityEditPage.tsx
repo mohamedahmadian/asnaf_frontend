@@ -1,5 +1,5 @@
 import { MapPin } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -13,6 +13,7 @@ export function CityEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['city', id],
     enabled: Boolean(id),
@@ -44,7 +45,7 @@ export function CityEditPage() {
     },
   })
 
-  if (!query.data || !countries.data) {
+  if (!query.data || !query.isFetchedAfterMount || !countries.data) {
     return <LoadingState />
   }
 
@@ -72,6 +73,8 @@ export function CityEditPage() {
         onCountryChange={setCountryId}
         onSubmit={async (payload) => {
           await api.patch(`/cities/${id}`, payload)
+          await queryClient.invalidateQueries({ queryKey: ['city', id] })
+          await queryClient.invalidateQueries({ queryKey: ['cities'] })
           toast.success(t('cities.updated'))
           navigate('/base-info/cities')
         }}

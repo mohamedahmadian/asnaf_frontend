@@ -1,5 +1,5 @@
 import { MapPinned } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ export function RegistrationPlaceEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['registration-place', id],
     enabled: Boolean(id),
@@ -21,7 +22,7 @@ export function RegistrationPlaceEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -41,6 +42,8 @@ export function RegistrationPlaceEditPage() {
         }}
         onSubmit={async (payload) => {
           await api.patch(`/registration-places/${id}`, payload)
+          await queryClient.invalidateQueries({ queryKey: ['registration-place', id] })
+          await queryClient.invalidateQueries({ queryKey: ['registration-places'] })
           toast.success(t('registrationPlaces.updated'))
           navigate('/base-info/registration-places')
         }}

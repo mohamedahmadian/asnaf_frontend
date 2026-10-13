@@ -15,6 +15,7 @@ export function CaseDocumentList({
   uploadingId,
   removingId,
   disabled,
+  readOnly = false,
   framed = false,
   layout = 'grid',
   emphasizeRequired = false,
@@ -26,6 +27,7 @@ export function CaseDocumentList({
   uploadingId: string | null
   removingId?: string | null
   disabled: boolean
+  readOnly?: boolean
   framed?: boolean
   layout?: 'grid' | 'tabs'
   emphasizeRequired?: boolean
@@ -49,7 +51,7 @@ export function CaseDocumentList({
         current={stored.find((row) => row.documentId === item.id)?.current ?? null}
         uploading={uploadingId === item.id}
         removing={removingId === item.id}
-        disabled={disabled}
+        disabled={disabled || readOnly}
         framed={layout === 'tabs' ? false : framed}
         previewClassName={layout === 'tabs' ? documentPreviewClassName : undefined}
         markRequired={emphasizeRequired && item.isRequired}
@@ -63,7 +65,7 @@ export function CaseDocumentList({
     const active = items.find((item) => item.id === activeId) ?? items[0]
     return (
       <div className="space-y-4">
-        {disabled ? <p className="text-sm text-ink-500">{t('cases.saveBeforeDocuments')}</p> : null}
+        {disabled && !readOnly ? <p className="text-sm text-ink-500">{t('cases.saveBeforeDocuments')}</p> : null}
         <div role="tablist" className="flex flex-wrap gap-2">
           {items.map((item) => {
             const uploaded = Boolean(stored.find((row) => row.documentId === item.id)?.current)
@@ -120,7 +122,7 @@ export function CaseDocumentList({
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      {disabled ? <p className="text-sm text-ink-500 lg:col-span-2">{t('cases.saveBeforeDocuments')}</p> : null}
+      {disabled && !readOnly ? <p className="text-sm text-ink-500 lg:col-span-2">{t('cases.saveBeforeDocuments')}</p> : null}
       {items.map((item) => uploadFor(item))}
     </div>
   )

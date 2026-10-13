@@ -18,10 +18,12 @@ export function CasePlacesStep({
   loading,
   autoAdvance,
   showAdvance = true,
+  locked = false,
   headerAction,
   onAdvanced,
   onRewound,
   onChanged,
+  onAutoAdvance,
 }: {
   caseId: string
   item: CaseInquiryRow | null
@@ -29,10 +31,13 @@ export function CasePlacesStep({
   autoAdvance: boolean
   /** در تمدید، ادامه را صفحهٔ فرایند می‌زند */
   showAdvance?: boolean
+  locked?: boolean
   headerAction?: ReactNode
   onAdvanced: (formationStep: number) => void
   onRewound: () => void
   onChanged?: () => void
+  /** اگر نظر اماکن ثبت شده باشد، به‌جای مرحلهٔ صدور به تأییدهای مدیریتی همین فرایند برو */
+  onAutoAdvance?: () => void
 }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
@@ -40,7 +45,6 @@ export function CasePlacesStep({
   const pending = !item || item.status === 'PENDING'
   const [printId, setPrintId] = useState<string | null>(null)
   const autoAdvanceStarted = useRef(false)
-  const sawPending = useRef(false)
 
   const advance = useMutation({
     mutationFn: async () => {
@@ -58,19 +62,16 @@ export function CasePlacesStep({
   })
 
   useEffect(() => {
-    if (!loading && pending) sawPending.current = true
-  }, [loading, pending])
-
-  useEffect(() => {
     if (!autoAdvance || loading) return
     if (pending) {
       autoAdvanceStarted.current = false
       return
     }
-    if (!sawPending.current || autoAdvanceStarted.current || advance.isPending) return
+    if (autoAdvanceStarted.current || advance.isPending) return
     autoAdvanceStarted.current = true
-    advance.mutate()
-  }, [advance, autoAdvance, loading, pending])
+    if (onAutoAdvance) onAutoAdvance()
+    else advance.mutate()
+  }, [advance, autoAdvance, loading, onAutoAdvance, pending])
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ['cases', 'formation-places', caseId] })
@@ -120,6 +121,7 @@ export function CasePlacesStep({
                 letterUrl={`/cases/formation/places/${item.id}/letter`}
                 filesPath="/cases/places/files"
                 attachmentLabelKey="cases.placesAddAttachment"
+                locked={locked}
                 onChanged={() => void refresh()}
                 onReopened={onRewound}
                 onPrint={() => setPrintId(item.id)}

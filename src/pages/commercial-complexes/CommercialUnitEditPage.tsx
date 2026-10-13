@@ -1,5 +1,5 @@
 import { Store } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -15,6 +15,7 @@ export function CommercialUnitEditPage() {
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const { complexId = '', floorId = '', laneId = '', unitId = '' } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['commercial-unit', complexId, floorId, laneId, unitId],
     enabled: Boolean(complexId && floorId && laneId && unitId),
@@ -26,7 +27,7 @@ export function CommercialUnitEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -48,6 +49,8 @@ export function CommercialUnitEditPage() {
         }}
         onSubmit={async (payload) => {
           await api.patch(commercialUnitApi(complexId, floorId, laneId, unitId), payload)
+          await queryClient.invalidateQueries({ queryKey: ['commercial-unit', complexId, floorId, laneId, unitId] })
+          await queryClient.invalidateQueries({ queryKey: ['commercial-units', complexId, floorId, laneId] })
           toast.success(t('commercialUnits.updated'))
           navigate(commercialUnitsPath(complexId, floorId, laneId))
         }}

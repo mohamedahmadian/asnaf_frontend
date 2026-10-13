@@ -60,9 +60,9 @@ export function CaseDossierEditPage() {
         }
         backTo={caseDossierPath(id)}
       />
-      {query.isLoading ? <LoadingState /> : null}
-      {query.isError ? <FormEmptyHint>{t('cases.dossierLoadFailed')}</FormEmptyHint> : null}
-      {query.data ? <DossierEditor item={query.data} /> : null}
+      {!query.isFetchedAfterMount && !query.isError ? <LoadingState /> : null}
+      {query.isError && !query.data ? <FormEmptyHint>{t('cases.dossierLoadFailed')}</FormEmptyHint> : null}
+      {query.isFetchedAfterMount && query.data ? <DossierEditor item={query.data} /> : null}
     </div>
   )
 }

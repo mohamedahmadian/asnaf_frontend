@@ -1,5 +1,5 @@
 import { Briefcase } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -14,6 +14,7 @@ export function JobTypeEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { section, setSection } = useJobTypeSection()
   const query = useQuery({
     queryKey: ['job-type', id],
@@ -24,7 +25,7 @@ export function JobTypeEditPage() {
     },
   })
 
-  if (!query.data || !id) {
+  if (!query.data || !query.isFetchedAfterMount || !id) {
     return <LoadingState />
   }
 
@@ -51,6 +52,8 @@ export function JobTypeEditPage() {
             }}
             onSubmit={async (payload) => {
               await api.patch(`/job-types/${id}`, payload)
+              await queryClient.invalidateQueries({ queryKey: ['job-type', id] })
+              await queryClient.invalidateQueries({ queryKey: ['job-types'] })
               toast.success(t('jobTypes.updated'))
               navigate('/base-info/job-types')
             }}

@@ -1,5 +1,5 @@
 import { Shield } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ export function RoleEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['role', id],
     enabled: Boolean(id),
@@ -21,7 +22,7 @@ export function RoleEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -36,6 +37,8 @@ export function RoleEditPage() {
         initial={query.data}
         onSubmit={async (payload) => {
           await api.patch(`/roles/${id}`, payload)
+          await queryClient.invalidateQueries({ queryKey: ['role', id] })
+          await queryClient.invalidateQueries({ queryKey: ['roles'] })
           toast.success(t('accessRoles.updated'))
           navigate('/base-info/roles')
         }}

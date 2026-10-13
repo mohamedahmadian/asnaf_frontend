@@ -1,5 +1,5 @@
 import { Percent } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ export function DiscountEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['discount', id],
     enabled: Boolean(id),
@@ -21,7 +22,7 @@ export function DiscountEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -42,6 +43,8 @@ export function DiscountEditPage() {
         }}
         onSubmit={async (payload) => {
           await api.patch(`/discounts/${id}`, payload)
+          await queryClient.invalidateQueries({ queryKey: ['discount', id] })
+          await queryClient.invalidateQueries({ queryKey: ['discounts'] })
           toast.success(t('discounts.updated'))
           navigate('/base-info/discounts')
         }}

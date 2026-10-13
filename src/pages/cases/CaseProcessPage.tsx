@@ -150,27 +150,27 @@ export function CaseProcessPage() {
     enabled: Boolean(id),
     queryFn: async () => (await api.get<ProcessState>(`/cases/${id}/process`)).data,
   })
+  const requestId = process.data?.id
   const requirements = useQuery({
-    queryKey: ['cases', 'activity-requirements', id, process.data?.type],
-    enabled: Boolean(id) && Boolean(process.data?.type),
+    queryKey: ['cases', 'activity-requirements', id, requestId, process.data?.type],
+    enabled: Boolean(id && requestId) && Boolean(process.data?.type),
     queryFn: async () =>
       (
         await api.get<DocumentTypeRow[]>('/cases/formation/activity-requirements', {
-          params: { caseId: id, requestType: process.data?.type },
+          params: { caseId: id, requestId, requestType: process.data?.type },
         })
       ).data,
   })
   const stored = useQuery({
-    queryKey: ['cases', 'activity-documents', id],
-    enabled: Boolean(id),
+    queryKey: ['cases', 'activity-documents', id, requestId],
+    enabled: Boolean(id && requestId),
     queryFn: async () =>
       (
         await api.get<{ documentId: string; current: StoredVersion | null }[]>('/cases/formation/activity-documents', {
-          params: { caseId: id },
+          params: { caseId: id, requestId },
         })
       ).data,
   })
-  const requestId = process.data?.id
   const inquiries = useQuery({
     queryKey: ['cases', 'formation-inquiries', id, requestId],
     enabled:
@@ -238,10 +238,10 @@ export function CaseProcessPage() {
   const serverStep = Math.min(viewStep ?? reached, reached)
   const step = hideDocuments && serverStep === 1 ? 2 : serverStep
   const documentsMissing = useMemo(() => {
-    if (requirements.isLoading || stored.isLoading) return false
+    if (!requestId || requirements.isLoading || !stored.isSuccess) return false
     const uploaded = new Set((stored.data ?? []).filter((row) => row.current).map((row) => row.documentId))
     return (requirements.data ?? []).some((row) => row.isRequired && !uploaded.has(row.id))
-  }, [requirements.data, requirements.isLoading, stored.data, stored.isLoading])
+  }, [requestId, requirements.data, requirements.isLoading, stored.data, stored.isSuccess])
 
   async function upload(documentId: string, file: File) {
     if (!item?.userId) return
@@ -252,10 +252,11 @@ export function CaseProcessPage() {
       body.append('userId', item.userId)
       body.append('documentId', documentId)
       body.append('caseId', id)
+      if (requestId) body.append('requestId', requestId)
       body.append('file', prepared)
       await api.post('/cases/formation/documents', body)
       toast.success(t('cases.documentUploaded'))
-      await queryClient.invalidateQueries({ queryKey: ['cases', 'activity-documents', id] })
+      await queryClient.invalidateQueries({ queryKey: ['cases', 'activity-documents', id, requestId] })
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('cases.saveFailed')))
     } finally {
@@ -696,10 +697,11 @@ export function CaseProcessPage() {
           caseId={id}
           items={inquiries.data ?? []}
           loading={inquiries.isLoading}
-          autoAdvance={false}
+          autoAdvance={reached === 2 && step === 2}
           showAdvance={false}
           headerAction={wizard ? wizardContinue : undefined}
           onAdvanced={() => undefined}
+          onAutoAdvance={() => void continueProcess()}
           onRewound={() => {
             setViewStep(null)
             void process.refetch()
@@ -712,10 +714,11 @@ export function CaseProcessPage() {
           caseId={id}
           item={placesReview.data ?? null}
           loading={placesReview.isLoading}
-          autoAdvance={false}
+          autoAdvance={reached === 3 && step === 3}
           showAdvance={false}
           headerAction={wizardContinue}
           onAdvanced={() => undefined}
+          onAutoAdvance={() => void continueProcess()}
           onRewound={() => {
             setViewStep(null)
             void process.refetch()

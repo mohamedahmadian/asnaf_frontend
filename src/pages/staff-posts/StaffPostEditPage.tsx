@@ -1,5 +1,5 @@
 import { UserRoundCog } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ export function StaffPostEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['staff-post', id],
     enabled: Boolean(id),
@@ -21,7 +22,7 @@ export function StaffPostEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -40,6 +41,8 @@ export function StaffPostEditPage() {
         }}
         onSubmit={async (payload) => {
           await api.patch(`/staff-posts/${id}`, payload)
+          await queryClient.invalidateQueries({ queryKey: ['staff-post', id] })
+          await queryClient.invalidateQueries({ queryKey: ['staff-posts'] })
           toast.success(t('staffPosts.updated'))
           navigate('/base-info/staff-posts')
         }}

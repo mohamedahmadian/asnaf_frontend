@@ -1,5 +1,5 @@
 import { Landmark, Plus } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -26,6 +26,7 @@ export function BankAccountEditPage() {
   const { id } = useParams()
   const { pathname } = useLocation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { section, setSection } = useBankAccountSection()
   const query = useQuery({
     queryKey: ['bank-account', id],
@@ -36,7 +37,7 @@ export function BankAccountEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -77,6 +78,8 @@ export function BankAccountEditPage() {
             }}
             onSubmit={async (payload) => {
               await api.patch(`/bank-accounts/${id}`, payload)
+              await queryClient.invalidateQueries({ queryKey: ['bank-account', id] })
+              await queryClient.invalidateQueries({ queryKey: ['bank-accounts'] })
               toast.success(t('bankAccounts.updated'))
               navigate('/base-info/bank-accounts')
             }}

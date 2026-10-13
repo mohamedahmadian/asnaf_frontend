@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Building2, Check, Clock, FileText, Paperclip, RotateCcw, Shield, ShieldCheck, Type, UserRound, X } from 'lucide-react'
+import { Check, Clock, FileText, Paperclip, RotateCcw, ShieldCheck, UserRound, X } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -7,13 +7,12 @@ import { Button, FormField, fieldClassName } from '../../components/ui/Form'
 import { confirmToast } from '../../components/ui/confirmToast'
 import { DateText } from '../../components/ui/DateText'
 import { FileDropField } from '../../components/ui/FileDropField'
-import { FormCard, FormEmptyHint, FormFactTile, FormSectionTitle, formCardBodyClassName } from '../../components/ui/FormLayout'
+import { FormCard, FormEmptyHint, FormFactTile, formCardBodyClassName } from '../../components/ui/FormLayout'
 import { FormTabs } from '../../components/ui/FormTabs'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { api, getApiErrorMessage } from '../../lib/api'
-import { formatNumber } from '../../lib/datetime'
 import { ISSUANCE_FORMATION_STEP } from './formation-types'
-import { InquiryProgressChart } from './CaseInquiriesStep'
+import { InquiryProgressChart, usePendingTab } from './CaseInquiriesStep'
 import { openInquiryFile, submitInquiryDecision } from './inquiry-api'
 import type { CaseInquiryChannel, CaseInquiryFile, CaseInquiryStatus } from './inquiry-types'
 
@@ -21,6 +20,12 @@ const frame: Record<CaseInquiryStatus, string> = {
   PENDING: 'border-[#f6e4e7] bg-[#fff7f8]',
   APPROVED: 'border-emerald-200 bg-emerald-50/50',
   REJECTED: 'border-red-200 bg-red-50/50',
+}
+
+const statusBadge: Record<CaseInquiryStatus, string> = {
+  PENDING: 'bg-white text-amber-900 ring-amber-200',
+  APPROVED: 'bg-white text-emerald-800 ring-emerald-200',
+  REJECTED: 'bg-white text-red-800 ring-red-200',
 }
 
 const decisionButtonClassName = 'min-w-40 px-8 disabled:opacity-60'
@@ -47,6 +52,7 @@ export function CaseManagementReviewStep({
   loading,
   autoAdvance,
   showAdvance = true,
+  locked = false,
   headerAction,
   onAdvanced,
   onRewound,
@@ -58,6 +64,7 @@ export function CaseManagementReviewStep({
   autoAdvance: boolean
   /** در تمدید و تغییر مکان، ادامه را صفحهٔ فرایند می‌زند */
   showAdvance?: boolean
+  locked?: boolean
   headerAction?: ReactNode
   onAdvanced: (formationStep: number) => void
   onRewound: () => void
@@ -67,8 +74,7 @@ export function CaseManagementReviewStep({
   const queryClient = useQueryClient()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const pending = items.some((item) => item.status === 'PENDING')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const activeId = items.some((item) => item.id === selectedId) ? selectedId : (items[0]?.id ?? '')
+  const { activeId, selectTab } = usePendingTab(items, loading)
   const autoAdvanceStarted = useRef(false)
   const sawPending = useRef(false)
   const doneCount = items.filter((item) => item.status !== 'PENDING').length
@@ -119,7 +125,6 @@ export function CaseManagementReviewStep({
     <FormCard
       icon={ShieldCheck}
       title={t('cases.steps.managementReview')}
-      subtitle={items.length > 0 ? t('cases.managementApproversHint') : undefined}
       titleExtra={
         items.length > 0 ? <InquiryProgressChart done={doneCount} total={items.length} locale={locale} /> : null
       }
@@ -146,7 +151,7 @@ export function CaseManagementReviewStep({
       {items.length > 0 ? (
         <>
           <div className="overflow-x-auto">
-            <FormTabs tabs={tabs} value={activeId ?? ''} onChange={setSelectedId} />
+            <FormTabs tabs={tabs} value={activeId ?? ''} onChange={selectTab} />
           </div>
           <div className={formCardBodyClassName}>
             {items.map((item) => (
@@ -157,7 +162,7 @@ export function CaseManagementReviewStep({
                 aria-labelledby={`form-tab-${item.id}`}
                 hidden={item.id !== activeId}
               >
-                <ReviewCard item={item} locale={locale} onChanged={() => void refresh()} onRewound={onRewound} />
+                <ReviewCard item={item} locked={locked} onChanged={() => void refresh()} onRewound={onRewound} />
               </div>
             ))}
           </div>
@@ -169,12 +174,12 @@ export function CaseManagementReviewStep({
 
 function ReviewCard({
   item,
-  locale,
+  locked = false,
   onChanged,
   onRewound,
 }: {
   item: CaseManagementApproverRow
-  locale: string
+  locked?: boolean
   onChanged: () => void
   onRewound: () => void
 }) {
@@ -232,43 +237,28 @@ function ReviewCard({
 
   return (
     <article className={`space-y-4 rounded-2xl border p-4 ${frame[item.status]}`}>
-      <span className="inline-flex items-center gap-2 text-sm text-ink-700">
-        <Clock className="size-4 text-teal-600" aria-hidden />
-        <span className="font-medium">{t('cases.inquiryStatus')} :</span>
-        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-ink-700 ring-1 ring-teal-100">
+      <div className="flex items-start gap-3">
+        <div className="grid min-w-0 flex-1 gap-2">
+          {item.people.map((person) => (
+            <FormFactTile
+              key={person.id}
+              icon={UserRound}
+              label={t('users.fullName')}
+              value={person.fullName}
+              tone="mint"
+            />
+          ))}
+        </div>
+        <span
+          className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${statusBadge[item.status]}`}
+        >
           {t(`cases.inquiryStatuses.${item.status}`)}
           {item.channel ? ` · ${t(`cases.inquiryChannels.${item.channel}`)}` : ''}
         </span>
-      </span>
-      <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
-        {item.displayTitle ? (
-          <FormFactTile icon={Type} label={t('cases.settingsProcessManagementTitle')} value={item.displayTitle} tone="teal" className="sm:col-span-2" />
-        ) : null}
-        {item.workUnitTitle ? (
-          <FormFactTile icon={Building2} label={t('cases.settingsManagementUnit')} value={item.workUnitTitle} tone="teal" />
-        ) : null}
-        <FormFactTile icon={Shield} label={t('cases.settingsManagementRole')} value={item.roleName} tone="mint" />
       </div>
-      <FormSectionTitle icon={UserRound}>
-        {t('cases.managementApproversPeople')}
-        {item.people.length > 0 ? ` (${formatNumber(item.people.length, locale)})` : ''}
-      </FormSectionTitle>
-      {item.people.length === 0 ? (
-        <FormEmptyHint>{t('cases.managementApproversNoPeople')}</FormEmptyHint>
-      ) : (
-        <ul className="grid gap-2 sm:grid-cols-2">
-          {item.people.map((person) => (
-            <li
-              key={person.id}
-              className="inline-flex min-w-0 items-center gap-2 rounded-2xl border border-teal-100 bg-white px-3 py-2 text-sm text-ink-800"
-            >
-              <UserRound className="size-4 shrink-0 text-teal-600" aria-hidden />
-              <span className="truncate">{person.fullName}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {item.status === 'PENDING' ? (
+      {item.status === 'PENDING' && locked ? (
+        <ReviewFiles files={item.files} />
+      ) : item.status === 'PENDING' ? (
         <div className="space-y-4">
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -352,12 +342,14 @@ function ReviewCard({
             ) : null}
           </div>
           <ReviewFiles files={item.files} />
+          {locked ? null : (
           <div className="flex justify-end">
             <Button type="button" variant="ghost" disabled={saving} onClick={askReopen}>
               <RotateCcw className="size-4" aria-hidden />
               {t('cases.managementReopen')}
             </Button>
           </div>
+          )}
         </div>
       )}
     </article>

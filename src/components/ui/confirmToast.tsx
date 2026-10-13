@@ -97,7 +97,7 @@ function ConfirmToastCard({
   return (
     <div
       data-confirm-toast=""
-      className="w-[min(100vw-2rem,24rem)] overflow-hidden rounded-[18px] border border-line bg-white shadow-[0_14px_36px_rgba(44,42,38,0.12)]"
+      className="w-max max-w-full overflow-hidden rounded-[18px] border border-line bg-white shadow-[0_14px_36px_rgba(44,42,38,0.12)]"
     >
       <div
         className={`h-1 ${

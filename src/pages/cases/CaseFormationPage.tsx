@@ -715,19 +715,19 @@ export function CaseFormationPage() {
               ) : null}
               {person.nationalId ? (
                 <HeaderBadge icon={Fingerprint}>
-                  <span className="text-ink-500">{t('users.nationalId')}</span>
+                  <span className="text-teal-700">{t('users.nationalId')}</span>
                   <CopyableDigits value={person.nationalId} />
                 </HeaderBadge>
               ) : null}
               {activityJobTitle ? (
                 <HeaderBadge icon={Briefcase}>
-                  <span className="text-ink-500">{t('cases.activityJob')}</span>
+                  <span className="text-teal-700">{t('cases.activityJob')}</span>
                   <span>{activityJobTitle}</span>
                 </HeaderBadge>
               ) : null}
               {licenseIssuedAt ? (
                 <HeaderBadge icon={CalendarDays}>
-                  <span className="text-ink-500">{t('cases.listIssued')}</span>
+                  <span className="text-teal-700">{t('cases.listIssued')}</span>
                   <DateText value={licenseIssuedAt} />
                 </HeaderBadge>
               ) : null}
@@ -1005,7 +1005,11 @@ export function CaseFormationPage() {
           caseId={caseId}
           items={caseInquiries.data ?? []}
           loading={caseInquiries.isLoading}
-          autoAdvance={reached < PLACES_FORMATION_STEP}
+          autoAdvance={
+            reached < PLACES_FORMATION_STEP &&
+            identityDocumentsReady === true &&
+            (!activityJobId || activityDocumentsReady === true)
+          }
           documentsPending={identityDocumentsReady === false || activityDocsMissing}
           onRewound={() => rewindTo(FORMATION_STEPS.indexOf('inquiries'))}
           onAdvanced={(formationStep) => {
@@ -1160,8 +1164,8 @@ function OpenCaseModal({
 
 function HeaderBadge({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
   return (
-    <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-ink-800 shadow-[0_4px_10px_rgba(20,40,40,0.05)] ring-1 ring-teal-100">
-      <Icon className="size-3.5 shrink-0 text-teal-600" aria-hidden />
+    <span className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-2xl bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-800">
+      <Icon className="size-4 shrink-0" aria-hidden />
       {children}
     </span>
   )

@@ -1,5 +1,5 @@
 import { ClipboardList } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -14,6 +14,7 @@ export function ProceedingEditPage() {
   const { t } = useTranslation()
   const { id: violationId = '', proceedingId = '' } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['violation-proceeding', violationId, proceedingId],
     enabled: Boolean(violationId && proceedingId),
@@ -21,7 +22,7 @@ export function ProceedingEditPage() {
       (await api.get<ViolationProceeding>(`/violations/${violationId}/proceedings/${proceedingId}`)).data,
   })
 
-  if (!query.data) return <LoadingState />
+  if (!query.data || !query.isFetchedAfterMount) return <LoadingState />
   const item = query.data
 
   return (
@@ -51,6 +52,8 @@ export function ProceedingEditPage() {
           }
           appendFiles(body, payload.files)
           await api.patch(`/violations/${violationId}/proceedings/${proceedingId}`, body)
+          await queryClient.invalidateQueries({ queryKey: ['violation-proceeding', violationId, proceedingId] })
+          await queryClient.invalidateQueries({ queryKey: ['violation-proceedings', violationId] })
           toast.success(t('violationProceedings.updated'))
           navigate(violationProceedingsPath(violationId))
         }}

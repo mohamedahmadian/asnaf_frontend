@@ -1,5 +1,5 @@
 import { Briefcase } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -13,6 +13,7 @@ export function JobEditPage() {
   const { t } = useTranslation()
   const { groupId = '', jobId = '' } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['job', groupId, jobId],
     enabled: Boolean(groupId && jobId),
@@ -22,7 +23,7 @@ export function JobEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -46,6 +47,8 @@ export function JobEditPage() {
         }}
         onSubmit={async (payload) => {
           await api.patch(jobApi(groupId, jobId), payload)
+          await queryClient.invalidateQueries({ queryKey: ['job', groupId, jobId] })
+          await queryClient.invalidateQueries({ queryKey: ['jobs'] })
           toast.success(t('jobs.updated'))
           navigate(jobsPath(groupId))
         }}

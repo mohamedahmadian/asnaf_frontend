@@ -1,5 +1,5 @@
 import { Network } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ export function WorkUnitEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['work-unit', id],
     enabled: Boolean(id),
@@ -21,7 +22,7 @@ export function WorkUnitEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -40,6 +41,8 @@ export function WorkUnitEditPage() {
         }}
         onSubmit={async (payload) => {
           await api.patch(`/work-units/${id}`, payload)
+          await queryClient.invalidateQueries({ queryKey: ['work-unit', id] })
+          await queryClient.invalidateQueries({ queryKey: ['work-units'] })
           toast.success(t('workUnits.updated'))
           navigate('/base-info/work-units')
         }}

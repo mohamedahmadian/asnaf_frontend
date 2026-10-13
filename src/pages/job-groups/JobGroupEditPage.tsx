@@ -1,5 +1,5 @@
 import { FolderKanban } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -15,6 +15,7 @@ export function JobGroupEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { section, setSection } = useJobGroupSection()
   const query = useQuery({
     queryKey: ['job-group', id],
@@ -25,7 +26,7 @@ export function JobGroupEditPage() {
     },
   })
 
-  if (!query.data || !id) {
+  if (!query.data || !query.isFetchedAfterMount || !id) {
     return <LoadingState />
   }
 
@@ -52,6 +53,8 @@ export function JobGroupEditPage() {
             }}
             onSubmit={async (payload) => {
               await api.patch(jobGroupApi(id), payload)
+              await queryClient.invalidateQueries({ queryKey: ['job-group', id] })
+              await queryClient.invalidateQueries({ queryKey: ['job-groups'] })
               toast.success(t('jobGroups.updated'))
               navigate(jobGroupsPath())
             }}

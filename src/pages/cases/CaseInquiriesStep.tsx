@@ -32,6 +32,27 @@ const frame: Record<CaseInquiryRow['status'], string> = {
 
 const decisionButtonClassName = 'min-w-40 px-8 disabled:opacity-60'
 
+/** تب تعیین‌تکلیف‌نشده فعال می‌ماند؛ بعد از ثبت نتیجه، تب باز بعدی انتخاب می‌شود. */
+export function usePendingTab<T extends { id: string; status: string }>(items: T[], loading: boolean) {
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const previousStatus = useRef(new Map<string, string>())
+  const pendingId = items.find((item) => item.status === 'PENDING')?.id ?? null
+
+  useEffect(() => {
+    if (loading) return
+    if (selectedId) {
+      const current = items.find((item) => item.id === selectedId)
+      const previous = previousStatus.current.get(selectedId)
+      const openNext = !current || (previous === 'PENDING' && current.status !== 'PENDING' && pendingId != null)
+      if (openNext) setSelectedId(null)
+    }
+    previousStatus.current = new Map(items.map((item) => [item.id, item.status]))
+  }, [items, loading, pendingId, selectedId])
+
+  const activeId = items.some((item) => item.id === selectedId) ? selectedId! : (pendingId ?? items[0]?.id ?? '')
+  return { activeId, selectTab: setSelectedId }
+}
+
 export function CaseInquiriesStep({
   caseId,
   items,
@@ -39,9 +60,11 @@ export function CaseInquiriesStep({
   autoAdvance,
   showAdvance = true,
   documentsPending = false,
+  locked = false,
   headerAction,
   onAdvanced,
   onRewound,
+  onAutoAdvance,
 }: {
   caseId: string
   items: CaseInquiryRow[]
@@ -50,19 +73,20 @@ export function CaseInquiriesStep({
   /** در تمدید و تغییر مکان، ادامه را صفحهٔ فرایند می‌زند */
   showAdvance?: boolean
   documentsPending?: boolean
+  locked?: boolean
   headerAction?: ReactNode
   onAdvanced: (formationStep: number) => void
   onRewound: () => void
+  /** اگر همه استعلام‌ها تعیین‌تکلیف شده باشند، به‌جای مرحلهٔ صدور به گام بعدی همین فرایند برو */
+  onAutoAdvance?: () => void
 }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const pending = items.some((item) => item.status === 'PENDING')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const { activeId, selectTab } = usePendingTab(items, loading)
   const [printId, setPrintId] = useState<string | null>(null)
-  const activeId = items.some((item) => item.id === selectedId) ? selectedId : (items[0]?.id ?? '')
   const autoAdvanceStarted = useRef(false)
-  const sawPending = useRef(false)
 
   const advance = useMutation({
     mutationFn: async () => {
@@ -80,19 +104,16 @@ export function CaseInquiriesStep({
   })
 
   useEffect(() => {
-    if (!loading && pending) sawPending.current = true
-  }, [loading, pending])
-
-  useEffect(() => {
     if (!autoAdvance || loading) return
-    if (pending || items.length === 0) {
+    if (documentsPending || pending || items.length === 0) {
       autoAdvanceStarted.current = false
       return
     }
-    if (!sawPending.current || autoAdvanceStarted.current || advance.isPending) return
+    if (autoAdvanceStarted.current || advance.isPending) return
     autoAdvanceStarted.current = true
-    advance.mutate()
-  }, [advance, autoAdvance, items.length, loading, pending])
+    if (onAutoAdvance) onAutoAdvance()
+    else advance.mutate()
+  }, [advance, autoAdvance, documentsPending, items.length, loading, onAutoAdvance, pending])
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ['cases', 'formation-inquiries', caseId] })
@@ -146,7 +167,7 @@ export function CaseInquiriesStep({
       {items.length > 0 ? (
         <>
           <div className="overflow-x-auto">
-            <FormTabs tabs={tabs} value={activeId ?? ''} onChange={setSelectedId} />
+            <FormTabs tabs={tabs} value={activeId ?? ''} onChange={selectTab} />
           </div>
           <div className={formCardBodyClassName}>
             {items.map((item) => (
@@ -160,6 +181,7 @@ export function CaseInquiriesStep({
                 <InquiryCard
                   item={item}
                   locale={locale}
+                  locked={locked}
                   onChanged={() => void refresh()}
                   onReopened={onRewound}
                   onPrint={() => setPrintId(item.id)}
@@ -268,6 +290,7 @@ export function InquiryCard({
   letterUrl = `/cases/inquiries/${item.id}/letter`,
   filesPath = '/cases/inquiries/files',
   attachmentLabelKey = 'cases.inquiryAddAttachment',
+  locked = false,
 }: {
   item: CaseInquiryRow
   locale: string
@@ -279,6 +302,7 @@ export function InquiryCard({
   letterUrl?: string
   filesPath?: string
   attachmentLabelKey?: string
+  locked?: boolean
 }) {
   const { t } = useTranslation()
   const [note, setNote] = useState(item.note ?? '')
@@ -418,7 +442,9 @@ export function InquiryCard({
           </span>
         </div>
       )}
-      {item.status === 'PENDING' ? (
+      {item.status === 'PENDING' && locked ? (
+        <InquiryFiles files={item.files} filesPath={filesPath} />
+      ) : item.status === 'PENDING' ? (
         <div className="mt-4 space-y-4">
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -482,19 +508,21 @@ export function InquiryCard({
           locale={locale}
           saving={saving}
           filesPath={filesPath}
-          onReopen={askReopen}
+          onReopen={locked ? undefined : askReopen}
         />
       ) : (
         <div className="space-y-2">
           {item.note ? <p className="text-sm whitespace-pre-wrap text-ink-800">{item.note}</p> : null}
           {item.decidedBy ? <p className="text-xs text-ink-500">{item.decidedBy.fullName}</p> : null}
           <InquiryFiles files={item.files} filesPath={filesPath} />
+          {locked ? null : (
           <div className="flex justify-end">
             <Button type="button" variant="ghost" disabled={saving} onClick={askReopen}>
               <RotateCcw className="size-4" aria-hidden />
               {t('cases.inquiryReopen')}
             </Button>
           </div>
+          )}
         </div>
       )}
     </article>
@@ -512,7 +540,7 @@ function ApprovedInquirySummary({
   locale: string
   saving: boolean
   filesPath: string
-  onReopen: () => void
+  onReopen?: () => void
 }) {
   const { t } = useTranslation()
   const elapsed =
@@ -563,12 +591,14 @@ function ApprovedInquirySummary({
         ) : null}
       </div>
       <InquiryFiles files={item.files} filesPath={filesPath} />
+      {onReopen ? (
       <div className="flex justify-end">
         <Button type="button" variant="ghost" disabled={saving} onClick={onReopen}>
           <RotateCcw className="size-4" aria-hidden />
           {t('cases.inquiryReopen')}
         </Button>
       </div>
+      ) : null}
     </div>
   )
 }

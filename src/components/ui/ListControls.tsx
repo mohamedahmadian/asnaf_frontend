@@ -317,6 +317,7 @@ export function EntityRowActions({
   extra,
   editTo,
   rowOpensView = false,
+  rowTo,
   onDelete,
   canDelete = true,
 }: {
@@ -329,26 +330,31 @@ export function EntityRowActions({
   editTo?: string
   /** If true, row click / Enter opens details instead of edit. */
   rowOpensView?: boolean
+  /** Row click / Enter opens this path when it should differ from the view button. */
+  rowTo?: string
   onDelete?: () => void
   canDelete?: boolean
 }) {
   const { t } = useTranslation()
   const label = viewLabel ?? t('common.view')
   const rowOpensEdit = Boolean(editTo) && !rowOpensView
+  const viewCarriesRow = !rowTo && !rowOpensEdit
+  const separateRowLink = Boolean(rowTo) || (!showView && !rowOpensEdit)
   return (
     <div data-row-actions className="flex flex-nowrap items-center gap-2 whitespace-nowrap">
       {showView ? (
-        <Link to={viewTo} {...(rowOpensEdit ? {} : { 'data-row-view': '' })}>
+        <Link to={viewTo} {...(viewCarriesRow ? { 'data-row-view': '' } : {})}>
           <Button type="button" variant="ghost" className={viewClassName}>
             <ViewIcon className="size-4" aria-hidden />
             {label}
           </Button>
         </Link>
-      ) : editTo && !rowOpensView ? null : (
-        <Link to={viewTo} data-row-view className="sr-only">
+      ) : null}
+      {separateRowLink ? (
+        <Link to={rowTo ?? viewTo} data-row-view tabIndex={showView ? -1 : undefined} className="sr-only">
           {label}
         </Link>
-      )}
+      ) : null}
       {extra}
       {editTo ? (
         <Link

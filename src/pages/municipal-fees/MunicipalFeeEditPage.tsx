@@ -1,5 +1,5 @@
 import { HandCoins } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -13,6 +13,7 @@ export function MunicipalFeeEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
   const returnTo = accountFeesReturnTo(searchParams.get('returnTo'))
   const query = useQuery({
@@ -24,7 +25,7 @@ export function MunicipalFeeEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -46,6 +47,8 @@ export function MunicipalFeeEditPage() {
         }}
         onSubmit={async ({ title, bankAccountId, amount, description, isActive }) => {
           await api.patch(`/municipal-fees/${id}`, { title, bankAccountId, amount, description, isActive })
+          await queryClient.invalidateQueries({ queryKey: ['municipal-fee', id] })
+          await queryClient.invalidateQueries({ queryKey: ['municipal-fees'] })
           toast.success(t('municipalFees.updated'))
           navigate(returnTo ?? '/base-info/municipal-fees')
         }}

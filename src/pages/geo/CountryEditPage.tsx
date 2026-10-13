@@ -1,5 +1,5 @@
 import { Globe } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ export function CountryEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['country', id],
     enabled: Boolean(id),
@@ -21,7 +22,7 @@ export function CountryEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -40,6 +41,8 @@ export function CountryEditPage() {
         }}
         onSubmit={async (payload) => {
           await api.patch(`/countries/${id}`, payload)
+          await queryClient.invalidateQueries({ queryKey: ['country', id] })
+          await queryClient.invalidateQueries({ queryKey: ['countries'] })
           toast.success(t('countries.updated'))
           navigate('/base-info/countries')
         }}

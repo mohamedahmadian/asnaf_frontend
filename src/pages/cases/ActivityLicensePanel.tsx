@@ -34,8 +34,12 @@ function licenseCopy(t: (key: string) => string) {
     expiresEn: t('cases.licenseDoc.expiresEn'),
     name: t('cases.licenseDoc.name'),
     nameEn: t('cases.licenseDoc.nameEn'),
-    father: t('cases.licenseDoc.father'),
-    fatherEn: t('cases.licenseDoc.fatherEn'),
+    gender: t('cases.licenseDoc.gender'),
+    genderEn: t('cases.licenseDoc.genderEn'),
+    male: t('cases.licenseDoc.male'),
+    maleEn: t('cases.licenseDoc.maleEn'),
+    female: t('cases.licenseDoc.female'),
+    femaleEn: t('cases.licenseDoc.femaleEn'),
     birth: t('cases.licenseDoc.birth'),
     birthEn: t('cases.licenseDoc.birthEn'),
     nationality: t('cases.licenseDoc.nationality'),
@@ -127,21 +131,25 @@ export function ActivityLicensePanel({
   }, [settings.data, contractYears, issuedAt])
   const query = useQuery({
     queryKey: ['cases', 'license', caseId],
-    queryFn: async () => {
-      const { data } = await api.get<ActivityLicense & { licenseNumber: string | null }>(`/cases/${caseId}/license`)
-      return data.licenseNumber ? data : null
-    },
+    queryFn: async () =>
+      (
+        await api.get<
+          | ActivityLicense
+          | { licenseNumber: null; firstName: string; lastName: string; gender: 'MALE' | 'FEMALE' | null }
+        >(`/cases/${caseId}/license`)
+      ).data,
   })
 
   async function output(action: 'print' | 'download') {
-    if (!query.data) return
+    const license = query.data
+    if (!license?.licenseNumber) return
     setBusy(action)
     try {
-      const photoUrl = await licensePhotoDataUrl(query.data.photoId)
-      const view = buildLicenseView(query.data, licenseCopy(t), photoUrl)
+      const photoUrl = await licensePhotoDataUrl(license.photoId)
+      const view = buildLicenseView(license, licenseCopy(t), photoUrl)
       const html = activityLicenseHtml(view)
       if (action === 'print') printActivityLicense(html)
-      else downloadActivityLicense(`${query.data.licenseNumber}.html`, html)
+      else downloadActivityLicense(`${license.licenseNumber}.html`, html)
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('cases.licenseFailed')))
     } finally {
@@ -183,7 +191,19 @@ export function ActivityLicensePanel({
   }
 
   if (query.isLoading) return <LoadingState />
-  if (query.isError || !query.data) {
+  const issued = query.data?.licenseNumber ? query.data : null
+  const applicant = query.data && !query.data.licenseNumber ? query.data : null
+  const applicantName = applicant ? `${applicant.firstName} ${applicant.lastName}`.replace(/\s+/g, ' ').trim() : ''
+  const honorific =
+    applicant?.gender === 'FEMALE'
+      ? t('cases.inquiryHonorificFemale')
+      : applicant?.gender === 'MALE'
+        ? t('cases.inquiryHonorificMale')
+        : ''
+  const issueLabel = applicantName
+    ? t('cases.issueLicenseFor', { person: honorific ? `${honorific} ${applicantName}` : applicantName })
+    : t('cases.issueLicense')
+  if (query.isError || !issued) {
     return (
       <FormCard icon={BadgeCheck} title={t('cases.steps.issuance')}>
         <div className={formCardBodyClassName}>
@@ -210,7 +230,7 @@ export function ActivityLicensePanel({
               />
             </FormField>
           </div>
-          <div className="flex justify-center">
+          <div className="flex justify-center pt-4">
             <Button
               type="button"
               aria-pressed
@@ -221,7 +241,7 @@ export function ActivityLicensePanel({
               }}
             >
               <BadgeCheck className="size-4" aria-hidden />
-              {t('cases.issueLicense')}
+              {issueLabel}
             </Button>
           </div>
           {confirming ? (
@@ -245,9 +265,9 @@ export function ActivityLicensePanel({
   }
 
   const view = buildLicenseView(
-    query.data,
+    issued,
     licenseCopy(t),
-    query.data.photoId ? getImageUrl(query.data.photoId) : null,
+    issued.photoId ? getImageUrl(issued.photoId) : null,
   )
 
   return (

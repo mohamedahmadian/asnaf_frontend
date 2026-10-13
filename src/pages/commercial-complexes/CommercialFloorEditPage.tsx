@@ -1,5 +1,5 @@
 import { Layers } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -13,6 +13,7 @@ export function CommercialFloorEditPage() {
   const { t } = useTranslation()
   const { complexId = '', floorId = '' } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['commercial-floor', complexId, floorId],
     enabled: Boolean(complexId && floorId),
@@ -22,7 +23,7 @@ export function CommercialFloorEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -41,6 +42,8 @@ export function CommercialFloorEditPage() {
         }}
         onSubmit={async (payload) => {
           await api.patch(commercialFloorApi(complexId, floorId), payload)
+          await queryClient.invalidateQueries({ queryKey: ['commercial-floor', complexId, floorId] })
+          await queryClient.invalidateQueries({ queryKey: ['commercial-floors', complexId] })
           toast.success(t('commercialFloors.updated'))
           navigate(commercialFloorsPath(complexId))
         }}

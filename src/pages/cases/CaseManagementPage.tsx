@@ -1,6 +1,8 @@
 import { BadgeCheck, Briefcase, Files, FolderKanban, Gavel, IdCard, Layers, ListOrdered, MapPinned, RefreshCw, UserRound, type LucideIcon } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { FormField, PageHeader, caseShellClassName } from '../../components/ui/Form'
 import {
   ActionsTh,
@@ -15,10 +17,12 @@ import { SearchSelect } from '../../components/ui/SearchSelect'
 import { useConfirmDelete } from '../../hooks/useConfirmDelete'
 import { useListParams } from '../../hooks/useListParams'
 import { useListSort } from '../../hooks/useListSort'
-import { api } from '../../lib/api'
+import { api, getApiErrorMessage } from '../../lib/api'
 import { DateText } from '../../components/ui/DateText'
 import { formatNumber, localizeDigits } from '../../lib/datetime'
 import type { Job, JobGroup, Paginated } from '../../types/app'
+import { CaseDeleteDependentsDialog } from './CaseDeleteDependentsDialog'
+import type { StewardRow } from './CaseStewardsSection'
 import { FORMATION_STEPS, STEWARDSHIP_STEPS } from './formation-types'
 
 type CaseListKind = 'ISSUANCE' | 'RENEWAL' | 'LOCATION_CHANGE' | 'AUCTION' | 'STEWARD_REQUEST' | 'STEWARD_CARD'
@@ -199,7 +203,11 @@ function CaseStepCell({
 export function CaseManagementPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
+  const queryClient = useQueryClient()
   const { confirmDelete } = useConfirmDelete()
+  const [checkingId, setCheckingId] = useState<string | null>(null)
+  const [dependentsDelete, setDependentsDelete] = useState<{ id: string; rows: StewardRow[] } | null>(null)
+  const [removingDependents, setRemovingDependents] = useState(false)
   const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams } = useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const step = searchParams.get('step') ?? ''
@@ -241,6 +249,47 @@ export function CaseManagementPage() {
 
   const rows = query.data?.items ?? []
   const filtered = Boolean(q || step || status || caseKind || jobGroupId || jobId)
+
+  function confirmCaseDelete(id: string) {
+    confirmDelete({
+      message: t('cases.confirmDelete'),
+      successMessage: t('cases.deleted'),
+      path: `/cases/${id}`,
+      queryKey: ['cases', 'list'],
+    })
+  }
+
+  async function askDelete(id: string) {
+    if (checkingId || dependentsDelete) return
+    setCheckingId(id)
+    try {
+      const { data } = await api.get<StewardRow[]>(`/cases/${id}/stewards`)
+      if (data.length) {
+        setDependentsDelete({ id, rows: data })
+        return
+      }
+      confirmCaseDelete(id)
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, t('common.error')))
+    } finally {
+      setCheckingId(null)
+    }
+  }
+
+  async function confirmDependentsDelete() {
+    if (!dependentsDelete || removingDependents) return
+    setRemovingDependents(true)
+    try {
+      await api.delete(`/cases/${dependentsDelete.id}`)
+      toast.success(t('cases.deleted'))
+      setDependentsDelete(null)
+      void queryClient.invalidateQueries({ queryKey: ['cases', 'list'] })
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, t('common.error')))
+    } finally {
+      setRemovingDependents(false)
+    }
+  }
 
   return (
     <div className={caseShellClassName}>
@@ -424,14 +473,7 @@ export function CaseManagementPage() {
                     showView={false}
                     rowOpensView
                     viewTo={`/cases/${item.id}`}
-                    onDelete={() =>
-                      confirmDelete({
-                        message: t('cases.confirmDelete'),
-                        successMessage: t('cases.deleted'),
-                        path: `/cases/${item.id}`,
-                        queryKey: ['cases', 'list'],
-                      })
-                    }
+                    onDelete={() => void askDelete(item.id)}
                   />
                 </td>
               </tr>
@@ -446,6 +488,16 @@ export function CaseManagementPage() {
           pageSize={query.data.pageSize}
           total={query.data.total}
           onPageChange={setPage}
+        />
+      ) : null}
+      {dependentsDelete ? (
+        <CaseDeleteDependentsDialog
+          rows={dependentsDelete.rows}
+          pending={removingDependents}
+          onClose={() => {
+            if (!removingDependents) setDependentsDelete(null)
+          }}
+          onConfirm={() => void confirmDependentsDelete()}
         />
       ) : null}
     </div>

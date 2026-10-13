@@ -43,7 +43,7 @@ export function SmsSettingsPage() {
         title={t('menus.smsSettings')}
         subtitle={t('sms.settingsSubtitle')}
       />
-      {query.data ? (
+      {query.isFetchedAfterMount && query.data ? (
         <SmsSettingsForm
           initial={query.data}
           onSubmit={async (payload) => {

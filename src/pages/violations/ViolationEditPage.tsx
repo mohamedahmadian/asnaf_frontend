@@ -1,5 +1,5 @@
 import { Gavel } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -14,13 +14,14 @@ export function ViolationEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['violation', id],
     enabled: Boolean(id),
     queryFn: async () => (await api.get<Violation>(`/violations/${id}`)).data,
   })
 
-  if (!query.data) return <LoadingState />
+  if (!query.data || !query.isFetchedAfterMount) return <LoadingState />
   const item = query.data
   const name = item.person?.fullName || item.nationalId
 
@@ -57,6 +58,8 @@ export function ViolationEditPage() {
           }
           appendFiles(body, payload.files)
           await api.patch(`/violations/${id}`, body)
+          await queryClient.invalidateQueries({ queryKey: ['violation', id] })
+          await queryClient.invalidateQueries({ queryKey: ['violations'] })
           toast.success(t('violations.updated'))
           navigate(violationsPath())
         }}

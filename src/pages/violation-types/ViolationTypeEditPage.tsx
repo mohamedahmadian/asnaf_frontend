@@ -1,5 +1,5 @@
 import { ShieldAlert } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ export function ViolationTypeEditPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['violation-type', id],
     enabled: Boolean(id),
@@ -21,7 +22,7 @@ export function ViolationTypeEditPage() {
     },
   })
 
-  if (!query.data) {
+  if (!query.data || !query.isFetchedAfterMount) {
     return <LoadingState />
   }
 
@@ -40,6 +41,8 @@ export function ViolationTypeEditPage() {
         }}
         onSubmit={async (payload) => {
           await api.patch(`/violation-types/${id}`, payload)
+          await queryClient.invalidateQueries({ queryKey: ['violation-type', id] })
+          await queryClient.invalidateQueries({ queryKey: ['violation-types'] })
           toast.success(t('violationTypes.updated'))
           navigate('/inspection/violation-types')
         }}
