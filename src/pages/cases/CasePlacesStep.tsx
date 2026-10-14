@@ -19,6 +19,7 @@ export function CasePlacesStep({
   autoAdvance,
   showAdvance = true,
   locked = false,
+  answerOnly = false,
   headerAction,
   onAdvanced,
   onRewound,
@@ -32,6 +33,8 @@ export function CasePlacesStep({
   /** در تمدید، ادامه را صفحهٔ فرایند می‌زند */
   showAdvance?: boolean
   locked?: boolean
+  /** فقط ثبت جواب تأییدیه؛ ادامه و بازگشایی نظر بسته است */
+  answerOnly?: boolean
   headerAction?: ReactNode
   onAdvanced: (formationStep: number) => void
   onRewound: () => void
@@ -62,7 +65,7 @@ export function CasePlacesStep({
   })
 
   useEffect(() => {
-    if (!autoAdvance || loading) return
+    if (answerOnly || !autoAdvance || loading) return
     if (pending) {
       autoAdvanceStarted.current = false
       return
@@ -71,7 +74,7 @@ export function CasePlacesStep({
     autoAdvanceStarted.current = true
     if (onAutoAdvance) onAutoAdvance()
     else advance.mutate()
-  }, [advance, autoAdvance, loading, onAutoAdvance, pending])
+  }, [advance, answerOnly, autoAdvance, loading, onAutoAdvance, pending])
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ['cases', 'formation-places', caseId] })
@@ -84,7 +87,7 @@ export function CasePlacesStep({
       title={t('cases.steps.places')}
       action={
         headerAction ??
-        (showAdvance ? (
+        (!answerOnly && showAdvance ? (
           <Button type="button" disabled={loading || pending || advance.isPending} onClick={() => advance.mutate()}>
             <Check className="size-4" aria-hidden />
             {t('cases.placesContinue')}
@@ -116,12 +119,13 @@ export function CasePlacesStep({
               <InquiryCard
                 item={item}
                 locale={locale}
-                decisionUrl={`/cases/formation/places/${item.id}/decision`}
+                decisionUrl={answerOnly ? `/cases/places/${item.id}/decision` : `/cases/formation/places/${item.id}/decision`}
                 reopenUrl={`/cases/formation/places/${item.id}/reopen`}
-                letterUrl={`/cases/formation/places/${item.id}/letter`}
+                letterUrl={answerOnly ? `/cases/places/${item.id}/letter` : `/cases/formation/places/${item.id}/letter`}
                 filesPath="/cases/places/files"
                 attachmentLabelKey="cases.placesAddAttachment"
                 locked={locked}
+                allowReopen={!answerOnly && !locked}
                 onChanged={() => void refresh()}
                 onReopened={onRewound}
                 onPrint={() => setPrintId(item.id)}
@@ -134,7 +138,7 @@ export function CasePlacesStep({
         <InquiryLetterModal
           inquiryId={printId}
           locale={locale}
-          letterUrl={`/cases/formation/places/${printId}/letter`}
+          letterUrl={answerOnly ? `/cases/places/${printId}/letter` : `/cases/formation/places/${printId}/letter`}
           onClose={() => setPrintId(null)}
         />
       ) : null}

@@ -17,6 +17,7 @@ import {
   Store,
   Tag,
   UserRound,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
@@ -82,12 +83,14 @@ export function ViolationForm({
   preset,
   currentViolationId,
   attachmentPreviewHref,
+  onCancel,
   onSubmit,
 }: {
   initial?: ViolationFormValue
   preset?: { nationalId: string; caseId: string }
   currentViolationId?: string
   attachmentPreviewHref?: (attachmentId: string) => string
+  onCancel?: () => void
   onSubmit: (payload: {
     nationalId: string
     violationTypeId: string
@@ -216,8 +219,27 @@ export function ViolationForm({
         icon={ShieldAlert}
         title={initial ? displayName : t('violations.create')}
         subtitle={initial ? undefined : t('violations.createSubtitle')}
+        className={onCancel ? 'flex max-h-[calc(100dvh-1rem)] flex-col' : ''}
+        action={
+          onCancel ? (
+            <Button
+              type="button"
+              variant="ghost"
+              icon
+              className="size-9"
+              onClick={onCancel}
+              aria-label={t('common.close')}
+            >
+              <X className="size-4" aria-hidden />
+            </Button>
+          ) : undefined
+        }
       >
-        <AppForm onSubmit={submit} className={formCardBodyClassName}>
+        <AppForm
+          onSubmit={submit}
+          autoFocusFirst={onCancel ? true : undefined}
+          className={`${formCardBodyClassName}${onCancel ? ' min-h-0 flex-1 overflow-y-auto' : ''}`}
+        >
           <FormField icon={IdCard} label={t('violations.nationalId')} htmlFor="violationNationalId">
             <input
               id="violationNationalId"
@@ -393,7 +415,8 @@ export function ViolationForm({
             submitLabel={t('violations.save')}
             cancelLabel={t('violations.cancel')}
             submitting={saving}
-            onCancel={() => history.back()}
+            headerIcons={onCancel ? false : undefined}
+            onCancel={onCancel ?? (() => history.back())}
           />
         </AppForm>
       </FormCard>

@@ -11,6 +11,7 @@ import {
   IdCard,
   Info,
   KeyRound,
+  Medal,
   MessageSquareText,
   MapPin,
   Phone,
@@ -20,6 +21,9 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { DateObject } from 'react-multi-date-picker'
+import gregorian from 'react-date-object/calendars/gregorian'
+import persian from 'react-date-object/calendars/persian'
 import { useNavigate, useParams } from 'react-router-dom'
 import { OpenUserPanelButton } from '../../components/auth/OpenUserPanelButton'
 import { SendUserSmsModal } from '../../components/sms/SendUserSmsModal'
@@ -41,7 +45,7 @@ import {
 } from '../../components/ui/FormLayout'
 import { RoleBadges } from '../../components/ui/RoleBadges'
 import { api, getImageUrl } from '../../lib/api'
-import { formatNumber } from '../../lib/datetime'
+import { formatNumber, fromIsoDateOnly, todayIsoDate, usesJalaliCalendar } from '../../lib/datetime'
 import { useGeoName } from '../../lib/geo'
 import type { ManagedUser } from '../../types/app'
 import { FORMATION_STEPS, STEWARDSHIP_STEPS } from '../cases/formation-types'
@@ -110,6 +114,8 @@ export function UserDossierPage() {
   if (!user) return <LoadingState />
 
   const cases = Array.isArray(casesQuery.data) ? casesQuery.data : []
+  const activityStart =
+    !casesQuery.isLoading && !casesQuery.isError ? earliestActivityStart(cases) : null
 
   return (
     <div className={userFormShellClassName}>
@@ -126,25 +132,15 @@ export function UserDossierPage() {
           subtitle={t('users.dossierAccountHint')}
           chips={user.roles?.length ? <RoleBadges roles={user.roles} /> : undefined}
           onClick={() => navigate(`/users/${user.id}`)}
-          action={
-            <div
-              className="flex flex-wrap items-center justify-end gap-2"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <Button type="button" variant="soft" onClick={() => setPasswordOpen(true)}>
-                <KeyRound className="size-4" aria-hidden />
-                {t('auth.changePassword')}
-              </Button>
-              <Button type="button" variant="soft" onClick={() => setSmsOpen(true)}>
-                <Send className="size-4" aria-hidden />
-                {t('sms.send')}
-              </Button>
-              <OpenUserPanelButton userId={user.id} status={user.status} />
-            </div>
+          headerClassName={
+            activityStart
+              ? '!p-0 !ps-5 sm:!ps-6 [&>div]:!items-stretch [&>div]:gap-0 [&>div>:first-child]:py-4 [&>div>:first-child]:ps-0'
+              : ''
           }
+          action={activityStart ? <ActivityTenureSeal startIso={activityStart} locale={locale} /> : undefined}
         >
           <div className={formCardBodyClassName}>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
               {user.photoId ? (
                 <img
                   src={getImageUrl(user.photoId)}
@@ -167,6 +163,20 @@ export function UserDossierPage() {
                 ) : null}
               </div>
             </div>
+            <div
+              className="flex flex-wrap items-center justify-center gap-2"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <Button type="button" variant="soft" onClick={() => setPasswordOpen(true)}>
+                <KeyRound className="size-4" aria-hidden />
+                {t('auth.changePassword')}
+              </Button>
+              <Button type="button" variant="soft" onClick={() => setSmsOpen(true)}>
+                <Send className="size-4" aria-hidden />
+                {t('sms.send')}
+              </Button>
+              <OpenUserPanelButton userId={user.id} status={user.status} />
+            </div>
           </div>
         </FormCard>
 
@@ -174,7 +184,10 @@ export function UserDossierPage() {
           <FormSectionTitle icon={Files} className="mb-0">
             {t('users.dossierCases')}
             {!casesQuery.isLoading && !casesQuery.isError ? (
-              <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-semibold text-teal-800 ring-1 ring-teal-100">
+              <span
+                className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-teal-500 bg-[linear-gradient(to_inline-end,var(--color-teal-500),var(--color-mint-500))] px-2.5 text-sm font-bold text-white shadow-[0_8px_16px_rgba(46,189,182,0.32)]"
+                aria-label={t('users.dossierCasesCount')}
+              >
                 {formatNumber(cases.length, locale)}
               </span>
             ) : null}
@@ -205,6 +218,122 @@ export function UserDossierPage() {
         <ChangeUserPasswordModal userId={user.id} phone={user.phone} onClose={() => setPasswordOpen(false)} />
       ) : null}
     </div>
+  )
+}
+
+function earliestActivityStart(cases: PersonCase[]) {
+  const dates = cases
+    .map((item) => (item.kind === 'STEWARDSHIP' ? item.cardIssuedAt ?? item.licenseIssuedAt : item.licenseIssuedAt))
+    .filter((value): value is string => Boolean(value))
+  if (dates.length === 0) return null
+  return dates.reduce((min, value) => (value < min ? value : min))
+}
+
+type TenureUnit = 'year' | 'month' | 'day'
+
+const TENURE_UNIT_KEY: Record<TenureUnit, 'users.dossierTenureYear' | 'users.dossierTenureMonth' | 'users.dossierTenureDay'> = {
+  year: 'users.dossierTenureYear',
+  month: 'users.dossierTenureMonth',
+  day: 'users.dossierTenureDay',
+}
+
+function calendarElapsed(startIso: string, locale: string) {
+  const todayIso = todayIsoDate()
+  if (startIso > todayIso) return { years: 0, months: 0, days: 1 }
+  const startSource = fromIsoDateOnly(startIso)
+  const todaySource = fromIsoDateOnly(todayIso)
+  if (!startSource || !todaySource) return null
+  const calendar = usesJalaliCalendar(locale) ? persian : gregorian
+  const start = new DateObject({
+    year: startSource.year,
+    month: startSource.month.number,
+    day: startSource.day,
+    calendar: gregorian,
+  }).convert(calendar)
+  const today = new DateObject({
+    year: todaySource.year,
+    month: todaySource.month.number,
+    day: todaySource.day,
+    calendar: gregorian,
+  }).convert(calendar)
+
+  let years = today.year - start.year
+  let months = today.month.number - start.month.number
+  let days = today.day - start.day
+  if (days < 0) {
+    months -= 1
+    const previousMonthEnd = new DateObject({
+      year: today.year,
+      month: today.month.number,
+      day: 1,
+      calendar,
+    })
+    previousMonthEnd.add(-1, 'day')
+    days += previousMonthEnd.day
+  }
+  if (months < 0) {
+    years -= 1
+    months += 12
+  }
+  if (years < 0 || (years === 0 && months === 0 && days === 0)) return { years: 0, months: 0, days: 1 }
+  return { years, months, days }
+}
+
+function tenurePieces(span: { years: number; months: number; days: number }) {
+  if (span.years > 0) {
+    const pieces: { value: number; unit: TenureUnit }[] = [{ value: span.years, unit: 'year' }]
+    if (span.months > 0) pieces.push({ value: span.months, unit: 'month' })
+    return pieces
+  }
+  if (span.months > 0) {
+    const pieces: { value: number; unit: TenureUnit }[] = [{ value: span.months, unit: 'month' }]
+    if (span.days > 0) pieces.push({ value: span.days, unit: 'day' })
+    return pieces
+  }
+  return [{ value: span.days, unit: 'day' as const }]
+}
+
+function ActivityTenureSeal({ startIso, locale }: { startIso: string; locale: string }) {
+  const { t } = useTranslation()
+  const span = calendarElapsed(startIso, locale)
+  if (!span) return null
+  const pieces = tenurePieces(span)
+  const label = pieces
+    .map((piece) => `${formatNumber(piece.value, locale)} ${t(TENURE_UNIT_KEY[piece.unit])}`)
+    .join(` ${t('users.dossierTenureAnd')} `)
+
+  return (
+    <aside
+      className="relative flex h-full min-w-36 flex-col items-center justify-center gap-1 self-stretch border-s border-teal-100 bg-gradient-to-b from-white via-mint-50/80 to-white px-4 py-3 text-center"
+      aria-label={`${t('users.dossierActivityTenure')}: ${label}`}
+    >
+      <span
+        className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(to_inline-end,var(--color-gold-400),var(--color-teal-500),var(--color-mint-500))]"
+        aria-hidden
+      />
+      <span className="flex items-center gap-1.5 text-[11px] font-bold text-teal-900">
+        <Medal className="size-3.5 text-gold-600" aria-hidden />
+        {t('users.dossierActivityTenure')}
+      </span>
+      <div className="flex items-end justify-center gap-1.5">
+        {pieces.map((piece, index) => (
+          <span key={piece.unit} className="flex items-end gap-1.5">
+            {index > 0 ? (
+              <span className="mb-1 text-[11px] font-bold text-gold-600">{t('users.dossierTenureAnd')}</span>
+            ) : null}
+            <span className="flex flex-col items-center">
+              <span
+                className={`font-bold leading-none tracking-tight text-teal-800 ${pieces.length === 1 ? 'text-4xl' : 'text-2xl'}`}
+              >
+                {formatNumber(piece.value, locale)}
+              </span>
+              <span className="mt-0.5 text-[11px] font-semibold text-ink-500">{t(TENURE_UNIT_KEY[piece.unit])}</span>
+            </span>
+          </span>
+        ))}
+      </div>
+      <p className="max-w-32 text-[10px] font-medium leading-4 text-ink-500">{t('users.dossierActivityTenureHint')}</p>
+    </aside>
   )
 }
 

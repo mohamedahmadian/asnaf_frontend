@@ -1,10 +1,11 @@
-import { IdCard, KeyRound, Phone, UserPlus, UserRound } from 'lucide-react'
+import { Eye, EyeOff, IdCard, KeyRound, Phone, UserPlus, UserRound } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   AppForm,
+  Button,
   FormActions,
   FormField,
   PageHeader,
@@ -45,6 +46,7 @@ export function UserRegisterPage() {
   const [phone, setPhone] = useState('')
   const [nationalId, setNationalId] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [phoneStatus, setPhoneStatus] = useState<UniqueCheckStatus>('idle')
   const [nationalIdStatus, setNationalIdStatus] = useState<UniqueCheckStatus>('idle')
@@ -189,8 +191,7 @@ export function UserRegisterPage() {
     if (!name) nextErrors.lastName = t('users.nameRequired')
     if (!phoneDigits) nextErrors.phone = t('users.phoneRequired')
     else if (!isPhoneReady(phoneDigits, true)) nextErrors.phone = t('users.phoneInvalid')
-    if (!id) nextErrors.nationalId = t('users.nationalIdRequired')
-    else if (!isValidIranianNationalId(id)) nextErrors.nationalId = t('users.nationalIdInvalid')
+    if (id && !isValidIranianNationalId(id)) nextErrors.nationalId = t('users.nationalIdInvalid')
     if (password.length < 8) nextErrors.password = t('users.passwordMin')
     if (Object.keys(nextErrors).length) {
       setFieldErrors(nextErrors)
@@ -205,7 +206,7 @@ export function UserRegisterPage() {
         firstName: given,
         lastName: name,
         phone: phoneDigits,
-        nationalId: id,
+        ...(id ? { nationalId: id } : {}),
         password,
       })
       toast.success(t('users.created'))
@@ -230,7 +231,7 @@ export function UserRegisterPage() {
         toast.error(taken)
         return
       }
-      if (message.includes('کد ملی') || message.includes('نام کاربری')) {
+      if (message.includes('کد ملی') || (id && message.includes('نام کاربری'))) {
         const taken = t('users.nationalIdTakenUnknown')
         setFieldErrors((current) => ({
           ...current,
@@ -308,6 +309,38 @@ export function UserRegisterPage() {
               />
             </UniqueFieldWrap>
           </FormField>
+          <FormField icon={KeyRound} label={t('users.password')} htmlFor="password" error={fieldErrors.password}>
+            <div className="flex items-center gap-2">
+              <input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                className={`${inputClassName(Boolean(fieldErrors.password))} digit-field min-w-0 flex-1`}
+                value={password}
+                required
+                minLength={8}
+                autoComplete="new-password"
+                onChange={(event) => {
+                  setPassword(event.target.value)
+                  clearErrors('password')
+                }}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                icon
+                className="shrink-0"
+                aria-pressed={showPassword}
+                aria-label={t(showPassword ? 'users.hidePassword' : 'users.showPassword')}
+                onClick={() => setShowPassword((current) => !current)}
+              >
+                {showPassword ? (
+                  <EyeOff className="size-4" aria-hidden />
+                ) : (
+                  <Eye className="size-4" aria-hidden />
+                )}
+              </Button>
+            </div>
+          </FormField>
           <FormField icon={IdCard} label={t('users.nationalId')} htmlFor="nationalId" error={fieldErrors.nationalId}>
             <UniqueFieldWrap
               status={nationalIdStatus}
@@ -318,7 +351,6 @@ export function UserRegisterPage() {
                 id="nationalId"
                 className={`${inputClassName(Boolean(fieldErrors.nationalId))} digit-field`}
                 value={nationalId}
-                required
                 inputMode="numeric"
                 autoComplete="off"
                 maxLength={10}
@@ -338,21 +370,6 @@ export function UserRegisterPage() {
                 }}
               />
             </UniqueFieldWrap>
-          </FormField>
-          <FormField icon={KeyRound} label={t('users.password')} htmlFor="password" error={fieldErrors.password}>
-            <input
-              id="password"
-              type="password"
-              className={inputClassName(Boolean(fieldErrors.password))}
-              value={password}
-              required
-              minLength={8}
-              autoComplete="new-password"
-              onChange={(event) => {
-                setPassword(event.target.value)
-                clearErrors('password')
-              }}
-            />
           </FormField>
           <FormActions
             headerIcons

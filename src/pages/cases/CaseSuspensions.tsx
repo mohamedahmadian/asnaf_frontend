@@ -8,7 +8,7 @@ import { confirmToast } from '../../components/ui/confirmToast'
 import { AppForm, Button, FormActions, FormField, fieldClassName } from '../../components/ui/Form'
 import { DateText } from '../../components/ui/DateText'
 import { FileDropField } from '../../components/ui/FileDropField'
-import { FormEmptyHint } from '../../components/ui/FormLayout'
+import { FormEmptyHint, FormFactTile, FormSectionTitle } from '../../components/ui/FormLayout'
 import { PersianDateField } from '../../components/ui/PersianDateField'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { formatNumber } from '../../lib/datetime'
@@ -558,7 +558,11 @@ export function CaseSuspensionsDialog({
 
   return createPortal(
     <>
-      <div className="fixed inset-0 z-[80] flex items-start justify-center bg-ink-900/30 p-4 pt-[10vh]" data-nested-dialog>
+      <div
+        className="fixed inset-0 z-[80] flex items-start justify-center bg-ink-900/30 p-4 pt-[10vh]"
+        data-nested-dialog
+        onClick={(event) => event.stopPropagation()}
+      >
         <button type="button" className="absolute inset-0 cursor-default" aria-label={t('common.close')} onClick={onClose} />
         <section
           role="dialog"
@@ -593,17 +597,31 @@ export function CaseSuspensionsDialog({
                 <li key={item.id}>
                   <button
                     type="button"
-                    onClick={() => setSelectedId(item.id)}
-                    className="flex w-full cursor-pointer flex-col gap-1.5 rounded-2xl border border-amber-100 bg-white px-3 py-3 text-start transition hover:border-amber-300 hover:bg-amber-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setSelectedId(item.id)
+                    }}
+                    className="flex w-full cursor-pointer items-start gap-3 rounded-2xl border border-amber-100 bg-white px-3 py-3 text-start transition hover:border-amber-300 hover:bg-amber-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
                   >
-                    <span className="flex items-center justify-between gap-2">
-                      <span className="min-w-0 truncate text-sm font-medium text-ink-900">{item.reason}</span>
-                      <SuspensionState item={item} />
+                    <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+                      <CirclePause className="size-4" aria-hidden />
                     </span>
-                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500">
-                      <DateText value={item.startsAt} />
-                      <span aria-hidden>—</span>
-                      <DateText value={item.endsAt} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate text-sm font-medium text-ink-900">{item.reason}</span>
+                        <SuspensionState item={item} />
+                      </span>
+                      <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500">
+                        <span className="inline-flex items-center gap-1">
+                          <CalendarDays className="size-3.5 shrink-0 text-amber-600" aria-hidden />
+                          <DateText value={item.startsAt} />
+                        </span>
+                        <span aria-hidden>—</span>
+                        <span className="inline-flex items-center gap-1">
+                          <CalendarClock className="size-3.5 shrink-0 text-amber-600" aria-hidden />
+                          <DateText value={item.endsAt} />
+                        </span>
+                      </span>
                     </span>
                   </button>
                 </li>
@@ -613,7 +631,11 @@ export function CaseSuspensionsDialog({
         </section>
       </div>
       {selected ? (
-        <div className="fixed inset-0 z-[90] flex items-start justify-center bg-ink-900/40 p-4 pt-[8vh]" data-nested-dialog>
+        <div
+          className="fixed inset-0 z-[90] flex items-start justify-center bg-ink-900/40 p-4 pt-[8vh]"
+          data-nested-dialog
+          onClick={(event) => event.stopPropagation()}
+        >
           <button
             type="button"
             className="absolute inset-0 cursor-default"
@@ -646,28 +668,48 @@ export function CaseSuspensionsDialog({
                 </button>
               </div>
             </header>
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-              <div className="flex justify-end">
-                <SuspensionState item={selected} />
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+              <FormSectionTitle icon={CirclePause} className="mb-0" action={<SuspensionState item={selected} />}>
+                {t('cases.suspendTitle')}
+              </FormSectionTitle>
+              <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+                <FormFactTile
+                  icon={CalendarDays}
+                  label={t('cases.suspendStartsAt')}
+                  value={<DateText value={selected.startsAt} />}
+                  tone="teal"
+                />
+                <FormFactTile
+                  icon={CalendarClock}
+                  label={t('cases.suspendEndsAt')}
+                  value={selected.endsAt ? <DateText value={selected.endsAt} /> : '—'}
+                  empty={!selected.endsAt}
+                  tone="mint"
+                />
+                <FormFactTile
+                  icon={MessageSquareText}
+                  label={t('cases.suspendReason')}
+                  value={selected.reason}
+                  className="sm:col-span-2"
+                />
+                {selected.liftNote ? (
+                  <FormFactTile
+                    icon={CirclePlay}
+                    label={t('cases.liftNote')}
+                    value={selected.liftNote}
+                    tone="mint"
+                    className="sm:col-span-2"
+                  />
+                ) : null}
               </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <p className="rounded-2xl bg-cream-50 px-3 py-2 text-sm text-ink-800">
-                  <span className="mb-1 block text-xs text-ink-500">{t('cases.suspendStartsAt')}</span>
-                  <DateText value={selected.startsAt} />
-                </p>
-                <p className="rounded-2xl bg-cream-50 px-3 py-2 text-sm text-ink-800">
-                  <span className="mb-1 block text-xs text-ink-500">{t('cases.suspendEndsAt')}</span>
-                  <DateText value={selected.endsAt} />
-                </p>
-              </div>
-              <p className="whitespace-pre-wrap text-sm leading-6 text-ink-800">{selected.reason}</p>
-              {selected.liftNote ? (
-                <p className="whitespace-pre-wrap rounded-2xl bg-teal-50 px-3 py-2 text-sm leading-6 text-teal-950 ring-1 ring-teal-100">
-                  <span className="mb-1 block text-xs text-teal-700">{t('cases.liftNote')}</span>
-                  {selected.liftNote}
-                </p>
+              {(selected.files ?? []).length ? (
+                <div className="space-y-3">
+                  <FormSectionTitle icon={Paperclip} className="mb-0">
+                    {t('cases.suspensionFile')}
+                  </FormSectionTitle>
+                  <SuspensionFiles files={selected.files ?? []} />
+                </div>
               ) : null}
-              <SuspensionFiles files={selected.files ?? []} />
             </div>
           </section>
         </div>

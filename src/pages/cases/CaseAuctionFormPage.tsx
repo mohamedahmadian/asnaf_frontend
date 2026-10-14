@@ -1,6 +1,6 @@
 import { BadgePercent, CalendarDays, Gavel, Heading, Package, Percent, Plus, Trash2 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -58,6 +58,28 @@ function hundredths(value: number) {
   return Math.round(value * 100)
 }
 
+function AuctionFormShell({
+  bare,
+  isEdit,
+  children,
+}: {
+  bare: boolean
+  isEdit: boolean
+  children: ReactNode
+}) {
+  const { t } = useTranslation()
+  if (bare) return children
+  return (
+    <FormCard
+      icon={Gavel}
+      title={t('cases.auction.wizardSteps.request')}
+      subtitle={isEdit ? undefined : t('cases.auction.createSubtitle')}
+    >
+      {children}
+    </FormCard>
+  )
+}
+
 function itemNameKey(name: string) {
   return name
     .trim()
@@ -68,7 +90,23 @@ function itemNameKey(name: string) {
 }
 
 export function CaseAuctionFormPage() {
-  const { id = '', requestId } = useParams()
+  return <AuctionRequestForm />
+}
+
+export function AuctionRequestForm({
+  caseId: caseIdProp,
+  requestId: requestIdProp,
+  bare = false,
+  onSaved,
+}: {
+  caseId?: string
+  requestId?: string
+  bare?: boolean
+  onSaved?: () => void
+} = {}) {
+  const params = useParams()
+  const id = caseIdProp ?? params.id ?? ''
+  const requestId = requestIdProp ?? params.requestId
   const isEdit = Boolean(requestId)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -115,18 +153,19 @@ export function CaseAuctionFormPage() {
   }, [defaultTitle, loaded.data])
 
   useEffect(() => {
-    if (!loaded.isError || redirected.current) return
+    if (bare || !loaded.isError || redirected.current) return
     redirected.current = true
     toast.error(getApiErrorMessage(loaded.error, t('common.error')))
     navigate(`/cases/${id}?stay=1`, { replace: true })
-  }, [id, loaded.error, loaded.isError, navigate, t])
+  }, [bare, id, loaded.error, loaded.isError, navigate, t])
 
   useEffect(() => {
-    if (!loaded.data || loaded.data.editable || redirected.current) return
+    if (bare || !loaded.data || loaded.data.editable || redirected.current) return
     redirected.current = true
-    toast.error(t('cases.auction.locked'))
+    const issued = loaded.data.status === 'ISSUED' || loaded.data.status === 'COMPLETED'
+    toast.error(t(issued ? 'cases.auction.issuedLocked' : 'cases.auction.locked'))
     navigate(`/cases/${id}/auction/${requestId}`, { replace: true })
-  }, [id, loaded.data, navigate, requestId, t])
+  }, [bare, id, loaded.data, navigate, requestId, t])
 
   const person = caseFile.data?.person
   const backTo = `/cases/${id}?stay=1`
@@ -240,8 +279,18 @@ export function CaseAuctionFormPage() {
         ? (await api.patch<AuctionRequest>(`/cases/${id}/auction/${requestId}`, body)).data
         : (await api.post<AuctionRequest>(`/cases/${id}/auction`, body)).data
       toast.success(t(isEdit ? 'cases.auction.updated' : 'cases.auction.saved'))
+      await queryClient.invalidateQueries({ queryKey: ['cases', 'auction', id, saved.id] })
       await queryClient.invalidateQueries({ queryKey: ['cases', 'home', id] })
-      navigate(`/cases/${id}/auction/${saved.id}?step=management`)
+      if (onSaved) {
+        onSaved()
+        return
+      }
+      const issued = saved.status === 'ISSUED' || saved.status === 'COMPLETED'
+      navigate(
+        issued
+          ? `/cases/${id}/auction/${saved.id}?step=issue`
+          : `/cases/${id}/auction/${saved.id}?step=management`,
+      )
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('common.error')))
     } finally {
@@ -250,7 +299,8 @@ export function CaseAuctionFormPage() {
   }
 
   return (
-    <div className={caseShellClassName}>
+    <div className={bare ? undefined : caseShellClassName}>
+      {bare ? null : (
       <PageHeader
         icon={Gavel}
         title={t('cases.auction.wizardTitle')}
@@ -281,14 +331,11 @@ export function CaseAuctionFormPage() {
         }
         backTo={backTo}
       />
-      {ready ? <AuctionWizardNav view={0} reached={reached} finished={finished} onStep={openWizardStep} /> : null}
+      )}
+      {bare ? null : ready ? <AuctionWizardNav view={0} reached={reached} finished={finished} onStep={openWizardStep} /> : null}
       {isEdit && loaded.isLoading ? <LoadingState /> : null}
       {ready && (!isEdit || loaded.data?.editable) ? (
-        <FormCard
-          icon={Gavel}
-          title={t('cases.auction.wizardSteps.request')}
-          subtitle={isEdit ? undefined : t('cases.auction.createSubtitle')}
-        >
+        <AuctionFormShell bare={bare} isEdit={isEdit}>
           <AppForm onSubmit={submit} className={formCardBodyClassName}>
             <FormField icon={Heading} label={t('cases.auction.licenseTitle')} htmlFor="auctionTitle">
               <input
@@ -415,14 +462,34 @@ export function CaseAuctionFormPage() {
               {t('cases.auction.addItem')}
             </Button>
             <FormActions
+              headerIcons={bare ? false : undefined}
               submitLabel={t('common.save')}
               cancelLabel={t('common.cancel')}
               submitting={saving}
-              onCancel={() => navigate(backTo)}
+              onCancel={() => {
+                const data = loaded.data
+                if (bare && data) {
+                  setTitle(data.title?.trim() || defaultTitle)
+                  setStartsAt(data.startsAt)
+                  setEndsAt(data.endsAt)
+                  setDiscountMin(String(data.discountMin))
+                  setDiscountMax(String(data.discountMax))
+                  setItems(
+                    data.items.map((item) => ({
+                      key: item.id,
+                      name: item.name,
+                      price: String(item.price),
+                      discountPercent: String(item.discountPercent),
+                    })),
+                  )
+                  return
+                }
+                navigate(backTo)
+              }}
               cancelEnd
             />
           </AppForm>
-        </FormCard>
+        </AuctionFormShell>
       ) : null}
     </div>
   )

@@ -116,6 +116,8 @@ export type NavMenu = {
   path: string;
   icon: string;
   sortOrder: number;
+  /** برچسب نمایشی؛ اگر باشد به‌جای ترجمهٔ nameKey در منو و بردکرامب می‌آید. */
+  label?: string;
 };
 
 export type NavModule = {
@@ -176,6 +178,7 @@ export type AuthUser = {
   positionId?: string | null;
   position?: { id: string; code: string | null; name: string } | null;
   isNutritionRep?: boolean;
+  inquiryCenters?: { id: string; name: string }[];
 };
 
 export type Caravan = {
@@ -1005,9 +1008,6 @@ export type ManagedUser = {
   workUnit?: { id: string; title: string } | null;
   staffPost?: { id: string; title: string } | null;
   photoId: string | null;
-  nationalCardPhotoId: string | null;
-  passportPhotoId: string | null;
-  identityBookletPhotoId: string | null;
   createdAt: string;
   updatedAt: string;
   roles: RoleOption[];
@@ -1382,7 +1382,6 @@ export type JobDocumentRef = {
   title: string;
   isRequired: boolean;
   gender: DocumentGender;
-  isFixed: boolean;
 };
 
 export type Job = {
@@ -1415,9 +1414,6 @@ export type DocumentGender = (typeof documentGenders)[keyof typeof documentGende
 export type DocumentItem = {
   id: string;
   title: string;
-  isRequired: boolean;
-  gender: DocumentGender;
-  isFixed: boolean;
   createdAt: string;
   updatedAt: string;
 };

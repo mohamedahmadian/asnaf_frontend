@@ -12,7 +12,9 @@ import { confirmToast } from '../../components/ui/confirmToast'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { formatGroupedNumber, formatNumber, localizeDigits } from '../../lib/datetime'
 import { AuctionCaseSubtitle, AuctionStepRing, AuctionWizardNav, auctionIssueButtonLabel } from './AuctionWizard'
+import { AuctionRequestForm } from './CaseAuctionFormPage'
 import { CaseManagementReviewStep, type CaseManagementApproverRow } from './CaseManagementReviewStep'
+import { useCaseCapabilities } from './case-capabilities'
 import {
   AUCTION_WIZARD_STEPS,
   auctionWizardFinished,
@@ -46,6 +48,8 @@ function wizardStepIndex(value: string | null) {
 
 export function CaseAuctionDetailPage() {
   const { id = '', requestId = '' } = useParams()
+  const { placesViewer, managementReviewer, issuerViewer, canIssue, managementRoleIds } = useCaseCapabilities()
+  const visitor = placesViewer || managementReviewer || issuerViewer
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -86,7 +90,13 @@ export function CaseAuctionDetailPage() {
   const person = caseFile.data?.person
   const personName = [person?.firstName, person?.lastName].filter(Boolean).join(' ') || person?.fullName || ''
   const approvalsComplete = managementApproved(reviews.data)
-  const backTo = `/cases/${id}?stay=1`
+  const backTo = placesViewer
+    ? '/cases/places'
+    : managementReviewer
+      ? '/cases/management-reviews'
+      : issuerViewer
+        ? '/cases/issuance'
+        : `/cases/${id}?stay=1`
   const reached = Math.max(
     auctionWizardReached(item),
     approvalsComplete && item && item.status !== 'REJECTED' && item.status !== 'CANCELLED' ? 2 : 0,
@@ -96,27 +106,31 @@ export function CaseAuctionDetailPage() {
   const step = Math.min(requestedStep ?? reached, reached)
   const stepCurrent = Math.min(reached + 1, AUCTION_WIZARD_STEPS.length)
   const stepTotal = AUCTION_WIZARD_STEPS.length
-  const showIssue = Boolean(item && item.status === 'OPEN' && (item.canIssue || approvalsComplete))
+  const showIssue = Boolean(canIssue && item && item.status === 'OPEN' && (item.canIssue || approvalsComplete))
+  const draftEditable = Boolean(
+    item && item.status === 'OPEN' && item.approvals.every((row) => row.status === 'PENDING'),
+  )
+  const showPrivilegedEdit = Boolean(!visitor && item?.editable && !draftEditable)
 
   useEffect(() => {
-    if (!item?.editable || step !== 0) return
+    if (visitor || !item?.editable || showPrivilegedEdit || step !== 0) return
     navigate(`/cases/${id}/auction/${requestId}/edit`, { replace: true })
-  }, [id, item?.editable, navigate, requestId, step])
+  }, [id, item?.editable, navigate, visitor, requestId, showPrivilegedEdit, step])
 
   useEffect(() => {
-    if (reviews.isLoading) return
+    if (!canIssue || reviews.isLoading) return
     if (!approvalsComplete) {
       keepManagement.current = false
       return
     }
     if (step !== 1 || keepManagement.current) return
     setParams({ step: 'issue' }, { replace: true })
-  }, [approvalsComplete, reviews.isLoading, setParams, step])
+  }, [approvalsComplete, canIssue, reviews.isLoading, setParams, step])
 
   function openStep(index: number) {
     keepManagement.current = index === 1 && approvalsComplete
     if (index > reached) return
-    if (index === 0 && item?.editable) {
+    if (!visitor && index === 0 && item?.editable && !showPrivilegedEdit) {
       navigate(`/cases/${id}/auction/${requestId}/edit`)
       return
     }
@@ -224,7 +238,11 @@ export function CaseAuctionDetailPage() {
       {query.isLoading ? <LoadingState /> : null}
       {item && step === 0 ? (
         <FormCard icon={Gavel} title={t('cases.auction.wizardSteps.request')}>
-          <div className={formCardBodyClassName}>{summary}</div>
+          {showPrivilegedEdit ? (
+            <AuctionRequestForm caseId={id} requestId={requestId} bare onSaved={refreshAuction} />
+          ) : (
+            <div className={formCardBodyClassName}>{summary}</div>
+          )}
         </FormCard>
       ) : null}
       {item && step === 1 ? (
@@ -234,6 +252,8 @@ export function CaseAuctionDetailPage() {
           loading={reviews.isLoading}
           autoAdvance={false}
           showAdvance={false}
+          locked={false}
+          ownRoleIds={managementRoleIds}
           onAdvanced={() => undefined}
           onRewound={refreshAuction}
           onChanged={refreshAuction}
@@ -241,17 +261,25 @@ export function CaseAuctionDetailPage() {
       ) : null}
       {item && step === 2 ? (
         <FormCard icon={BadgeCheck} title={finished ? t('cases.auction.title') : t('cases.auction.wizardSteps.issue')}>
-          <div className={formCardBodyClassName}>
-            {summary}
+          <div className={showPrivilegedEdit ? undefined : formCardBodyClassName}>
+            {showPrivilegedEdit ? (
+              <AuctionRequestForm caseId={id} requestId={requestId} bare onSaved={refreshAuction} />
+            ) : (
+              summary
+            )}
             {showIssue ? (
-              <div className="flex justify-center">
+              <div className={`flex justify-center ${showPrivilegedEdit ? 'px-5 pb-2 sm:px-6' : ''}`}>
                 <Button type="button" disabled={savingId === 'issue'} onClick={askIssue}>
                   <BadgeCheck className="size-4" aria-hidden />
                   {auctionIssueButtonLabel(t, locale, personName, item.items.length)}
                 </Button>
               </div>
             ) : null}
-            {finished ? <p className="text-sm font-medium text-teal-800">{t('cases.auction.issued')}</p> : null}
+            {finished ? (
+              <p className={`text-sm font-medium text-teal-800 ${showPrivilegedEdit ? 'px-5 pb-5 sm:px-6' : ''}`}>
+                {t('cases.auction.issued')}
+              </p>
+            ) : null}
           </div>
         </FormCard>
       ) : null}

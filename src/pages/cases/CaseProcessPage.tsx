@@ -3,13 +3,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { AppForm, Button, EntityNameSubtitle, FormField, PageHeader, caseShellClassName, inputClassName } from '../../components/ui/Form'
 import { PersianDateField } from '../../components/ui/PersianDateField'
 import { DateText } from '../../components/ui/DateText'
 import { CopyableDigits } from '../../components/ui/CopyableDigits'
-import { FormCard, FormFactTile, FormSectionTitle, formCardBodyClassName } from '../../components/ui/FormLayout'
+import { FormCard, FormEmptyHint, FormFactTile, FormSectionTitle, formCardBodyClassName } from '../../components/ui/FormLayout'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { addYearsIso, formatNumber, localizeDigits } from '../../lib/datetime'
@@ -24,6 +24,7 @@ import { CasePlacesStep } from './CasePlacesStep'
 import type { CaseInquiryRow } from './inquiry-types'
 import { emptyLocationForm, type DocumentTypeRow, type LocationForm, type StoredVersion } from './formation-types'
 import { AuctionCaseSubtitle, AuctionStepRing } from './AuctionWizard'
+import { useCaseCapabilities } from './case-capabilities'
 
 const RENEWAL_STEPS = ['terms', 'documents', 'inquiries', 'places', 'management', 'issue'] as const
 const LOCATION_STEPS = ['location', 'documents', 'inquiries', 'places', 'management', 'request'] as const
@@ -77,6 +78,8 @@ type ProcessState = {
   userId: string | null
   number: string
   type: 'RENEWAL' | 'LOCATION_CHANGE'
+  status: 'OPEN' | 'ISSUED' | 'COMPLETED' | 'REJECTED' | 'CANCELLED'
+  canEdit: boolean
   formationStep: number
   licenseNumber: string | null
   licenseIssuedAt: string | null
@@ -131,6 +134,16 @@ function locationFrom(value: CurrentLocation | ProcessState['location']): Locati
 
 export function CaseProcessPage() {
   const { id = '' } = useParams()
+  const [searchParams] = useSearchParams()
+  const { user, admin, placesViewer, managementReviewer, issuerViewer, canForm, canIssue, managementRoleIds } =
+    useCaseCapabilities()
+  const focusPlaces = placesViewer && searchParams.get('focus') === 'places'
+  const focusManagement = managementReviewer && searchParams.get('focus') === 'management'
+  const focusIssuance = issuerViewer && searchParams.get('focus') === 'issuance'
+  const placesFocused = useRef(false)
+  const managementFocused = useRef(false)
+  const issuanceFocused = useRef(false)
+  const requestIdParam = searchParams.get('requestId') ?? ''
   const navigate = useNavigate()
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
@@ -148,9 +161,14 @@ export function CaseProcessPage() {
   const renewalExpiresTouched = useRef(false)
   const renewalSaveTail = useRef(Promise.resolve())
   const process = useQuery({
-    queryKey: ['cases', 'process', id],
+    queryKey: ['cases', 'process', id, requestIdParam],
     enabled: Boolean(id),
-    queryFn: async () => (await api.get<ProcessState>(`/cases/${id}/process`)).data,
+    queryFn: async () =>
+      (
+        await api.get<ProcessState>(`/cases/${id}/process`, {
+          params: requestIdParam ? { requestId: requestIdParam } : {},
+        })
+      ).data,
   })
   const requestId = process.data?.id
   const requirements = useQuery({
@@ -218,6 +236,8 @@ export function CaseProcessPage() {
   })
 
   const item = process.data
+  const closed = item?.canEdit === false
+  const openFlow = item?.status === 'OPEN'
   const form = location ?? (item ? locationFrom(item.location) : emptyLocationForm())
   const needsDocuments = requirements.isSuccess && (requirements.data ?? []).some((row) => row.isRequired)
   const wizard = item?.type === 'RENEWAL' || item?.type === 'LOCATION_CHANGE'
@@ -235,10 +255,30 @@ export function CaseProcessPage() {
     if (item?.type === 'LOCATION_CHANGE') return LOCATION_STEP_INDEX[name as LocationStepName]
     return RENEWAL_STEPS.indexOf(name as (typeof RENEWAL_STEPS)[number])
   }
+  useEffect(() => {
+    if (!placesViewer || !focusPlaces || placesFocused.current || !item) return
+    placesFocused.current = true
+    const index = wizardIndex('places')
+    if (index >= 0) setViewStep(index)
+  }, [focusPlaces, item, placesViewer])
+  useEffect(() => {
+    if (!managementReviewer || !focusManagement || managementFocused.current || !item) return
+    managementFocused.current = true
+    const index = wizardIndex('management')
+    if (index >= 0) setViewStep(index)
+  }, [focusManagement, item, managementReviewer])
+  useEffect(() => {
+    if (!issuerViewer || !focusIssuance || issuanceFocused.current || !item) return
+    issuanceFocused.current = true
+    const index = item.type === 'LOCATION_CHANGE' ? wizardIndex('request') : wizardIndex('issue')
+    if (index >= 0) setViewStep(index)
+  }, [focusIssuance, issuerViewer, item])
   const reached = item?.formationStep ?? 0
-  const progress = hideDocuments && reached === 1 ? 2 : reached
-  const serverStep = Math.min(viewStep ?? reached, reached)
+  const review = Boolean(item && !openFlow)
+  const progress = review ? 6 : hideDocuments && reached === 1 ? 2 : reached
+  const serverStep = Math.min(viewStep ?? (review ? 0 : reached), reached)
   const step = hideDocuments && serverStep === 1 ? 2 : serverStep
+  const locked = closed || (step >= 5 ? !canIssue : !canForm)
   const documentsMissing = useMemo(() => {
     if (!requestId || requirements.isLoading || !stored.isSuccess) return false
     const uploaded = new Set((stored.data ?? []).filter((row) => row.current).map((row) => row.documentId))
@@ -283,6 +323,7 @@ export function CaseProcessPage() {
       const commercialComplex = form.establishment === 'COMMERCIAL_COMPLEX'
       await api.post('/cases/formation/location-draft', {
         caseId: id,
+        requestId: item.id,
         cityId: form.cityId,
         establishment: form.establishment,
         complexId: commercialComplex ? form.complexId : null,
@@ -306,6 +347,7 @@ export function CaseProcessPage() {
         ownerName: form.ownership === 'RENTED' ? form.ownerName || null : null,
       })
       await process.refetch()
+      if (item.status !== 'OPEN') toast.success(t('cases.locationDraftSaved'))
       return true
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('cases.saveFailed')))
@@ -335,6 +377,7 @@ export function CaseProcessPage() {
 
   function scheduleRenewalSave(notify: boolean) {
     const task = renewalSaveTail.current.then(async () => {
+      if (item?.canEdit === false) return true
       const { issued, expires } = renewalDates.current
       if (!issued || !expires) {
         if (notify) toast.error(t('cases.issueLicenseDatesRequired'))
@@ -348,6 +391,7 @@ export function CaseProcessPage() {
       try {
         await api.post('/cases/formation/renewal-dates', {
           caseId: id,
+          requestId: item?.id,
           nextIssuedAt: issued,
           nextExpiresAt: expires,
         })
@@ -376,11 +420,11 @@ export function CaseProcessPage() {
 
   async function goToStep(index: number) {
     if (index > reached || (hideDocuments && index === 1)) return
-    if (item?.type === 'RENEWAL' && (step === 0 || step === 5) && index !== step) {
+    if (!locked && item?.type === 'RENEWAL' && (step === 0 || step === 5) && index !== step) {
       const saved = await scheduleRenewalSave(true)
       if (!saved) return
     }
-    if (item?.type === 'LOCATION_CHANGE' && (step === 0 || step === 5) && index !== step) {
+    if (!locked && item?.type === 'LOCATION_CHANGE' && (step === 0 || step === 5) && index !== step) {
       const saved = await saveDraft()
       if (!saved) return
     }
@@ -388,7 +432,14 @@ export function CaseProcessPage() {
   }
 
   useEffect(() => {
-    if ((item?.type !== 'RENEWAL' && item?.type !== 'LOCATION_CHANGE') || !hideDocuments || item.formationStep !== 1) return
+    if (
+      !canForm ||
+      (item?.type !== 'RENEWAL' && item?.type !== 'LOCATION_CHANGE') ||
+      item.status !== 'OPEN' ||
+      !hideDocuments ||
+      item.formationStep !== 1
+    )
+      return
     let cancelled = false
     setBusy(true)
     void (async () => {
@@ -406,10 +457,10 @@ export function CaseProcessPage() {
     return () => {
       cancelled = true
     }
-  }, [hideDocuments, id, item?.formationStep, item?.type, queryClient, t])
+  }, [canForm, hideDocuments, id, item?.formationStep, item?.status, item?.type, queryClient, t])
 
   async function continueProcess() {
-    if (!item) return
+    if (!item || item.status !== 'OPEN') return
     if (item.type === 'RENEWAL' && (serverStep === 0 || serverStep === 5)) {
       const saved = await scheduleRenewalSave(true)
       if (!saved) return
@@ -426,7 +477,7 @@ export function CaseProcessPage() {
     try {
       const finalStep = item.type === 'RENEWAL' || item.type === 'LOCATION_CHANGE' ? 5 : 4
       if (serverStep >= finalStep) {
-        await api.post('/cases/formation/complete', { caseId: id, step: finalStep })
+        await api.post('/cases/issuance/complete', { caseId: id, step: finalStep })
         toast.success(item.type === 'RENEWAL' ? t('cases.renewLicenseDone') : t('cases.processCompleted'))
         navigate(`/cases/${id}?stay=1`)
         return
@@ -472,7 +523,28 @@ export function CaseProcessPage() {
   const locationActionLabel = nextStepName
     ? t('cases.processContinueToStep', { step: wizardStepTitle(nextStepName) })
     : t('cases.processContinue')
-  const wizardContinue = wizard ? (
+  async function saveFinishedStep() {
+    if (!item || locked) return
+    if (item.type === 'RENEWAL') {
+      const saved = await scheduleRenewalSave(true)
+      if (saved) toast.success(t('cases.renewalDatesSaved'))
+      return
+    }
+    if (item.type === 'LOCATION_CHANGE') await saveDraft()
+  }
+
+  const finishedSave =
+    wizard && !openFlow && !locked && (step === 0 || step === 5) ? (
+      <Button type="button" disabled={busy} onClick={() => void saveFinishedStep()}>
+        <Check className="size-4" aria-hidden />
+        {t('common.save')}
+      </Button>
+    ) : null
+  const mayContinue =
+    openFlow &&
+    wizard &&
+    ((canForm && step < 2) || (admin && step >= 2 && step < 5) || (canIssue && step >= 5))
+  const wizardContinue = mayContinue ? (
     <Button
       type="button"
       disabled={
@@ -597,6 +669,11 @@ export function CaseProcessPage() {
           })}
         </ol>
       ) : null}
+      {locked ? (
+        <FormEmptyHint>
+          {t(item?.type === 'LOCATION_CHANGE' ? 'cases.locationEditLocked' : 'cases.renewalEditLocked')}
+        </FormEmptyHint>
+      ) : null}
       {process.isLoading ? <LoadingState /> : null}
       {item?.type === 'RENEWAL' && item.renewal && step === 0 ? (
         <FormCard
@@ -615,7 +692,7 @@ export function CaseProcessPage() {
               />
             ) : undefined
           }
-          action={wizardContinue}
+          action={wizardContinue ?? finishedSave}
         >
           <div className={formCardBodyClassName}>
             <RenewalCurrentSection renewal={item.renewal} locale={locale} />
@@ -625,10 +702,11 @@ export function CaseProcessPage() {
               </FormSectionTitle>
               <div className="grid gap-3 sm:grid-cols-2">
                 <FormField icon={CalendarDays} label={t('cases.renewalNextIssued')} htmlFor="renewal-next-issued">
-                  <PersianDateField
+                  <RenewalDateInput
                     id="renewal-next-issued"
-                    value={renewalIssued || undefined}
+                    value={renewalIssued}
                     maxDate={renewalExpires || undefined}
+                    locked={locked}
                     onChange={(value) => {
                       const issued = value ?? ''
                       const expires = renewalExpiresTouched.current
@@ -640,10 +718,11 @@ export function CaseProcessPage() {
                   />
                 </FormField>
                 <FormField icon={CalendarDays} label={t('cases.renewalNextExpires')} htmlFor="renewal-next-expires">
-                  <PersianDateField
+                  <RenewalDateInput
                     id="renewal-next-expires"
-                    value={renewalExpires || undefined}
+                    value={renewalExpires}
                     minDate={renewalIssued || undefined}
+                    locked={locked}
                     onChange={(value) => {
                       renewalExpiresTouched.current = true
                       rememberRenewalDates(renewalIssued, value ?? '')
@@ -666,7 +745,7 @@ export function CaseProcessPage() {
                 <Eye className="size-4" aria-hidden />
                 {t('cases.viewCurrentLocation')}
               </Button>
-              {wizardContinue}
+              {wizardContinue ?? finishedSave}
             </div>
           }
         >
@@ -678,17 +757,37 @@ export function CaseProcessPage() {
               places={[]}
               locale={locale}
               hideRegistrationPlace
-              onUseCurrentSection={(section) => {
-                if (!item.currentLocation) return
-                const current = locationFrom(item.currentLocation)
-                const patch = Object.fromEntries(
-                  LOCATION_SECTION_FIELDS[section].map((key) => [key, current[key]]),
-                ) as Partial<LocationForm>
-                setLocation({ ...form, ...patch })
-                toast.success(t('cases.currentSectionFilled'))
+              locked={locked}
+              onUseCurrentSection={
+                locked
+                  ? undefined
+                  : (section) => {
+                      if (!item.currentLocation) return
+                      const current = locationFrom(item.currentLocation)
+                      const patch = Object.fromEntries(
+                        LOCATION_SECTION_FIELDS[section].map((key) => [key, current[key]]),
+                      ) as Partial<LocationForm>
+                      setLocation({ ...form, ...patch })
+                      toast.success(t('cases.currentSectionFilled'))
+                    }
+              }
+              onChange={(patch) => {
+                if (!locked) setLocation({ ...form, ...patch })
               }}
-              onChange={(patch) => setLocation({ ...form, ...patch })}
-              onSubmit={() => void continueProcess()}
+              onSubmit={() => {
+                if (openFlow) void continueProcess()
+                else if (!locked) void saveDraft()
+              }}
+              actions={
+                !openFlow && !locked ? (
+                  <div className="flex justify-center pt-2">
+                    <Button type="submit" disabled={busy}>
+                      <Check className="size-4" aria-hidden />
+                      {t('common.save')}
+                    </Button>
+                  </div>
+                ) : undefined
+              }
             />
           </div>
         </FormCard>
@@ -698,7 +797,8 @@ export function CaseProcessPage() {
           <AppForm
             onSubmit={(event) => {
               event.preventDefault()
-              void continueProcess()
+              if (openFlow && canIssue) void continueProcess()
+              else if (!locked) void saveDraft()
             }}
             className={formCardBodyClassName}
           >
@@ -729,28 +829,43 @@ export function CaseProcessPage() {
                 <textarea
                   id="location-new-address"
                   required
+                  readOnly={locked}
                   rows={2}
-                  className={inputClassName()}
+                  className={`${inputClassName()} ${locked ? 'bg-cream-100' : ''}`}
                   value={form.address}
-                  onChange={(event) => setLocation({ ...form, address: event.target.value })}
+                  onChange={(event) => {
+                    if (!locked) setLocation({ ...form, address: event.target.value })
+                  }}
                 />
               </FormField>
               <FormField icon={Hash} label={t('cases.premisePostalCode')} htmlFor="location-new-postal">
                 <input
                   id="location-new-postal"
+                  readOnly={locked}
                   inputMode="numeric"
-                  className={`${inputClassName()} digit-field`}
+                  className={`${inputClassName()} digit-field ${locked ? 'bg-cream-100' : ''}`}
                   value={form.postalCode}
-                  onChange={(event) => setLocation({ ...form, postalCode: event.target.value })}
+                  onChange={(event) => {
+                    if (!locked) setLocation({ ...form, postalCode: event.target.value })
+                  }}
                 />
               </FormField>
             </section>
-            <div className="flex justify-center pt-2">
-              <Button type="submit" disabled={busy}>
-                <BadgeCheck className="size-4" aria-hidden />
-                {t('cases.locationRequestIssue')}
-              </Button>
-            </div>
+            {openFlow && canIssue ? (
+              <div className="flex justify-center pt-2">
+                <Button type="submit" disabled={busy}>
+                  <BadgeCheck className="size-4" aria-hidden />
+                  {t('cases.locationRequestIssue')}
+                </Button>
+              </div>
+            ) : locked ? null : (
+              <div className="flex justify-center pt-2">
+                <Button type="submit" disabled={busy}>
+                  <Check className="size-4" aria-hidden />
+                  {t('common.save')}
+                </Button>
+              </div>
+            )}
           </AppForm>
         </FormCard>
       ) : null}
@@ -762,6 +877,7 @@ export function CaseProcessPage() {
               stored={stored.data ?? []}
               uploadingId={uploadingId}
               disabled={false}
+              readOnly={locked}
               layout={wizard ? 'tabs' : 'grid'}
               emphasizeRequired={wizard}
               onFile={(documentId, file) => void upload(documentId, file)}
@@ -774,7 +890,10 @@ export function CaseProcessPage() {
           caseId={id}
           items={inquiries.data ?? []}
           loading={inquiries.isLoading}
-          autoAdvance={reached === 2 && step === 2}
+          actorId={user?.id}
+          adminDecide={admin}
+          closed={closed}
+          autoAdvance={admin && reached === 2 && step === 2 && openFlow}
           showAdvance={false}
           headerAction={wizard ? wizardContinue : undefined}
           onAdvanced={() => undefined}
@@ -791,9 +910,11 @@ export function CaseProcessPage() {
           caseId={id}
           item={placesReview.data ?? null}
           loading={placesReview.isLoading}
-          autoAdvance={reached === 3 && step === 3}
+          locked={closed || (!admin && !placesViewer)}
+          answerOnly={placesViewer && !admin}
+          autoAdvance={admin && reached === 3 && step === 3 && openFlow}
           showAdvance={false}
-          headerAction={wizardContinue}
+          headerAction={mayContinue ? wizardContinue : undefined}
           onAdvanced={() => undefined}
           onAutoAdvance={() => void continueProcess()}
           onRewound={() => {
@@ -808,9 +929,11 @@ export function CaseProcessPage() {
           caseId={id}
           items={reviews.data ?? []}
           loading={reviews.isLoading}
+          locked={closed}
+          ownRoleIds={managementRoleIds}
           autoAdvance={false}
           showAdvance={false}
-          headerAction={wizard ? wizardContinue : undefined}
+          headerAction={wizard && mayContinue ? wizardContinue : undefined}
           onAdvanced={() => undefined}
           onRewound={() => {
             setViewStep(null)
@@ -843,10 +966,11 @@ export function CaseProcessPage() {
               </FormSectionTitle>
               <div className="grid gap-3 sm:grid-cols-2">
                 <FormField icon={CalendarDays} label={t('cases.renewalNextIssued')} htmlFor="renewal-issue-issued">
-                  <PersianDateField
+                  <RenewalDateInput
                     id="renewal-issue-issued"
-                    value={renewalIssued || undefined}
+                    value={renewalIssued}
                     maxDate={renewalExpires || undefined}
+                    locked={locked}
                     onChange={(value) => {
                       const issued = value ?? ''
                       const expires = renewalExpiresTouched.current
@@ -858,10 +982,11 @@ export function CaseProcessPage() {
                   />
                 </FormField>
                 <FormField icon={CalendarDays} label={t('cases.renewalNextExpires')} htmlFor="renewal-issue-expires">
-                  <PersianDateField
+                  <RenewalDateInput
                     id="renewal-issue-expires"
-                    value={renewalExpires || undefined}
+                    value={renewalExpires}
                     minDate={renewalIssued || undefined}
+                    locked={locked}
                     onChange={(value) => {
                       renewalExpiresTouched.current = true
                       rememberRenewalDates(renewalIssued, value ?? '')
@@ -871,7 +996,7 @@ export function CaseProcessPage() {
                 </FormField>
               </div>
             </section>
-            <div className="flex justify-center pt-2">{wizardContinue}</div>
+            <div className="flex justify-center pt-2">{wizardContinue ?? finishedSave}</div>
           </div>
         </FormCard>
       ) : null}
@@ -901,6 +1026,39 @@ export function CaseProcessPage() {
         />
       ) : null}
     </div>
+  )
+}
+
+function RenewalDateInput({
+  id,
+  value,
+  minDate,
+  maxDate,
+  locked,
+  onChange,
+}: {
+  id: string
+  value: string
+  minDate?: string
+  maxDate?: string
+  locked: boolean
+  onChange: (value?: string) => void
+}) {
+  if (locked) {
+    return (
+      <div className={`${inputClassName()} bg-cream-100`}>
+        {value ? <DateText value={value} /> : '—'}
+      </div>
+    )
+  }
+  return (
+    <PersianDateField
+      id={id}
+      value={value || undefined}
+      minDate={minDate}
+      maxDate={maxDate}
+      onChange={onChange}
+    />
   )
 }
 

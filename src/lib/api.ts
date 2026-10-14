@@ -45,7 +45,7 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
     return message
   }
   if (Array.isArray(message)) {
-    const text = message.filter((item) => typeof item === 'string').join('، ')
+    const text = [...new Set(message.filter((item) => typeof item === 'string' && item.trim()))].join('، ')
     if (text) {
       return text
     }

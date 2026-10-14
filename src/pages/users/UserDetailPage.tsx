@@ -3,7 +3,6 @@ import {
   Building2,
   Calendar,
   Car,
-  FileImage,
   FileText,
   Flag,
   IdCard,
@@ -54,6 +53,7 @@ import { api, getImageUrl } from '../../lib/api'
 import { localizeDigits } from '../../lib/datetime'
 import { useGeoName } from '../../lib/geo'
 import type { ManagedUser } from '../../types/app'
+import { PersonIdentityDocuments } from './PersonIdentityDocuments'
 
 const tabs = ['personal', 'account', 'location', 'documents', 'social', 'other'] as const
 type UserDetailTab = (typeof tabs)[number]
@@ -309,29 +309,17 @@ export function UserDetailPage() {
           ) : null}
 
           {tab === 'documents' ? (
-            <section>
-              <FormSectionTitle icon={ImagePlus}>{t('users.tabs.documents')}</FormSectionTitle>
+            <section className="space-y-4">
+              <FormSectionTitle icon={ImagePlus}>{t('users.photo')}</FormSectionTitle>
               <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
                 <DocumentTile icon={UserRound} label={t('users.photo')} imageId={user.photoId} tone="teal" />
-                <DocumentTile
-                  icon={IdCard}
-                  label={t('users.nationalCardPhoto')}
-                  imageId={user.nationalCardPhotoId}
-                  tone="mint"
-                />
-                <DocumentTile
-                  icon={FileImage}
-                  label={t('users.passportPhoto')}
-                  imageId={user.passportPhotoId}
-                  tone="ink"
-                />
-                <DocumentTile
-                  icon={FileText}
-                  label={t('users.identityBookletPhoto')}
-                  imageId={user.identityBookletPhotoId}
-                  tone="teal"
-                />
               </div>
+              <PersonIdentityDocuments
+                userId={user.id}
+                gender={user.gender}
+                scope="user"
+                enabled={tab === 'documents'}
+              />
             </section>
           ) : null}
 

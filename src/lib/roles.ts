@@ -1,5 +1,5 @@
 import { APP_NAV } from './nav'
-import { menuPathMatches } from './nav-path'
+import { isPlacesCaseBrowse, menuPathMatches } from './nav-path'
 import type { AuthUser, NavModule } from '../types/app'
 
 export const ADMIN_ROLE_CODE = 'ADMIN'
@@ -47,8 +47,8 @@ export function hasPermission(
   return parent ? codes.includes(parent) : false
 }
 
-/** صندوق شخصی استعلام و اماکن؛ برای نقش مدیریت نشان داده نمی‌شود. */
-const ADMIN_HIDDEN_MENUS = new Set(['cases.inquiries', 'cases.places'])
+/** صندوق شخصی استعلام، اماکن، تایید مدیریتی و صدور؛ برای نقش مدیریت نشان داده نمی‌شود. */
+const ADMIN_HIDDEN_MENUS = new Set(['cases.inquiries', 'cases.places', 'cases.management-reviews', 'cases.issuance'])
 
 export function hasMenuAccess(
   user: Pick<AuthUser, 'isAdmin' | 'permissionCodes' | 'roles' | 'position'> | null | undefined,
@@ -76,12 +76,60 @@ export function filterNavByAccess(
 
 const ALWAYS_ALLOWED_PREFIXES = ['/account', '/settings']
 
+/** اداره اماکن: دیدن پرونده بدون مجوز مدیریت یا تشکیل. */
+export function isPlacesViewer(
+  user: Pick<AuthUser, 'isAdmin' | 'permissionCodes' | 'roles'> | null | undefined,
+) {
+  return Boolean(user) && hasPermission(user, 'cases.places') && !hasPermission(user, 'cases.management') && !isAdmin(user)
+}
+
+/** نقش تایید مدیریتی: ویزارد فقط‌خواندنی، بدون تشکیل پرونده و مدیریت پرونده. */
+export function isManagementReviewer(
+  user: Pick<AuthUser, 'isAdmin' | 'permissionCodes' | 'roles'> | null | undefined,
+) {
+  return (
+    Boolean(user) &&
+    hasPermission(user, 'cases.management-reviews') &&
+    !hasPermission(user, 'cases.formation') &&
+    !hasPermission(user, 'cases.management') &&
+    !isAdmin(user)
+  )
+}
+
+/** صادرکننده: ویزارد فقط‌خواندنی، به‌جز دکمهٔ صدور. */
+export function isIssuerViewer(
+  user: Pick<AuthUser, 'isAdmin' | 'permissionCodes' | 'roles'> | null | undefined,
+) {
+  return (
+    Boolean(user) &&
+    hasPermission(user, 'cases.issuance') &&
+    !hasPermission(user, 'cases.formation') &&
+    !hasPermission(user, 'cases.management') &&
+    !isAdmin(user)
+  )
+}
+
+export function sidebarPathnameForUser(
+  user: Pick<AuthUser, 'isAdmin' | 'permissionCodes' | 'roles'> | null | undefined,
+  pathname: string,
+  search = '',
+) {
+  if (isPlacesViewer(user) && isPlacesCaseBrowse(pathname, search)) return '/cases/places'
+  if (isManagementReviewer(user) && isPlacesCaseBrowse(pathname, search)) return '/cases/management-reviews'
+  if (isIssuerViewer(user) && isPlacesCaseBrowse(pathname, search)) return '/cases/issuance'
+  return pathname
+}
+
 export function canAccessPath(
   user: Pick<AuthUser, 'isAdmin' | 'permissionCodes' | 'roles' | 'position'> | null | undefined,
   pathname: string,
+  search = '',
 ) {
   if (!user) return false
   if (pathname === '/' || pathname === '/dashboard') return true
+  if (isPlacesViewer(user) && isPlacesCaseBrowse(pathname, search)) return true
+  if (isManagementReviewer(user) && isPlacesCaseBrowse(pathname, search)) return true
+  if (isIssuerViewer(user) && isPlacesCaseBrowse(pathname, search)) return true
   if (pathname === '/inspection/violations/new') {
     return (
       hasMenuAccess(user, 'inspection.violations.register', 'inspection') ||

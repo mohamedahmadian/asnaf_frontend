@@ -15,12 +15,14 @@ export type CaseInquiryRow = {
   channel: CaseInquiryChannel | null
   note: string | null
   createdAt: string
+  referredAt?: string | null
   decidedAt: string | null
   decidedBy: { id: string; fullName: string } | null
   center: {
     id: string
     name: string
     phone: string | null
+    officerId?: string | null
     officerName: string | null
   }
   files: CaseInquiryFile[]
@@ -111,11 +113,25 @@ export type InquiryDossier = {
   }
 }
 
+export type CaseLetterheadView = {
+  organizationName: string | null
+  address: string | null
+  phone: string | null
+  website: string | null
+  signerName: string | null
+  signerTitle: string | null
+  logoDataUrl: string | null
+  signatureDataUrl: string | null
+}
+
 export type CaseInquiryLetter = {
   id: string
   centerName: string
   centerPhone: string | null
   nationalId: string | null
+  letterNo: string
+  issuedAt: string
+  letterhead: CaseLetterheadView
   letterTitle: string
   letterBody: string
   fields: Record<string, string>

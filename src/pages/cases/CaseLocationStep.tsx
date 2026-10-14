@@ -106,6 +106,7 @@ export function CaseLocationStep({
   onSubmit,
   actions,
   hideRegistrationPlace = false,
+  locked = false,
   onUseCurrentSection,
 }: {
   value: LocationForm
@@ -118,6 +119,7 @@ export function CaseLocationStep({
   actions?: ReactNode
   /** در تغییر مکان، محل ثبت پرونده ثابت است و نشان داده نمی‌شود */
   hideRegistrationPlace?: boolean
+  locked?: boolean
   onUseCurrentSection?: (section: LocationSectionKey) => void
 }) {
   const { t } = useTranslation()
@@ -140,10 +142,11 @@ export function CaseLocationStep({
     <AppForm
       onSubmit={(event) => {
         event.preventDefault()
-        onSubmit()
+        if (!locked) onSubmit()
       }}
       className="space-y-4"
     >
+      <fieldset disabled={locked} className="min-w-0 space-y-4 border-0 p-0">
       <LocationSection icon={MapPin} title={t('cases.locationSections.place')} className="grid gap-4" action={useCurrent('place')}>
         <div className="grid items-end gap-4 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
           <FormField icon={MapPin} label={t('cases.premiseCity')} htmlFor="case-premise-city">
@@ -390,6 +393,7 @@ export function CaseLocationStep({
           />
         </FormField>
       </LocationSection>
+      </fieldset>
       {actions}
     </AppForm>
   )

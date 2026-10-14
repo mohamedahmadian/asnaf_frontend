@@ -1,6 +1,6 @@
-import { FileText, KeyRound, Mail, Phone, ScanSearch, ScrollText, ToggleRight, Type, UserPlus, UserRound, X } from 'lucide-react'
+import { Eye, FileText, KeyRound, Mail, Phone, ScanSearch, ScrollText, ToggleRight, Type, UserPlus, UserRound, X } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -16,9 +16,12 @@ import {
 import { FormCard, FormSectionTitle, formCardBodyClassName } from '../../components/ui/FormLayout'
 import { SearchSelect } from '../../components/ui/SearchSelect'
 import { api, getApiErrorMessage } from '../../lib/api'
-import { parseDigitString, toLatinDigits } from '../../lib/datetime'
+import { parseDigitString, todayIsoDate, toLatinDigits } from '../../lib/datetime'
 import { isPhoneReady } from '../../lib/identity'
 import { INQUIRY_OFFICER_ROLE_CODE } from '../../lib/roles'
+import { InquiryLetterModal } from '../cases/InquiryLetterModal'
+import { inquiryLetterVariables } from '../cases/inquiry-letter-variables'
+import type { CaseInquiryLetter, CaseLetterheadView } from '../cases/inquiry-types'
 import type { AppRole, InquiryCenterOfficer, ManagedUser, Paginated } from '../../types/app'
 
 export type InquiryCenterPayload = {
@@ -51,7 +54,7 @@ export function InquiryCenterForm({
   initial?: InquiryCenterPayload
   onSubmit: (payload: InquiryCenterPayload) => Promise<void>
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [name, setName] = useState(initial?.name ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
   const [phone, setPhone] = useState(initial?.phone ?? '')
@@ -60,8 +63,45 @@ export function InquiryCenterForm({
   const [officerModal, setOfficerModal] = useState(false)
   const [letterTitle, setLetterTitle] = useState(initial?.letterTitle ?? '')
   const [letterBody, setLetterBody] = useState(initial?.letterBody ?? '')
+  const letterBodyRef = useRef<HTMLTextAreaElement>(null)
+  const letterCaretRef = useRef({ start: initial?.letterBody?.length ?? 0, end: initial?.letterBody?.length ?? 0 })
   const [isActive, setIsActive] = useState(initial?.isActive ?? true)
+  const [previewAt, setPreviewAt] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const letterheadQuery = useQuery({
+    queryKey: ['inquiry-centers', 'letterhead'],
+    enabled: previewAt != null,
+    queryFn: async () => (await api.get<CaseLetterheadView>('/inquiry-centers/letterhead')).data,
+  })
+  const previewLetter = useMemo(() => {
+    if (!previewAt || !letterheadQuery.data) return undefined
+    const centerName = name.trim()
+    return {
+      id: 'preview',
+      centerName: centerName || t('inquiryCenters.letterPreview'),
+      centerPhone: null,
+      nationalId: null,
+      letterNo: '',
+      issuedAt: previewAt,
+      letterhead: letterheadQuery.data,
+      letterTitle,
+      letterBody,
+      fields: {
+        fullName: '',
+        nationalId: '',
+        identityCertificateNo: '',
+        phone: '',
+        address: '',
+        unitTitle: '',
+        jobGroup: '',
+        jobTitle: '',
+        trackingCode: '',
+        centerName,
+        date: previewAt,
+        letterNo: '',
+      },
+    } satisfies CaseInquiryLetter
+  }, [previewAt, letterheadQuery.data, name, letterTitle, letterBody, t])
   const rolesQuery = useQuery({
     queryKey: ['roles', 'lookup'],
     queryFn: async () => {
@@ -91,6 +131,27 @@ export function InquiryCenterForm({
     }
     return [{ value: '', label: t('inquiryCenters.selectOfficer') }, ...options]
   }, [addedOfficers, initial?.officer, t, usersQuery.data])
+
+  function rememberLetterCaret(element: HTMLTextAreaElement) {
+    letterCaretRef.current = { start: element.selectionStart, end: element.selectionEnd }
+  }
+
+  function insertLetterVariable(token: string) {
+    const snippet = `{{${token}}}`
+    const current = letterBodyRef.current?.value ?? letterBody
+    const start = Math.max(0, Math.min(letterCaretRef.current.start, current.length))
+    const end = Math.max(start, Math.min(letterCaretRef.current.end, current.length))
+    const next = `${current.slice(0, start)}${snippet}${current.slice(end)}`.slice(0, 20000)
+    const caret = Math.min(start + snippet.length, next.length)
+    letterCaretRef.current = { start: caret, end: caret }
+    setLetterBody(next)
+    requestAnimationFrame(() => {
+      const node = letterBodyRef.current
+      if (!node) return
+      node.focus()
+      node.setSelectionRange(caret, caret)
+    })
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -195,15 +256,43 @@ export function InquiryCenterForm({
           />
         </FormField>
         <FormField icon={ScrollText} label={t('inquiryCenters.letterBody')} htmlFor="inquiryCenterLetterBody">
-          <textarea
-            id="inquiryCenterLetterBody"
-            className={fieldClassName}
-            value={letterBody}
-            onChange={(e) => setLetterBody(e.target.value)}
-            rows={8}
-            maxLength={20000}
-          />
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-1.5">
+              {inquiryLetterVariables.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className="cursor-pointer rounded-full border border-teal-400 bg-white px-2.5 py-1 text-xs font-medium text-teal-800 shadow-[0_2px_8px_rgba(46,189,182,0.14)] hover:bg-teal-50"
+                  onPointerDown={() => {
+                    const node = letterBodyRef.current
+                    if (node && document.activeElement === node) rememberLetterCaret(node)
+                  }}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => insertLetterVariable(item.token)}
+                >
+                  {t(`inquiryCenters.vars.${item.key}`)}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-ink-500">{t('inquiryCenters.letterVariableHint')}</p>
+            <textarea
+              id="inquiryCenterLetterBody"
+              ref={letterBodyRef}
+              className={fieldClassName}
+              value={letterBody}
+              onChange={(e) => setLetterBody(e.target.value)}
+              onSelect={(e) => rememberLetterCaret(e.currentTarget)}
+              rows={8}
+              maxLength={20000}
+            />
+          </div>
         </FormField>
+        <div>
+          <Button type="button" variant="soft" onClick={() => setPreviewAt(todayIsoDate())}>
+            <Eye className="size-4" aria-hidden />
+            {t('inquiryCenters.letterPreview')}
+          </Button>
+        </div>
         <FormActions
           submitLabel={t('inquiryCenters.save')}
           cancelLabel={t('inquiryCenters.cancel')}
@@ -220,6 +309,17 @@ export function InquiryCenterForm({
             )
             setOfficerId(officer.id)
             setOfficerModal(false)
+          }}
+        />
+      ) : null}
+      {previewAt ? (
+        <InquiryLetterModal
+          locale={i18n.language.split('-')[0] ?? 'fa'}
+          onClose={() => setPreviewAt(null)}
+          preview={{
+            letter: previewLetter,
+            loading: letterheadQuery.isLoading,
+            error: letterheadQuery.error,
           }}
         />
       ) : null}

@@ -356,6 +356,9 @@ export function getPageMeta(pathname: string): {
   if (pathname.startsWith('/cases/formation')) {
     return { titleKey: 'menus.caseFormation', subtitleKey: 'cases.formationSubtitle' }
   }
+  if (pathname.startsWith('/cases/inquiries/reports')) {
+    return { titleKey: 'menus.caseInquiriesReports', subtitleKey: 'cases.inquiryReport.subtitle' }
+  }
   if (pathname.startsWith('/cases/inquiries/') && pathname.endsWith('/letter')) {
     return { titleKey: 'cases.inquiryLetter', subtitleKey: 'cases.inquiriesHint' }
   }
@@ -365,6 +368,9 @@ export function getPageMeta(pathname: string): {
   if (pathname.startsWith('/cases/inquiries')) {
     return { titleKey: 'menus.caseInquiries', subtitleKey: 'cases.inquiriesSubtitle' }
   }
+  if (pathname.startsWith('/cases/places/reports')) {
+    return { titleKey: 'menus.casePlacesReports', subtitleKey: 'cases.placesReport.subtitle' }
+  }
   if (pathname.startsWith('/cases/places/') && pathname.endsWith('/letter')) {
     return { titleKey: 'cases.inquiryLetter', subtitleKey: 'cases.placesSubtitle' }
   }
@@ -373,6 +379,15 @@ export function getPageMeta(pathname: string): {
   }
   if (pathname.startsWith('/cases/places')) {
     return { titleKey: 'menus.casePlaces', subtitleKey: 'cases.placesSubtitle' }
+  }
+  if (pathname.startsWith('/cases/issuance')) {
+    return { titleKey: 'menus.caseIssuance', subtitleKey: 'cases.issuanceSubtitle' }
+  }
+  if (pathname.startsWith('/cases/management-reviews/reports')) {
+    return { titleKey: 'menus.caseManagementReviewsReports', subtitleKey: 'cases.managementReviewsReport.subtitle' }
+  }
+  if (pathname.startsWith('/cases/management-reviews')) {
+    return { titleKey: 'menus.caseManagementReviews', subtitleKey: 'cases.managementReviewsSubtitle' }
   }
   if (pathname.startsWith('/reports/expiring-cases')) {
     return { titleKey: 'menus.expiringCases', subtitleKey: 'cases.expiring.subtitle' }

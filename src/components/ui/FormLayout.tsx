@@ -34,7 +34,7 @@ function isFormCardInteractiveTarget(target: EventTarget | null) {
   if (!(target instanceof Element)) return false
   return Boolean(
     target.closest(
-      'a, button, input, textarea, select, [role="button"], [data-enter-ignore], .leaflet-container',
+      'a, button, input, textarea, select, [role="button"], [role="dialog"], [data-nested-dialog], [data-enter-ignore], .leaflet-container',
     ),
   )
 }
@@ -178,7 +178,7 @@ export function FormCardHeader({
             {chips ? <div className="mt-3 flex flex-wrap gap-1.5">{chips}</div> : null}
           </div>
         </div>
-        {action ? <div className="relative z-10 shrink-0">{action}</div> : null}
+        {action ? <div className="relative z-10 flex shrink-0 items-center self-stretch">{action}</div> : null}
       </div>
     </header>
   )
@@ -212,10 +212,12 @@ export function FormSectionTitle({
   icon: Icon,
   children,
   className = 'mb-4',
+  action,
 }: {
   icon: LucideIcon
   children: ReactNode
   className?: string
+  action?: ReactNode
 }) {
   return (
     <h3
@@ -225,6 +227,7 @@ export function FormSectionTitle({
         <Icon className="size-5" aria-hidden />
       </span>
       <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">{children}</span>
+      {action ? <span className="shrink-0">{action}</span> : null}
     </h3>
   )
 }

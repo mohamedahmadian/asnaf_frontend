@@ -1,4 +1,4 @@
-import { FileText, Files, Plus, ToggleRight, Trash2, Users } from 'lucide-react'
+import { FileText, Plus, ToggleRight, Trash2, Users } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,6 +11,7 @@ import { SearchSelect } from '../../components/ui/SearchSelect'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { jobCatalogApi } from '../../lib/paths/jobs'
 import { documentGenders, type DocumentGender, type DocumentItem, type Job, type JobDocumentRef, type Paginated } from '../../types/app'
+import { ProcessWideDocuments } from '../cases/CaseRequirementsPanel'
 
 type JobDocumentLink = {
   documentId: string
@@ -47,12 +48,10 @@ export function JobDocumentsPanel({
 
   const byTitle = (left: { title: string }, right: { title: string }) =>
     left.title.localeCompare(right.title, 'fa')
-  const alwaysShown = (item: { isFixed: boolean; isRequired: boolean }) => item.isFixed && item.isRequired
-  const fixed = (catalogQuery.data ?? []).filter(alwaysShown).sort(byTitle)
   const extra = [...documents].sort(byTitle)
   const extraIds = new Set(extra.map((item) => item.id))
   const options = (catalogQuery.data ?? [])
-    .filter((item) => !alwaysShown(item) && !extraIds.has(item.id))
+    .filter((item) => !extraIds.has(item.id))
     .sort(byTitle)
     .map((item) => ({ value: item.id, label: item.title }))
 
@@ -76,9 +75,6 @@ export function JobDocumentsPanel({
 
   function onPick(id: string) {
     setPick(id)
-    const item = (catalogQuery.data ?? []).find((doc) => doc.id === id)
-    setGender(item?.gender ?? documentGenders.BOTH)
-    setIsRequired(item?.isRequired ?? true)
   }
 
   async function save(jobDocuments: JobDocumentLink[], success: string) {
@@ -86,6 +82,7 @@ export function JobDocumentsPanel({
     try {
       const { data } = await api.patch<Job>(jobCatalogApi(jobId), { jobDocuments })
       queryClient.setQueryData(queryKey, data)
+      await queryClient.invalidateQueries({ queryKey: ['cases', 'requirements', 'ISSUANCE', jobId] })
       toast.success(success)
       setPick('')
       setGender(documentGenders.BOTH)
@@ -120,7 +117,7 @@ export function JobDocumentsPanel({
     <div className="space-y-6">
       <section>
         <FormSectionTitle icon={FileText} className="mb-5">
-          {t('jobCatalog.extraDocuments')}
+          {t('cases.requirementsDocumentsJob', { process: t('cases.requestTypes.ISSUANCE') })}
         </FormSectionTitle>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
           <div className="w-full lg:w-1/3">
@@ -168,7 +165,7 @@ export function JobDocumentsPanel({
         </div>
         <div className="mt-3">
         {extra.length === 0 ? (
-          <FormEmptyHint>{t('jobCatalog.noExtraDocuments')}</FormEmptyHint>
+          <FormEmptyHint>{t('cases.requirementsEmptyDocumentsJob', { process: t('cases.requestTypes.ISSUANCE') })}</FormEmptyHint>
         ) : (
           <div className="grid gap-2">
             {extra.map((item, index) => (
@@ -196,18 +193,7 @@ export function JobDocumentsPanel({
         )}
         </div>
       </section>
-      <section>
-        <FormSectionTitle icon={Files}>{t('jobCatalog.fixedDocuments')}</FormSectionTitle>
-        {fixed.length === 0 ? (
-          <FormEmptyHint>{t('jobCatalog.noFixedDocuments')}</FormEmptyHint>
-        ) : (
-          <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
-            {fixed.map((item, index) => (
-              <DocumentInfoCard key={item.id} item={item} tone={index % 2 === 0 ? 'teal' : 'mint'} />
-            ))}
-          </div>
-        )}
-      </section>
+      <ProcessWideDocuments requestType="ISSUANCE" />
     </div>
   )
 }
@@ -217,7 +203,7 @@ function DocumentInfoCard({
   tone,
   className = '',
 }: {
-  item: { title: string; isRequired: boolean; gender: DocumentItem['gender'] }
+  item: { title: string; isRequired: boolean; gender: DocumentGender }
   tone: 'teal' | 'mint'
   className?: string
 }) {

@@ -75,7 +75,7 @@ export function applyDocumentLanguage(lang: AppLanguage) {
   const meta = languages[lang];
   document.documentElement.lang = lang;
   document.documentElement.dir = meta.dir;
-  document.title = `${i18n.t("app.name")} | ${i18n.t("app.tagline")}`;
+  document.title = i18n.t("app.name");
 }
 
 export function applyUiLanguage(preferred: AppLanguage) {

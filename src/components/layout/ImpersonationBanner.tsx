@@ -10,7 +10,7 @@ export function ImpersonationBanner() {
   if (!user?.impersonating) return null
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-teal-200 bg-teal-50 px-4 py-2.5 sm:px-8">
+    <div className="print:hidden flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-teal-200 bg-teal-50 px-4 py-2.5 sm:px-8">
       <p className="text-sm font-medium text-teal-900">
         {t('auth.impersonateBanner', { name: user.fullName })}
         {user.impersonatedBy?.fullName

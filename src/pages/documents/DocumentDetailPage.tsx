@@ -1,4 +1,4 @@
-import { FileCheck, Lock, ToggleRight, Type, Users } from 'lucide-react'
+import { FileCheck, Type } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -13,7 +13,6 @@ import { FormCard, FormFactTile, FormSectionTitle } from '../../components/ui/Fo
 import { useConfirmDelete } from '../../hooks/useConfirmDelete'
 import { api } from '../../lib/api'
 import type { DocumentItem } from '../../types/app'
-import { DocumentFlag } from './DocumentFlag'
 
 export function DocumentDetailPage() {
   const { t } = useTranslation()
@@ -46,34 +45,6 @@ export function DocumentDetailPage() {
           <FormSectionTitle icon={FileCheck}>{t('documents.details')}</FormSectionTitle>
           <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
             <FormFactTile icon={Type} label={t('documents.title')} value={item.title} tone="teal" />
-            <FormFactTile
-              icon={ToggleRight}
-              label={t('documents.isRequired')}
-              value={
-                <DocumentFlag
-                  on={item.isRequired}
-                  onLabel={t('documents.required')}
-                  offLabel={t('documents.optional')}
-                />
-              }
-              tone="mint"
-            />
-            <FormFactTile
-              icon={Users}
-              label={t('documents.gender')}
-              value={t(`documents.genders.${item.gender}`)}
-            />
-            <FormFactTile
-              icon={Lock}
-              label={t('documents.isFixed')}
-              value={
-                <DocumentFlag
-                  on={item.isFixed}
-                  onLabel={t('documents.fixed')}
-                  offLabel={t('documents.notFixed')}
-                />
-              }
-            />
           </div>
           <DetailActions
             editTo={`/base-info/documents/${item.id}/edit`}

@@ -34,6 +34,7 @@ import { formatNumber } from '../../lib/datetime'
 import { useDoubleSaveShortcut } from '../../hooks/useEscapeLeave'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { CASE_DETAILS_VIEW } from '../../lib/nav-path'
+import { hasPermission } from '../../lib/roles'
 import { isValidIranianNationalId, normalizeNationalId } from '../../lib/national-id'
 import { optimizeImageFile } from '../../lib/optimize-image'
 import type { City, CommercialComplex, Country, Job, JobGroup, RegistrationPlace } from '../../types/app'
@@ -46,6 +47,8 @@ import type { CaseInquiryRow } from './inquiry-types'
 import { CaseLocationStep } from './CaseLocationStep'
 import { CaseDocumentList } from './CaseDocumentList'
 import { CaseIdentityFields } from './CaseIdentityFields'
+import { useCaseCapabilities } from './case-capabilities'
+import { DeleteCaseButton, useCaseDelete } from './useCaseDelete'
 import {
   FORMATION_STEPS,
   ISSUANCE_FORMATION_STEP,
@@ -88,6 +91,11 @@ export function CaseFormationPage() {
   const requestedNationalId = normalizeNationalId(searchParams.get('nationalId') ?? '')
   const requestedCaseId = searchParams.get('caseId') ?? ''
   const detailsView = searchParams.get('view') === CASE_DETAILS_VIEW
+  const { user, admin, placesViewer, managementReviewer, issuerViewer, canIssue, formLocked, managementRoleIds } =
+    useCaseCapabilities()
+  const focusPlaces = placesViewer && searchParams.get('focus') === 'places'
+  const focusManagement = managementReviewer && searchParams.get('focus') === 'management'
+  const focusIssuance = issuerViewer && searchParams.get('focus') === 'issuance'
 
   useEffect(() => {
     if (detailsView && requestedCaseId) {
@@ -113,6 +121,10 @@ export function CaseFormationPage() {
   const [activityGroupId, setActivityGroupId] = useState('')
   const [activityJobId, setActivityJobId] = useState('')
   const [licenseIssuedAt, setLicenseIssuedAt] = useState<string | null>(null)
+  const canManageCases =
+    hasPermission(user, 'cases.management') && !placesViewer && !managementReviewer && !issuerViewer
+  const { askDelete, dialog: deleteDialog } = useCaseDelete(caseId)
+  const showHeaderDelete = canManageCases && Boolean(caseId) && !licenseIssuedAt
   const [previousOccupation, setPreviousOccupation] = useState('')
   const [posCount, setPosCount] = useState('')
   const [location, setLocation] = useState<LocationForm>(emptyLocationForm)
@@ -328,7 +340,15 @@ export function CaseFormationPage() {
     assignLocation(locationFormFrom(file.location))
     setLookup('found')
     setReached(resume)
-    setStep(resume)
+    setStep(
+      focusPlaces
+        ? PLACES_FORMATION_STEP
+        : focusManagement
+          ? MANAGEMENT_FORMATION_STEP
+          : focusIssuance
+            ? ISSUANCE_FORMATION_STEP
+            : resume,
+    )
     setOpenCasePrompt(null)
     if (notify) toast.success(t('cases.found'))
   }
@@ -480,6 +500,11 @@ export function CaseFormationPage() {
   }
 
   function goToStep(index: number) {
+    if (formLocked) {
+      if (index > reached) return
+      setStep(index)
+      return
+    }
     if (index > reached) return
     if (index >= PLACES_FORMATION_STEP && activityDocumentsReady !== true) {
       toast.error(t('cases.activityDocumentsBeforePlaces'))
@@ -495,6 +520,7 @@ export function CaseFormationPage() {
   }
 
   useEffect(() => {
+    if (formLocked) return
     if (step < PLACES_FORMATION_STEP) return
     if (activityDocumentsReady === false) {
       toast.error(t('cases.activityDocumentsBeforePlaces'))
@@ -505,7 +531,7 @@ export function CaseFormationPage() {
       toast.error(t('cases.inquiriesBeforePlaces'))
       setStep(FORMATION_STEPS.indexOf('inquiries'))
     }
-  }, [activityDocumentsReady, inquiriesReady, step, t])
+  }, [activityDocumentsReady, inquiriesReady, formLocked, step, t])
 
   function submitIdentity() {
     if (!person) return
@@ -737,10 +763,13 @@ export function CaseFormationPage() {
           )
         }
         action={
-          <Button type="button" variant="ghost" onClick={() => toast.message(t('cases.feesHint'))}>
-            <Landmark className="size-4" aria-hidden />
-            {t('cases.fees')}
-          </Button>
+          <>
+            {showHeaderDelete ? <DeleteCaseButton onClick={() => void askDelete()} /> : null}
+            <Button type="button" variant="ghost" onClick={() => toast.message(t('cases.feesHint'))}>
+              <Landmark className="size-4" aria-hidden />
+              {t('cases.fees')}
+            </Button>
+          </>
         }
       />
 
@@ -802,7 +831,7 @@ export function CaseFormationPage() {
         icon={UserRound}
         title={t('cases.steps.identity')}
         action={
-          person ? (
+          person && !formLocked ? (
             <Button type="button" disabled={save.isPending} onClick={submitIdentity}>
               <Check className="size-4" aria-hidden />
               {t('cases.saveIdentity')}
@@ -815,7 +844,7 @@ export function CaseFormationPage() {
               <AppForm
                 onSubmit={(event) => {
                   event.preventDefault()
-                  void lookupPerson()
+                  if (!formLocked) void lookupPerson()
                 }}
                 className="flex flex-wrap items-end gap-3"
               >
@@ -826,14 +855,19 @@ export function CaseFormationPage() {
                       className={`${inputClassName()} digit-field`}
                       inputMode="numeric"
                       value={nationalId}
-                      onChange={(event) => setNationalId(event.target.value)}
+                      readOnly={formLocked}
+                      onChange={(event) => {
+                        if (!formLocked) setNationalId(event.target.value)
+                      }}
                     />
                   </FormField>
                 </div>
+                {formLocked ? null : (
                 <Button type="submit" className="w-fit">
                   <ScanSearch className="size-4" aria-hidden />
                   {t('cases.lookup')}
                 </Button>
+                )}
               </AppForm>
               {lookup === 'missing' ? (
                 <div className="ms-auto flex flex-wrap items-center gap-2">
@@ -871,6 +905,7 @@ export function CaseFormationPage() {
                     countries={countries.data ?? []}
                     jobs={(jobs.data ?? []).filter((item) => item.isActive)}
                     locale={locale}
+                    locked={formLocked}
                     onChange={(key, value) =>
                       setPerson((current) => (current ? { ...current, [key]: value } : current))
                     }
@@ -885,6 +920,7 @@ export function CaseFormationPage() {
                     uploadingId={uploadingId}
                     removingId={removingId}
                     disabled={!person.id}
+                    readOnly={formLocked}
                     layout="tabs"
                     onFile={(documentId, file) => void upload(documentId, file)}
                     onDelete={(documentId) => void removeDocument(documentId)}
@@ -901,10 +937,12 @@ export function CaseFormationPage() {
           icon={Briefcase}
           title={t('cases.steps.activity')}
           action={
+            formLocked ? undefined : (
             <Button type="button" onClick={completeActivity}>
               <Check className="size-4" aria-hidden />
               {t('cases.saveActivity')}
             </Button>
+            )
           }
         >
           <div className={formCardBodyClassName}>
@@ -922,6 +960,7 @@ export function CaseFormationPage() {
               onPreviousOccupationChange={setPreviousOccupation}
               onPosCountChange={setPosCount}
               onSubmit={completeActivity}
+              locked={formLocked}
             />
             {activityJobId ? (
               <section className="space-y-3 border-t border-teal-100 pt-4">
@@ -951,6 +990,7 @@ export function CaseFormationPage() {
                     uploadingId={uploadingId}
                     removingId={removingId}
                     disabled={!caseId}
+                    readOnly={formLocked}
                     layout="tabs"
                     emphasizeRequired
                     onFile={(documentId, file) => {
@@ -975,10 +1015,12 @@ export function CaseFormationPage() {
           title={t('cases.steps.location')}
           subtitle={t('cases.locationCardSubtitle')}
           action={
+            formLocked ? undefined : (
             <Button type="button" onClick={() => void completeLocation()}>
               <Check className="size-4" aria-hidden />
               {t('cases.saveLocation')}
             </Button>
+            )
           }
         >
           <div className={formCardBodyClassName}>
@@ -991,10 +1033,14 @@ export function CaseFormationPage() {
               )}
               locale={locale}
               onChange={(patch) => {
+                if (formLocked) return
                 if ('registrationPlaceId' in patch) registrationPlaceTouched.current = true
                 setLocation((current) => ({ ...current, ...patch }))
               }}
-              onSubmit={() => void completeLocation()}
+              onSubmit={() => {
+                if (!formLocked) void completeLocation()
+              }}
+              locked={formLocked}
             />
           </div>
         </FormCard>
@@ -1006,10 +1052,14 @@ export function CaseFormationPage() {
           items={caseInquiries.data ?? []}
           loading={caseInquiries.isLoading}
           autoAdvance={
+            admin &&
             reached < PLACES_FORMATION_STEP &&
             identityDocumentsReady === true &&
             (!activityJobId || activityDocumentsReady === true)
           }
+          showAdvance={admin}
+          actorId={user?.id}
+          adminDecide={admin}
           documentsPending={identityDocumentsReady === false || activityDocsMissing}
           onRewound={() => rewindTo(FORMATION_STEPS.indexOf('inquiries'))}
           onAdvanced={(formationStep) => {
@@ -1025,7 +1075,10 @@ export function CaseFormationPage() {
           caseId={caseId}
           item={casePlaces.data ?? null}
           loading={casePlaces.isLoading}
-          autoAdvance={reached < MANAGEMENT_FORMATION_STEP}
+          autoAdvance={admin && reached < MANAGEMENT_FORMATION_STEP}
+          locked={!admin && !placesViewer}
+          answerOnly={placesViewer && !admin}
+          showAdvance={admin}
           onRewound={() => rewindTo(PLACES_FORMATION_STEP)}
           onAdvanced={(formationStep) => {
             setPerson((current) => (current ? { ...current, formationStep } : current))
@@ -1040,7 +1093,10 @@ export function CaseFormationPage() {
           caseId={caseId}
           items={managementApprovers.data ?? []}
           loading={managementApprovers.isLoading}
-          autoAdvance={reached < ISSUANCE_FORMATION_STEP}
+          autoAdvance={admin && reached < ISSUANCE_FORMATION_STEP}
+          locked={false}
+          ownRoleIds={managementRoleIds}
+          showAdvance={admin}
           onRewound={() => rewindTo(MANAGEMENT_FORMATION_STEP)}
           onAdvanced={(formationStep) => {
             setPerson((current) => (current ? { ...current, formationStep } : current))
@@ -1051,7 +1107,7 @@ export function CaseFormationPage() {
       ) : null}
 
       {step === ISSUANCE_FORMATION_STEP && caseId ? (
-        <ActivityLicensePanel caseId={caseId} onIssued={setLicenseIssuedAt} />
+        <ActivityLicensePanel caseId={caseId} readOnly={!canIssue} onIssued={setLicenseIssuedAt} />
       ) : null}
 
       {openCasePrompt ? (
@@ -1065,7 +1121,7 @@ export function CaseFormationPage() {
           onClose={() => setOpenCasePrompt(null)}
         />
       ) : null}
-
+      {deleteDialog}
     </div>
   )
 }

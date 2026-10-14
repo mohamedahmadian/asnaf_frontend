@@ -1,9 +1,9 @@
 import { BadgeCheck, Building2, CalendarDays, Check, Eye, FileBadge2, IdCard, UserRound, type LucideIcon } from 'lucide-react'
 import { type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button, EntityNameSubtitle, FormField, PageHeader, caseShellClassName } from '../../components/ui/Form'
 import { CopyableDigits } from '../../components/ui/CopyableDigits'
@@ -21,6 +21,7 @@ import { CaseInquiriesStep } from './CaseInquiriesStep'
 import { CaseManagementReviewStep, type CaseManagementApproverRow } from './CaseManagementReviewStep'
 import { CasePlacesStep } from './CasePlacesStep'
 import { CaseStewardCard } from './CaseStewardCard'
+import { useCaseCapabilities } from './case-capabilities'
 import {
   STEWARDSHIP_ISSUANCE_STEP,
   STEWARDSHIP_STEPS,
@@ -31,6 +32,13 @@ import {
   type StoredVersion,
 } from './formation-types'
 import type { CaseInquiryRow } from './inquiry-types'
+
+function focusIdentityField(id: string) {
+  const el = document.getElementById(id)
+  if (!(el instanceof HTMLElement)) return
+  el.focus({ preventScroll: true })
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+}
 
 type StewardState = {
   id: string
@@ -57,11 +65,22 @@ type StewardState = {
 
 export function CaseStewardshipPage() {
   const { id = '' } = useParams()
+  const [searchParams] = useSearchParams()
+  const { user, admin, placesViewer, managementReviewer, issuerViewer, canForm, canIssue, managementRoleIds } =
+    useCaseCapabilities()
+  const focusPlaces = placesViewer && searchParams.get('focus') === 'places'
+  const focusManagement = managementReviewer && searchParams.get('focus') === 'management'
+  const focusIssuance = issuerViewer && searchParams.get('focus') === 'issuance'
+  const placesFocused = useRef(false)
+  const managementFocused = useRef(false)
+  const issuanceFocused = useRef(false)
+  const navigate = useNavigate()
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const queryClient = useQueryClient()
   const [viewStep, setViewStep] = useState<number | null>(null)
   const [tab, setTab] = useState<'identity' | 'documents'>('identity')
+  const pendingFocusId = useRef<string | null>(null)
   const [person, setPerson] = useState<IdentityPerson | null>(null)
   const [saving, setSaving] = useState(false)
   const [advancing, setAdvancing] = useState(false)
@@ -87,6 +106,21 @@ export function CaseStewardshipPage() {
   const open = item?.request?.status === 'OPEN' && item.status !== 'REVOKED'
   const review = Boolean(item) && !open
   const step = viewStep != null && viewStep <= reached ? viewStep : review ? 0 : reached
+  useEffect(() => {
+    if (!placesViewer || !focusPlaces || placesFocused.current || !item) return
+    placesFocused.current = true
+    setViewStep(STEWARDSHIP_STEPS.indexOf('places'))
+  }, [focusPlaces, item, placesViewer])
+  useEffect(() => {
+    if (!managementReviewer || !focusManagement || managementFocused.current || !item) return
+    managementFocused.current = true
+    setViewStep(STEWARDSHIP_STEPS.indexOf('managementReview'))
+  }, [focusManagement, item, managementReviewer])
+  useEffect(() => {
+    if (!issuerViewer || !focusIssuance || issuanceFocused.current || !item) return
+    issuanceFocused.current = true
+    setViewStep(STEWARDSHIP_STEPS.indexOf('cardIssuance'))
+  }, [focusIssuance, issuerViewer, item])
 
   const countries = useQuery({
     queryKey: ['countries', 'lookup'],
@@ -139,8 +173,33 @@ export function CaseStewardshipPage() {
     [documentTypes.data, identity?.gender],
   )
 
+  useEffect(() => {
+    const fieldId = pendingFocusId.current
+    if (!fieldId) return
+    pendingFocusId.current = null
+    const frame = requestAnimationFrame(() => focusIdentityField(fieldId))
+    return () => cancelAnimationFrame(frame)
+  }, [tab])
+
+  function rejectIdentityField(fieldId: string, message: string) {
+    toast.error(message)
+    if (tab !== 'identity') {
+      pendingFocusId.current = fieldId
+      setTab('identity')
+      return
+    }
+    focusIdentityField(fieldId)
+  }
+
   async function saveIdentity() {
     if (!identity) return false
+    const missing: { id: string; message: string }[] = []
+    if (!identity.firstName.trim()) missing.push({ id: 'case-first-name', message: t('cases.firstNameRequired') })
+    if (!identity.lastName.trim()) missing.push({ id: 'case-last-name', message: t('cases.lastNameRequired') })
+    if (missing.length > 0) {
+      rejectIdentityField(missing[0].id, missing.map((item) => item.message).join('، '))
+      return false
+    }
     setSaving(true)
     try {
       await api.post('/cases/formation/identity', {
@@ -259,9 +318,9 @@ export function CaseStewardshipPage() {
     try {
       await api.post(`/cases/${id}/stewardship/issue`, { issuedAt })
       toast.success(t('cases.stewardship.issued'))
-      setViewStep(null)
       await queryClient.invalidateQueries({ queryKey: ['cases', 'stewardship', id] })
       await queryClient.invalidateQueries({ queryKey: ['cases', 'home', id] })
+      navigate(`/cases/${id}`)
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('cases.saveFailed')))
     } finally {
@@ -271,7 +330,7 @@ export function CaseStewardshipPage() {
 
   const nextStepKey = STEWARDSHIP_STEPS[step + 1]
   const continueButton =
-    open && nextStepKey && step < STEWARDSHIP_ISSUANCE_STEP ? (
+    !review && open && nextStepKey && step < STEWARDSHIP_ISSUANCE_STEP && (admin || (canForm && step < 1)) ? (
       <Button type="button" disabled={advancing} onClick={() => void continueStep()}>
         <Check className="size-4" aria-hidden />
         {t('cases.stewardship.continueToStep', { step: t(`cases.steps.${nextStepKey}`) })}
@@ -319,7 +378,19 @@ export function CaseStewardshipPage() {
             ) : null}
           </span>
         }
-        backTo={review ? `/cases/${id}?stay=1` : item.host ? `/cases/${item.host.id}/dossier` : `/cases/${id}`}
+        backTo={
+          placesViewer
+            ? '/cases/places'
+            : managementReviewer
+              ? '/cases/management-reviews'
+              : issuerViewer
+                ? '/cases/issuance'
+                : review
+                  ? `/cases/${id}?stay=1`
+                  : item.host
+                    ? `/cases/${item.host.id}/dossier`
+                    : `/cases/${id}`
+        }
       />
       {item.host ? <HostBar host={item.host} /> : null}
       <ol className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
@@ -369,7 +440,7 @@ export function CaseStewardshipPage() {
           icon={UserRound}
           title={t('cases.steps.identity')}
           action={
-            review ? undefined : (
+            review || !canForm ? undefined : (
             <Button type="button" disabled={saving || advancing} onClick={() => void saveIdentityAndOpenInquiries()}>
               <Check className="size-4" aria-hidden />
               {t('cases.saveIdentity')}
@@ -398,12 +469,12 @@ export function CaseStewardshipPage() {
                 countries={countries.data ?? []}
                 jobs={(jobs.data ?? []).filter((row) => row.isActive)}
                 locale={locale}
-                locked={review}
+                locked={review || !canForm}
                 onChange={(key, value) =>
                   setPerson((current) => ({ ...(current ?? identity), [key]: value }))
                 }
                 onSubmit={() => {
-                  if (!review) void saveIdentityAndOpenInquiries()
+                  if (!review && canForm) void saveIdentityAndOpenInquiries()
                 }}
               />
             ) : (
@@ -413,10 +484,10 @@ export function CaseStewardshipPage() {
                 uploadingId={uploadingId}
                 removingId={removingId}
                 disabled={!identity.id}
-                readOnly={review}
+                readOnly={review || !canForm}
                 layout="tabs"
                 onFile={(documentId, file) => void upload(documentId, file)}
-                onDelete={review ? undefined : (documentId) => void removeDocument(documentId)}
+                onDelete={review || !canForm ? undefined : (documentId) => void removeDocument(documentId)}
               />
             )}
             <div className="flex justify-end">{continueButton}</div>
@@ -429,9 +500,11 @@ export function CaseStewardshipPage() {
           caseId={id}
           items={inquiries.data ?? []}
           loading={inquiries.isLoading}
-          autoAdvance={open && reached === 1 && step === 1}
+          autoAdvance={admin && open && reached === 1 && step === 1}
           showAdvance={false}
-          locked={review}
+          actorId={user?.id}
+          adminDecide={admin}
+          closed={review}
           headerAction={continueButton}
           onAdvanced={() => undefined}
           onAutoAdvance={() => void continueStep()}
@@ -446,9 +519,10 @@ export function CaseStewardshipPage() {
           caseId={id}
           item={placesReview.data ?? null}
           loading={placesReview.isLoading}
-          autoAdvance={open && reached === 2 && step === 2}
+          autoAdvance={admin && open && reached === 2 && step === 2}
           showAdvance={false}
-          locked={review}
+          locked={review || (!admin && !placesViewer)}
+          answerOnly={placesViewer && !admin}
           headerAction={continueButton}
           onAdvanced={() => undefined}
           onAutoAdvance={() => void continueStep()}
@@ -466,6 +540,7 @@ export function CaseStewardshipPage() {
           autoAdvance={false}
           showAdvance={false}
           locked={review}
+          ownRoleIds={managementRoleIds}
           headerAction={continueButton}
           onAdvanced={() => undefined}
           onRewound={() => {
@@ -504,12 +579,12 @@ export function CaseStewardshipPage() {
                 label={t('cases.daysRemaining')}
               />
             </div>
-            {!review && cardYears != null ? (
+            {!review && canIssue && cardYears != null ? (
               <p className="text-sm text-ink-600">
                 {t('cases.stewardship.issueDurationHint', { count: formatNumber(cardYears, locale) })}
               </p>
             ) : null}
-            {review ? (
+            {review || !canIssue ? (
               <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
                 <FormFactTile
                   icon={IdCard}
@@ -543,7 +618,7 @@ export function CaseStewardshipPage() {
               </FormField>
             </div>
             )}
-            {!review ? (
+            {!review && canIssue ? (
               <div className="flex justify-center">
                 <Button
                   type="button"

@@ -1,13 +1,9 @@
-import { KeyRound, Send, UserRound } from 'lucide-react'
-import { useState } from 'react'
+import { UserRound } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { SendUserSmsModal } from '../../components/sms/SendUserSmsModal'
-import { ChangeUserPasswordModal } from '../../components/users/ChangeUserPasswordModal'
 import {
-  Button,
   EntityNameSubtitle,
   LoadingState,
   PageHeader,
@@ -22,8 +18,6 @@ export function UserEditPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [smsOpen, setSmsOpen] = useState(false)
-  const [passwordOpen, setPasswordOpen] = useState(false)
   const query = useQuery({
     queryKey: ['user', id],
     enabled: Boolean(id),
@@ -43,18 +37,6 @@ export function UserEditPage() {
         icon={UserRound}
         title={t('users.edit')}
         subtitle={<EntityNameSubtitle name={query.data.fullName} icon={UserRound} />}
-        action={
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button type="button" variant="soft" onClick={() => setPasswordOpen(true)}>
-              <KeyRound className="size-4" aria-hidden />
-              {t('auth.changePassword')}
-            </Button>
-            <Button type="button" variant="soft" onClick={() => setSmsOpen(true)}>
-              <Send className="size-4" aria-hidden />
-              {t('sms.send')}
-            </Button>
-          </div>
-        }
       />
       <UserForm
         initial={query.data}
@@ -68,20 +50,6 @@ export function UserEditPage() {
           navigate('/users')
         }}
       />
-      {smsOpen ? (
-        <SendUserSmsModal
-          phone={query.data.phone}
-          recipientName={query.data.fullName}
-          onClose={() => setSmsOpen(false)}
-        />
-      ) : null}
-      {passwordOpen ? (
-        <ChangeUserPasswordModal
-          userId={query.data.id}
-          phone={query.data.phone}
-          onClose={() => setPasswordOpen(false)}
-        />
-      ) : null}
     </div>
   )
 }

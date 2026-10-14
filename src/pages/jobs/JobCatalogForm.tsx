@@ -10,9 +10,8 @@ import { FormTabs } from '../../components/ui/FormTabs'
 import { SearchSelect } from '../../components/ui/SearchSelect'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { parseGroupedAmount, toLatinDigits } from '../../lib/datetime'
-import type { InquiryCenter, JobDocumentRef, JobGroup, JobInquiryCenterRef, JobType, Paginated } from '../../types/app'
+import type { JobDocumentRef, JobGroup, JobType, Paginated } from '../../types/app'
 import { CaseRequirementsPanel } from '../cases/CaseRequirementsPanel'
-import { InquiryCenterPicker } from './InquiryCenterPanels'
 import { JobDocumentsPanel } from './JobDocumentPanels'
 
 export type JobCatalogPayload = {
@@ -23,7 +22,6 @@ export type JobCatalogPayload = {
   annualFee?: number | null
   groupId: string
   isActive: boolean
-  inquiryCenterIds?: string[]
 }
 
 function asList<T>(data: T[] | Paginated<T>) {
@@ -36,7 +34,7 @@ export function JobCatalogForm({
   onSubmit,
 }: {
   jobId?: string
-  initial?: JobCatalogPayload & { inquiryCenters?: JobInquiryCenterRef[]; documents?: JobDocumentRef[] }
+  initial?: JobCatalogPayload & { documents?: JobDocumentRef[] }
   onSubmit: (payload: JobCatalogPayload) => Promise<void>
 }) {
   const { t } = useTranslation()
@@ -50,7 +48,6 @@ export function JobCatalogForm({
   )
   const [groupId, setGroupId] = useState(initial?.groupId ?? '')
   const [isActive, setIsActive] = useState(initial?.isActive ?? true)
-  const [inquiryCenterIds, setInquiryCenterIds] = useState<string[]>(initial?.inquiryCenterIds ?? [])
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const typesQuery = useQuery({
@@ -67,15 +64,6 @@ export function JobCatalogForm({
       return asList(data)
     },
   })
-  const centersQuery = useQuery({
-    queryKey: ['inquiry-centers', 'lookup'],
-    enabled: Boolean(initial),
-    queryFn: async () => {
-      const { data } = await api.get<InquiryCenter[] | Paginated<InquiryCenter>>('/inquiry-centers')
-      return asList(data)
-    },
-  })
-
   const typeOptions = useMemo(
     () => (typesQuery.data ?? []).map((item) => ({ value: item.id, label: item.title })),
     [typesQuery.data],
@@ -114,14 +102,6 @@ export function JobCatalogForm({
         .map((item) => ({ value: item.id, label: item.title })),
     [groupId, groupsQuery.data],
   )
-  const centers = useMemo(() => {
-    const list = centersQuery.data ?? []
-    const extras = (initial?.inquiryCenters ?? []).filter(
-      (center) => !list.some((item) => item.id === center.id),
-    )
-    return [...extras.map((center) => ({ id: center.id, name: center.name })), ...list]
-  }, [centersQuery.data, initial?.inquiryCenters])
-
   function validate() {
     const next: Record<string, string> = {}
     const trimmedTitle = title.trim()
@@ -155,7 +135,6 @@ export function JobCatalogForm({
         annualFee: parseGroupedAmount(annualFee),
         groupId,
         isActive,
-        ...(initial ? { inquiryCenterIds } : {}),
       })
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('common.error')))
@@ -176,9 +155,9 @@ export function JobCatalogForm({
           onChange={setTab}
           tabs={[
             { id: 'details', label: t('jobCatalog.tabDetails'), icon: HardHat },
-            { id: 'issuance', label: t('cases.requestTypes.ISSUANCE'), icon: BadgeCheck },
-            { id: 'renewal', label: t('cases.requestTypes.RENEWAL'), icon: RefreshCw },
-            { id: 'location', label: t('cases.requestTypes.LOCATION_CHANGE'), icon: MapPinned },
+            { id: 'issuance', label: t('cases.settingsIssuanceTab'), icon: BadgeCheck },
+            { id: 'renewal', label: t('cases.settingsRenewalTab'), icon: RefreshCw },
+            { id: 'location', label: t('cases.settingsLocationTab'), icon: MapPinned },
           ]}
         />
       ) : null}
@@ -282,19 +261,20 @@ export function JobCatalogForm({
           </div>
         ) : tab === 'issuance' ? (
           <div role="tabpanel" id="form-panel-issuance" aria-labelledby="form-tab-issuance" className="space-y-10">
-            <InquiryCenterPicker
-              centers={centers}
-              selectedIds={inquiryCenterIds}
-              onChange={setInquiryCenterIds}
-              label={t('jobCatalog.tabInquiryCenters')}
-              empty={t('jobCatalog.noInquiryCenters')}
-            />
             {jobId ? (
-              <JobDocumentsPanel
-                jobId={jobId}
-                documents={initial?.documents ?? []}
-                queryKey={['jobs-catalog', jobId]}
-              />
+              <>
+                <CaseRequirementsPanel
+                  requestType="ISSUANCE"
+                  jobId={jobId}
+                  scope="job"
+                  section="inquiries"
+                />
+                <JobDocumentsPanel
+                  jobId={jobId}
+                  documents={initial?.documents ?? []}
+                  queryKey={['jobs-catalog', jobId]}
+                />
+              </>
             ) : null}
           </div>
         ) : tab === 'renewal' && jobId ? (

@@ -13,6 +13,7 @@ import { LoadingState } from '../../components/ui/LoadingState'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { ISSUANCE_FORMATION_STEP } from './formation-types'
 import { InquiryProgressChart, usePendingTab } from './CaseInquiriesStep'
+import { InquiryElapsedBadge } from './InquiryDateBadges'
 import { openInquiryFile, submitInquiryDecision } from './inquiry-api'
 import type { CaseInquiryChannel, CaseInquiryFile, CaseInquiryStatus } from './inquiry-types'
 
@@ -40,6 +41,7 @@ export type CaseManagementApproverRow = {
   decidedAt: string | null
   decidedBy: { id: string; fullName: string } | null
   workUnitTitle: string | null
+  roleId: string
   roleName: string
   displayTitle?: string | null
   people: { id: string; fullName: string }[]
@@ -53,6 +55,7 @@ export function CaseManagementReviewStep({
   autoAdvance,
   showAdvance = true,
   locked = false,
+  ownRoleIds,
   headerAction,
   onAdvanced,
   onRewound,
@@ -65,6 +68,8 @@ export function CaseManagementReviewStep({
   /** در تمدید و تغییر مکان، ادامه را صفحهٔ فرایند می‌زند */
   showAdvance?: boolean
   locked?: boolean
+  /** اگر بیاید، فقط ردیف همین نقش‌ها قابل ثبت است و بقیه فقط‌خواندنی می‌مانند. */
+  ownRoleIds?: string[]
   headerAction?: ReactNode
   onAdvanced: (formationStep: number) => void
   onRewound: () => void
@@ -162,7 +167,18 @@ export function CaseManagementReviewStep({
                 aria-labelledby={`form-tab-${item.id}`}
                 hidden={item.id !== activeId}
               >
-                <ReviewCard item={item} locked={locked} onChanged={() => void refresh()} onRewound={onRewound} />
+                <ReviewCard
+                  item={item}
+                  locked={locked || (ownRoleIds != null && !ownRoleIds.includes(item.roleId))}
+                  allowReopen={ownRoleIds == null && !locked}
+                  decisionUrl={
+                    ownRoleIds != null
+                      ? `/cases/management-reviews/${item.id}/decision`
+                      : `/cases/formation/management-reviews/${item.id}/decision`
+                  }
+                  onChanged={() => void refresh()}
+                  onRewound={onRewound}
+                />
               </div>
             ))}
           </div>
@@ -175,15 +191,20 @@ export function CaseManagementReviewStep({
 function ReviewCard({
   item,
   locked = false,
+  allowReopen = true,
+  decisionUrl,
   onChanged,
   onRewound,
 }: {
   item: CaseManagementApproverRow
   locked?: boolean
+  allowReopen?: boolean
+  decisionUrl: string
   onChanged: () => void
   onRewound: () => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language.split('-')[0] ?? 'fa'
   const [note, setNote] = useState(item.note ?? '')
   const [file, setFile] = useState<File | null>(null)
   const [attachmentOpen, setAttachmentOpen] = useState(false)
@@ -197,7 +218,7 @@ function ReviewCard({
     }
     setSaving(true)
     try {
-      await submitInquiryDecision(`/cases/formation/management-reviews/${item.id}/decision`, status, note, file)
+      await submitInquiryDecision(decisionUrl, status, note, file)
       toast.success(t('cases.managementDecided'))
       setFile(null)
       setAttachmentOpen(false)
@@ -332,7 +353,17 @@ function ReviewCard({
         <div className="space-y-3">
           <div className="grid gap-2 sm:grid-cols-2">
             {item.decidedAt ? (
-              <FormFactTile icon={Clock} label={t('cases.inquiryDecidedAt')} value={<DateText value={item.decidedAt} withTime />} tone="mint" />
+              <FormFactTile
+                icon={Clock}
+                label={t('cases.inquiryDecidedAt')}
+                tone="mint"
+                value={
+                  <span className="flex flex-wrap items-center gap-2">
+                    <DateText value={item.decidedAt} withTime />
+                    <InquiryElapsedBadge from={item.createdAt} to={item.decidedAt} locale={locale} />
+                  </span>
+                }
+              />
             ) : null}
             {item.decidedBy ? (
               <FormFactTile icon={UserRound} label={t('cases.inquiryDecidedBy')} value={item.decidedBy.fullName} tone="teal" />
@@ -342,14 +373,14 @@ function ReviewCard({
             ) : null}
           </div>
           <ReviewFiles files={item.files} />
-          {locked ? null : (
+          {allowReopen ? (
           <div className="flex justify-end">
             <Button type="button" variant="ghost" disabled={saving} onClick={askReopen}>
               <RotateCcw className="size-4" aria-hidden />
               {t('cases.managementReopen')}
             </Button>
           </div>
-          )}
+          ) : null}
         </div>
       )}
     </article>

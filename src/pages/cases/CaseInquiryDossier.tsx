@@ -7,6 +7,7 @@ import {
   Building2,
   Calendar,
   CalendarDays,
+  Check,
   FileText,
   GraduationCap,
   Hash,
@@ -114,14 +115,105 @@ function DocumentStats({ stats, locale }: { stats: InquiryDocumentStats; locale:
   )
 }
 
+function DossierDocuments({
+  inquiryId,
+  apiBase,
+  documents,
+  stats,
+  locale,
+}: {
+  inquiryId: string
+  apiBase: string
+  documents: InquiryDossierDocument[]
+  stats: InquiryDocumentStats
+  locale: string
+}) {
+  const { t } = useTranslation()
+  const [activeId, setActiveId] = useState(() => documents[0]?.id ?? '')
+
+  useEffect(() => {
+    if (documents.some((item) => item.id === activeId)) return
+    setActiveId(documents[0]?.id ?? '')
+  }, [activeId, documents])
+
+  if (documents.length === 0) {
+    return (
+      <div className="space-y-5">
+        <DocumentStats stats={stats} locale={locale} />
+        <FormEmptyHint>{t('cases.inquiryDocumentsEmpty')}</FormEmptyHint>
+      </div>
+    )
+  }
+
+  const active = documents.find((item) => item.id === activeId) ?? documents[0]
+
+  return (
+    <div className="space-y-4">
+      <DocumentStats stats={stats} locale={locale} />
+      <div role="tablist" aria-label={t('cases.documentsTab')} className="flex flex-wrap gap-2">
+        {documents.map((item) => {
+          const selected = item.id === active?.id
+          const uploaded = Boolean(item.file)
+          const missingRequired = item.isRequired && !uploaded
+          const tabTone = missingRequired
+            ? selected
+              ? 'border-2 border-red-300 bg-red-100 text-red-800'
+              : 'border border-red-200 bg-red-50 text-red-700'
+            : uploaded
+              ? selected
+                ? 'border-2 border-emerald-400 bg-emerald-100 text-emerald-800'
+                : 'border border-emerald-300 bg-emerald-50 text-emerald-800'
+              : selected
+                ? 'bg-teal-500 bg-[linear-gradient(to_inline-end,var(--color-teal-500),var(--color-mint-500))] text-white'
+                : 'border border-teal-400 bg-white text-ink-700'
+          return (
+            <button
+              key={item.id}
+              id={`inquiry-doc-tab-${item.id}`}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              aria-controls={`inquiry-doc-panel-${item.id}`}
+              tabIndex={selected ? 0 : -1}
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-500 ${tabTone}`}
+              onClick={() => setActiveId(item.id)}
+            >
+              <span>{item.title}</span>
+              {item.isRequired ? (
+                <span className={uploaded ? 'text-emerald-600' : selected && !missingRequired ? 'text-white' : 'text-red-500'} aria-hidden>
+                  *
+                </span>
+              ) : null}
+              {item.isRequired ? <span className="sr-only">{t('cases.documentRequired')}</span> : null}
+              {uploaded ? <Check className="size-3.5 shrink-0" aria-hidden /> : null}
+            </button>
+          )
+        })}
+      </div>
+      {active ? (
+        <div
+          id={`inquiry-doc-panel-${active.id}`}
+          role="tabpanel"
+          aria-labelledby={`inquiry-doc-tab-${active.id}`}
+          className="rounded-2xl border border-teal-100 bg-cream-50/60 p-4"
+        >
+          <DossierDocumentCard inquiryId={inquiryId} apiBase={apiBase} item={active} featured />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function DossierDocumentCard({
   inquiryId,
   apiBase,
   item,
+  featured = false,
 }: {
   inquiryId: string
   apiBase: string
   item: InquiryDossierDocument
+  featured?: boolean
 }) {
   const { t } = useTranslation()
   const [previewUrl, setPreviewUrl] = useState<string>()
@@ -178,18 +270,26 @@ function DossierDocumentCard({
 
   return (
     <article
-      className={`flex flex-col items-center rounded-2xl border p-3 ${
-        missingRequired ? 'inquiry-doc-missing border-red-200/70 bg-red-50/40' : 'border-teal-100 bg-cream-50/60'
+      className={`flex flex-col items-center ${
+        featured
+          ? ''
+          : `rounded-2xl border p-3 ${
+              missingRequired ? 'inquiry-doc-missing border-red-200/70 bg-red-50/40' : 'border-teal-100 bg-cream-50/60'
+            }`
       }`}
     >
       {previewUrl ? (
         <button
           type="button"
-          className="flex h-44 w-full cursor-pointer items-center justify-center"
+          className={`flex w-full cursor-pointer items-center justify-center ${featured ? 'min-h-64' : 'h-44'}`}
           aria-label={t('cases.inquiryDocEnlarge')}
           onClick={() => void openFile()}
         >
-          <img src={previewUrl} alt="" className="max-h-44 max-w-full object-contain" />
+          <img
+            src={previewUrl}
+            alt=""
+            className={`max-w-full object-contain ${featured ? 'mx-auto max-h-[28rem] w-full max-w-3xl rounded-2xl' : 'max-h-44'}`}
+          />
         </button>
       ) : file ? (
         <button type="button" className="cursor-pointer text-xs text-teal-700" onClick={() => void openFile()}>
@@ -235,12 +335,14 @@ export function CaseInquiryDossier({
   apiBase = '/cases/inquiries',
   tab,
   createdAt,
+  createdAtLabel = 'cases.inquiryCreatedAt',
   applicant,
 }: {
   inquiryId: string
   apiBase?: string
   tab: string
   createdAt: string
+  createdAtLabel?: string
   applicant: Applicant
 }) {
   const { t, i18n } = useTranslation()
@@ -256,18 +358,13 @@ export function CaseInquiryDossier({
     if (query.isLoading) return <LoadingState />
     if (!dossier) return <p className="text-sm text-ink-500">{t('cases.inquiryDossierFailed')}</p>
     return (
-      <div className="space-y-5">
-        <DocumentStats stats={dossier.documentStats} locale={locale} />
-        {dossier.documents.length === 0 ? (
-          <FormEmptyHint>{t('cases.inquiryDocumentsEmpty')}</FormEmptyHint>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {dossier.documents.map((item) => (
-              <DossierDocumentCard key={item.id} inquiryId={inquiryId} apiBase={apiBase} item={item} />
-            ))}
-          </div>
-        )}
-      </div>
+      <DossierDocuments
+        inquiryId={inquiryId}
+        apiBase={apiBase}
+        documents={dossier.documents}
+        stats={dossier.documentStats}
+        locale={locale}
+      />
     )
   }
 
@@ -388,7 +485,7 @@ export function CaseInquiryDossier({
         {jobTitle ? <FormFactTile icon={Briefcase} label={t('cases.activityJob')} value={jobTitle} /> : null}
         {unitTitle ? <FormFactTile icon={Building2} label={t('cases.unitTitle')} value={unitTitle} /> : null}
         {createdAt ? (
-          <FormFactTile icon={Calendar} label={t('cases.inquiryCreatedAt')} value={<DateText value={createdAt} withTime />} />
+          <FormFactTile icon={Calendar} label={t(createdAtLabel)} value={<DateText value={createdAt} withTime />} />
         ) : null}
       </div>
       {query.isLoading ? <LoadingState /> : null}

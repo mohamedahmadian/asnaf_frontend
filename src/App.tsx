@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { CircleCheck, CircleX, Info, Landmark, LoaderCircle, TriangleAlert } from 'lucide-react'
+import { CircleCheck, CircleX, Info, LoaderCircle, TriangleAlert, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Toaster } from 'sonner'
@@ -33,6 +33,11 @@ import { CaseInquiriesListPage } from './pages/cases/CaseInquiriesListPage'
 import { CaseInquiryDetailPage } from './pages/cases/CaseInquiryDetailPage'
 import { CaseInquiryLetterPage } from './pages/cases/CaseInquiryLetterPage'
 import { CaseManagementPage } from './pages/cases/CaseManagementPage'
+import { CaseIssuancePage } from './pages/cases/CaseIssuancePage'
+import { CaseManagementReviewsPage } from './pages/cases/CaseManagementReviewsPage'
+import { CaseManagementReviewsReportPage } from './pages/cases/CaseManagementReviewsReportPage'
+import { CaseInquiriesReportPage } from './pages/cases/CaseInquiriesReportPage'
+import { CasePlacesReportPage } from './pages/cases/CasePlacesReportPage'
 import { CaseReportsPage } from './pages/cases/CaseReportsPage'
 import { ExpiringCasesPage } from './pages/reports/ExpiringCasesPage'
 import { CaseSettingsPage } from './pages/cases/CaseSettingsPage'
@@ -151,20 +156,23 @@ const toastIcons = {
   warning: <TriangleAlert {...toastIconProps} />,
   info: <Info {...toastIconProps} />,
   loading: <LoaderCircle {...toastIconProps} className="animate-spin" />,
+  close: <X {...toastIconProps} />,
 }
 
 function AppToaster() {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const lang = (i18n.language.split('-')[0] as AppLanguage) || 'fa'
   return (
     <Toaster
       position="bottom-center"
       className="app-toaster"
+      closeButton
       swipeDirections={['bottom', 'left', 'right']}
       dir={languages[lang]?.dir ?? 'rtl'}
       gap={12}
       offset={22}
       icons={toastIcons}
+      toastOptions={{ closeButtonAriaLabel: t('common.close') }}
       style={{ ['--width' as string]: 'min(24rem, calc(100vw - 2rem))' }}
     />
   )
@@ -280,29 +288,20 @@ export default function App() {
                   <Route path="/base-info/staff-posts/:id/edit" element={<StaffPostEditPage />} />
                   <Route path="/cases/formation/inquiries/:id/letter" element={<CaseInquiryLetterPage />} />
                   <Route path="/cases/formation" element={<CaseFormationPage />} />
+                  <Route path="/cases/inquiries/reports" element={<CaseInquiriesReportPage />} />
                   <Route path="/cases/inquiries/:id/letter" element={<CaseInquiryLetterPage />} />
                   <Route path="/cases/inquiries/:id" element={<CaseInquiryDetailPage />} />
                   <Route path="/cases/inquiries" element={<CaseInquiriesListPage />} />
+                  <Route path="/cases/places/reports" element={<CasePlacesReportPage />} />
                   <Route path="/cases/places/:id/letter" element={<CaseInquiryLetterPage />} />
                   <Route
                     path="/cases/places/:id"
                     element={<CaseInquiryDetailPage apiBase="/cases/places" variant="places" />}
                   />
-                  <Route
-                    path="/cases/places"
-                    element={
-                      <CaseInquiriesListPage
-                        apiPath="/cases/places"
-                        viewBase="/cases/places"
-                        titleKey="menus.casePlaces"
-                        subtitleKey="cases.placesSubtitle"
-                        emptyKey="cases.placesListEmpty"
-                        noResultsKey="cases.placesNoResults"
-                        queryScope="places"
-                        icon={Landmark}
-                      />
-                    }
-                  />
+                  <Route path="/cases/places" element={<CaseManagementPage placesInbox />} />
+                  <Route path="/cases/management-reviews/reports" element={<CaseManagementReviewsReportPage />} />
+                  <Route path="/cases/management-reviews" element={<CaseManagementReviewsPage />} />
+                  <Route path="/cases/issuance" element={<CaseIssuancePage />} />
                   <Route path="/cases/reports" element={<CaseReportsPage />} />
                   <Route path="/reports/expiring-cases" element={<ExpiringCasesPage />} />
                   <Route path="/cases/settings" element={<CaseSettingsPage />} />

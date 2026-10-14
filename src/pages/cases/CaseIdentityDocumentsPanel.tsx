@@ -1,4 +1,4 @@
-import { FileText, Plus, Trash2, Users } from 'lucide-react'
+import { FileText, Plus, ToggleRight, Trash2, Users } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,7 +31,6 @@ type IdentityDocumentRow = {
 type DocumentOption = {
   id: string
   title: string
-  gender: DocumentGender
 }
 
 export function CaseIdentityDocumentsPanel() {
@@ -42,6 +41,7 @@ export function CaseIdentityDocumentsPanel() {
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const [pick, setPick] = useState('')
   const [gender, setGender] = useState<DocumentGender>(documentGenders.BOTH)
+  const [isRequired, setIsRequired] = useState(true)
   const [saving, setSaving] = useState(false)
 
   const query = useQuery({
@@ -69,19 +69,20 @@ export function CaseIdentityDocumentsPanel() {
     label: t(`documents.genders.${item}`),
   }))
 
-  function onPick(id: string) {
-    setPick(id)
-    setGender(optionRows.find((item) => item.id === id)?.gender ?? documentGenders.BOTH)
-  }
+  const requirementOptions = [
+    { value: 'required', label: t('documents.required') },
+    { value: 'optional', label: t('documents.optional') },
+  ]
 
   async function add() {
     if (!pick || saving) return
     setSaving(true)
     try {
-      await api.post('/cases/settings/identity-documents', { documentId: pick, gender })
+      await api.post('/cases/settings/identity-documents', { documentId: pick, gender, isRequired })
       toast.success(t('cases.settingsIdentityAdded'))
       setPick('')
       setGender(documentGenders.BOTH)
+      setIsRequired(true)
       await queryClient.invalidateQueries({ queryKey: ['cases', 'settings', 'identity-documents'] })
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('common.error')))
@@ -98,7 +99,7 @@ export function CaseIdentityDocumentsPanel() {
             <SearchSelect
               id="case-identity-document-add"
               value={pick}
-              onChange={onPick}
+              onChange={setPick}
               placeholder={
                 options.length === 0
                   ? t('cases.settingsIdentityNoneToAdd')
@@ -106,6 +107,18 @@ export function CaseIdentityDocumentsPanel() {
               }
               disabled={saving || optionsQuery.isLoading || options.length === 0}
               options={options}
+            />
+          </FormField>
+        </div>
+        <div className="w-full lg:w-44">
+          <FormField icon={ToggleRight} label={t('documents.isRequired')} htmlFor="case-identity-document-required">
+            <SearchSelect
+              id="case-identity-document-required"
+              value={isRequired ? 'required' : 'optional'}
+              onChange={(next) => setIsRequired(next === 'required')}
+              placeholder={t('documents.isRequired')}
+              disabled={saving}
+              options={requirementOptions}
             />
           </FormField>
         </div>

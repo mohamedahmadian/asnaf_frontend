@@ -1,13 +1,13 @@
 import { Download, Landmark, Printer, ScanSearch } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { useMemo } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useParams } from 'react-router-dom'
 import { Button, PageHeader, caseShellClassName } from '../../components/ui/Form'
-import { FormCard, formCardBodyClassName } from '../../components/ui/FormLayout'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { api } from '../../lib/api'
-import { downloadInquiryLetter, inquiryLetterFilename, presentInquiryLetter } from './inquiry-api'
+import { LetterIssueBar, useEditableLetter, useInquiryLetterMarkup } from './LetterIssueBar'
+import { downloadInquiryLetter, inquiryLetterFilename, printInquiryLetter, type LetterPaper } from './inquiry-api'
 import type { CaseInquiryLetter } from './inquiry-types'
 
 export function CaseInquiryLetterPage() {
@@ -18,17 +18,27 @@ export function CaseInquiryLetterPage() {
   const places = location.pathname.includes('/places/')
   const apiBase = places ? '/cases/places' : '/cases/inquiries'
   const PageIcon = places ? Landmark : ScanSearch
+  const queryKey = ['cases', 'inquiry-letter', apiBase, id] as const
   const query = useQuery({
-    queryKey: ['cases', 'inquiry-letter', apiBase, id],
+    queryKey,
     enabled: Boolean(id),
     queryFn: async () => (await api.get<CaseInquiryLetter>(`${apiBase}/${id}/letter`)).data,
   })
   const letter = query.data
-  const filled = useMemo(() => (letter ? presentInquiryLetter(letter, locale) : null), [letter, locale])
+  const [paper, setPaper] = useState<LetterPaper>('A4')
+  const issue = useEditableLetter(letter, `${apiBase}/${id}/letter`, queryKey)
+  const fragment = useInquiryLetterMarkup(issue.view, locale, paper)
 
-  function download() {
-    if (!filled || !letter) return
-    downloadInquiryLetter(inquiryLetterFilename(letter.centerName), filled.title, filled.body)
+  async function download() {
+    const saved = await issue.persist()
+    if (!saved) return
+    await downloadInquiryLetter(inquiryLetterFilename(saved.centerName), saved, locale, paper)
+  }
+
+  async function print() {
+    const saved = await issue.persist()
+    if (!saved) return
+    await printInquiryLetter(saved, locale, paper)
   }
 
   return (
@@ -47,11 +57,11 @@ export function CaseInquiryLetterPage() {
           }
           action={
             <div className="flex flex-wrap gap-2">
-              <Button type="button" onClick={() => window.print()}>
+              <Button type="button" onClick={() => void print()} disabled={!letter}>
                 <Printer className="size-4" aria-hidden />
                 {t('cases.inquiryPrint')}
               </Button>
-              <Button type="button" variant="ghost" onClick={download} disabled={!filled}>
+              <Button type="button" variant="ghost" onClick={() => void download()} disabled={!letter}>
                 <Download className="size-4" aria-hidden />
                 {t('cases.inquiryDownload')}
               </Button>
@@ -60,12 +70,27 @@ export function CaseInquiryLetterPage() {
         />
       </div>
       {query.isLoading ? <LoadingState /> : null}
-      {filled ? (
-        <FormCard icon={PageIcon} title={filled.title}>
-          <div className={`${formCardBodyClassName} whitespace-pre-wrap text-sm leading-8 text-ink-900`}>
-            {filled.body}
-          </div>
-        </FormCard>
+      {letter ? (
+        <LetterIssueBar
+          letterNo={issue.letterNo}
+          issuedAt={issue.issuedAt}
+          paper={paper}
+          onPaperChange={setPaper}
+          onLetterNoChange={issue.setLetterNo}
+          onIssuedAtChange={(value) => {
+            issue.setIssuedAt(value)
+            if (value) void issue.persist({ issuedAt: value })
+          }}
+          onLetterNoCommit={() => void issue.persist()}
+        />
+      ) : null}
+      {fragment ? (
+        <div className="w-full overflow-x-auto">
+          <div
+            className="mx-auto w-fit rounded-2xl bg-white shadow-[0_8px_28px_rgba(20,40,40,0.06)] print:rounded-none print:shadow-none"
+            dangerouslySetInnerHTML={{ __html: fragment }}
+          />
+        </div>
       ) : null}
     </div>
   )

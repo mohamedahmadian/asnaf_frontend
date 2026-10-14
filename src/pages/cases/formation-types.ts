@@ -205,48 +205,11 @@ export type DocumentTypeRow = {
   gender: 'MALE' | 'FEMALE' | 'BOTH'
 }
 
-type ActivityDocumentSource = {
-  id: string
-  title: string
-  isRequired: boolean
-  gender: DocumentTypeRow['gender']
-  isFixed?: boolean
-}
-
 export function matchesDocumentGender(
   gender: DocumentTypeRow['gender'],
   personGender: 'MALE' | 'FEMALE' | null | undefined,
 ) {
   return gender === 'BOTH' || !personGender || gender === personGender
-}
-
-export function activityDocumentRows(
-  jobDocuments: ActivityDocumentSource[],
-  catalog: ActivityDocumentSource[],
-  personGender: 'MALE' | 'FEMALE' | null | undefined,
-): DocumentTypeRow[] {
-  const rows = new Map<string, DocumentTypeRow>()
-  for (const item of catalog) {
-    if (!item.isFixed || !item.isRequired || !matchesDocumentGender(item.gender, personGender)) continue
-    rows.set(item.id, {
-      id: item.id,
-      code: null,
-      title: item.title,
-      isRequired: true,
-      gender: item.gender,
-    })
-  }
-  for (const item of jobDocuments) {
-    if (rows.has(item.id) || !matchesDocumentGender(item.gender, personGender)) continue
-    rows.set(item.id, {
-      id: item.id,
-      code: null,
-      title: item.title,
-      isRequired: item.isRequired,
-      gender: item.gender,
-    })
-  }
-  return [...rows.values()].sort((left, right) => left.title.localeCompare(right.title, 'fa'))
 }
 
 export type StoredVersion = {

@@ -1,6 +1,7 @@
 import { getPageMeta } from "./page-meta";
 import {
   isCaseDetailsLocation,
+  isPlacesCaseBrowse,
   menuPathMatches,
   normalizeMenuPath,
   sidebarMenuPathname,
@@ -53,6 +54,27 @@ function findLongestMenu(pathname: string, modules: BreadcrumbNavModule[], searc
   return best;
 }
 
+function menuExists(modules: BreadcrumbNavModule[], menuPath: string) {
+  const target = normalizeMenuPath(menuPath);
+  return modules.some((mod) => mod.menus.some((menu) => normalizeMenuPath(menu.path) === target));
+}
+
+function findMenuByPath(modules: BreadcrumbNavModule[], menuPath: string) {
+  const target = normalizeMenuPath(menuPath);
+  for (const mod of modules) {
+    for (const menu of mod.menus) {
+      if (normalizeMenuPath(menu.path) !== target) continue;
+      return {
+        moduleNameKey: mod.nameKey,
+        menuNameKey: menu.nameKey,
+        menuPath: target,
+        label: menu.label,
+      };
+    }
+  }
+  return undefined;
+}
+
 function pushUnique(crumbs: PageBreadcrumbItem[], next: PageBreadcrumbItem) {
   const last = crumbs[crumbs.length - 1];
   if (
@@ -78,7 +100,16 @@ export function getPageBreadcrumbs(
 
   const crumbs: PageBreadcrumbItem[] = [{ to: "/dashboard", titleKey: HOME_TITLE_KEY }];
   const details = isCaseDetailsLocation(path, search);
-  const match = findLongestMenu(path, modules, search);
+  const placesBrowse =
+    isPlacesCaseBrowse(path, search) &&
+    !menuExists(modules, "/cases") &&
+    !menuExists(modules, "/cases/formation");
+  const match = placesBrowse
+    ?       findMenuByPath(modules, "/cases/places") ??
+      findMenuByPath(modules, "/cases/management-reviews") ??
+      findMenuByPath(modules, "/cases/issuance") ??
+      findLongestMenu(path, modules, search)
+    : findLongestMenu(path, modules, search);
 
   if (match) {
     if (match.moduleNameKey !== match.menuNameKey) {

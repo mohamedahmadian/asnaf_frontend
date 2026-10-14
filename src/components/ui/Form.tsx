@@ -253,7 +253,7 @@ export function PageHeader({
     <button
       type="button"
       aria-label={t('common.back')}
-      className="inline-flex size-9 shrink-0 items-center justify-center rounded-2xl text-teal-700 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300 print:hidden"
+      className="inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-2xl text-teal-700 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300 print:hidden"
       onClick={() => goBack(fallback)}
     >
       <ArrowRight className="size-5 ltr:rotate-180" aria-hidden />

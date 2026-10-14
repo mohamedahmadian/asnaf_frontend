@@ -18,7 +18,6 @@ import { formatGroupedNumber, localizeDigits } from '../../lib/datetime'
 import { jobCatalogApi, jobCatalogEditPath, jobsCatalogPath } from '../../lib/paths/jobs'
 import type { Job } from '../../types/app'
 import { GeoStatus } from '../geo/GeoShared'
-import { InquiryCenterList } from './InquiryCenterPanels'
 import { CaseRequirementsPanel } from '../cases/CaseRequirementsPanel'
 import { JobDocumentsPanel } from './JobDocumentPanels'
 
@@ -56,9 +55,9 @@ export function JobCatalogDetailPage() {
           onChange={setTab}
           tabs={[
             { id: 'details', label: t('jobCatalog.tabDetails'), icon: HardHat },
-            { id: 'issuance', label: t('cases.requestTypes.ISSUANCE'), icon: BadgeCheck },
-            { id: 'renewal', label: t('cases.requestTypes.RENEWAL'), icon: RefreshCw },
-            { id: 'location', label: t('cases.requestTypes.LOCATION_CHANGE'), icon: MapPinned },
+            { id: 'issuance', label: t('cases.settingsIssuanceTab'), icon: BadgeCheck },
+            { id: 'renewal', label: t('cases.settingsRenewalTab'), icon: RefreshCw },
+            { id: 'location', label: t('cases.settingsLocationTab'), icon: MapPinned },
           ]}
         />
         <div className="space-y-6 p-5 sm:p-6">
@@ -107,10 +106,11 @@ export function JobCatalogDetailPage() {
             </div>
           ) : tab === 'issuance' ? (
             <div role="tabpanel" id="form-panel-issuance" aria-labelledby="form-tab-issuance" className="space-y-10">
-              <InquiryCenterList
-                centers={item.inquiryCenters}
-                label={t('jobCatalog.tabInquiryCenters')}
-                empty={t('jobCatalog.noInquiryCenters')}
+              <CaseRequirementsPanel
+                requestType="ISSUANCE"
+                jobId={item.id}
+                scope="job"
+                section="inquiries"
               />
               <JobDocumentsPanel
                 jobId={item.id}

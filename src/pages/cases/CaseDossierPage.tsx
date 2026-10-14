@@ -37,6 +37,7 @@ import { useGeoName } from '../../lib/geo'
 import type { Religion, UserGender } from '../../types/app'
 import type { CaseActivity, CaseLocation, EducationLevel, PreviousOccupation } from './formation-types'
 import { CaseStewardsSection, type StewardRow } from './CaseStewardsSection'
+import { useCaseCapabilities } from './case-capabilities'
 
 export function caseDossierPath(id: string) {
   return `/cases/${id}/dossier`
@@ -114,6 +115,8 @@ export type CaseDossier = {
   })[]
   identityDocuments: DossierDocument[]
   kind?: 'LICENSE' | 'STEWARDSHIP'
+  cardIssuedAt?: string | null
+  cardExpiresAt?: string | null
   stewards?: StewardRow[]
   host?: { id: string; licenseNumber: string | null; firstName: string; lastName: string; fullName: string } | null
   requestDocuments: {
@@ -139,6 +142,8 @@ const TAB_ICONS: Record<DossierTab, LucideIcon> = {
 export function CaseDossierPage() {
   const { id = '' } = useParams()
   const { t } = useTranslation()
+  const { placesViewer, managementReviewer, issuerViewer } = useCaseCapabilities()
+  const visitor = placesViewer || managementReviewer || issuerViewer
   const [tab, setTab] = useState<DossierTab>('identity')
   const query = useQuery({
     queryKey: ['cases', 'dossier', id],
@@ -146,6 +151,7 @@ export function CaseDossierPage() {
     queryFn: async () => (await api.get<CaseDossier>(`/cases/${id}/dossier`)).data,
   })
   const item = query.data
+  const steward = item?.kind === 'STEWARDSHIP'
   const editQuery = tab === 'documents' ? 'tab=identity&section=documents' : `tab=${tab}`
 
   return (
@@ -153,12 +159,37 @@ export function CaseDossierPage() {
       <PageHeader
         icon={Files}
         title={t('cases.dossierTitle')}
+        titleExtra={steward ? <StewardKindBadge /> : undefined}
         subtitle={
           item ? (
-            <EntityNameSubtitle icon={UserRound} name={item.person.fullName || t('cases.dossierTitle')} />
+            <span className="flex flex-wrap items-center gap-1.5">
+              <EntityNameSubtitle icon={UserRound} name={item.person.fullName || t('cases.dossierTitle')} />
+              {item.person.nationalId ? (
+                <span className="inline-flex max-w-full items-center gap-1.5 rounded-2xl bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-800">
+                  <IdCard className="size-4 shrink-0" aria-hidden />
+                  <span className="sr-only">{t('users.nationalId')}</span>
+                  <CopyableDigits value={item.person.nationalId} />
+                </span>
+              ) : null}
+              {item.person.phone ? (
+                <span className="inline-flex max-w-full items-center gap-1.5 rounded-2xl bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-800">
+                  <Phone className="size-4 shrink-0" aria-hidden />
+                  <span className="sr-only">{t('users.phone')}</span>
+                  <CopyableDigits value={item.person.phone} />
+                </span>
+              ) : null}
+            </span>
           ) : undefined
         }
-        backTo={`/cases/${id}`}
+        backTo={
+          placesViewer
+            ? '/cases/places'
+            : managementReviewer
+              ? '/cases/management-reviews'
+              : issuerViewer
+                ? '/cases/issuance'
+                : `/cases/${id}`
+        }
       />
       {query.isLoading ? <LoadingState /> : null}
       {query.isError ? <FormEmptyHint>{t('cases.dossierLoadFailed')}</FormEmptyHint> : null}
@@ -167,7 +198,7 @@ export function CaseDossierPage() {
           icon={Briefcase}
           title={item.businessUnitTitle || item.person.fullName}
           titleExtra={
-            item.licenseNumber ? (
+            !steward && item.licenseNumber ? (
               <span className="inline-flex max-w-full items-center gap-1.5 rounded-2xl bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-800">
                 <BadgeCheck className="size-4 shrink-0" aria-hidden />
                 <span className="sr-only">{t('cases.licenseNumber')}</span>
@@ -191,7 +222,7 @@ export function CaseDossierPage() {
             {tab === 'activity' ? <ActivityPanel item={item} /> : null}
             {tab === 'location' ? <LocationPanel item={item} /> : null}
             {tab === 'documents' ? <DocumentsPanel item={item} /> : null}
-            {item.canEditCase ? (
+            {item.canEditCase && !visitor ? (
               <DetailActions
                 editTo={`${caseDossierPath(item.id)}/edit?${editQuery}`}
                 editLabel={t('cases.dossierEdit')}
@@ -205,15 +236,27 @@ export function CaseDossierPage() {
       ) : null}
       {item && item.kind !== 'STEWARDSHIP' ? (
         <div className="mt-4">
-          <CaseStewardsSection caseId={item.id} items={item.stewards ?? []} />
+          <CaseStewardsSection caseId={item.id} items={item.stewards ?? []} readOnly={visitor} />
         </div>
       ) : null}
     </div>
   )
 }
 
-function DossierSummary({ item }: { item: CaseDossier }) {
+function StewardKindBadge() {
   const { t } = useTranslation()
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-mint-500 px-2.5 py-1 text-xs font-semibold text-white shadow-[0_4px_10px_rgba(63,214,190,0.28)]">
+      <IdCard className="size-3.5 shrink-0" aria-hidden />
+      {t('cases.stewardship.kind')}
+    </span>
+  )
+}
+
+function DossierSummary({ item }: { item: CaseDossier }) {
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language.split('-')[0] ?? 'fa'
+  const steward = item.kind === 'STEWARDSHIP'
   return (
     <div className="grid gap-2 p-5 pb-0 sm:grid-cols-2 sm:gap-3 sm:p-6 sm:pb-0 lg:grid-cols-3">
       <FormFactTile icon={Files} label={t('cases.filterCaseStatus')} value={t(`cases.caseStatuses.${item.status}`)} tone="ink" />
@@ -224,20 +267,114 @@ function DossierSummary({ item }: { item: CaseDossier }) {
         empty={!item.trackingCode}
         tone="teal"
       />
-      <FormFactTile icon={BadgeCheck} label={t('cases.licenseNumber')} copyValue={item.licenseNumber} tone="mint" />
-      <FormFactTile
-        icon={CalendarDays}
-        label={t('cases.licenseIssued')}
-        value={item.licenseIssuedAt ? <DateText value={item.licenseIssuedAt} /> : '—'}
-        empty={!item.licenseIssuedAt}
-      />
-      <FormFactTile
-        icon={CalendarDays}
-        label={t('cases.licenseExpires')}
-        value={item.licenseExpiresAt ? <DateText value={item.licenseExpiresAt} /> : '—'}
-        empty={!item.licenseExpiresAt}
-        tone="mint"
-      />
+      {steward ? (
+        <>
+          <div className="flex items-center justify-center rounded-2xl border border-mint-100 bg-gradient-to-b from-mint-50 to-white px-3 py-3">
+            <RemainingDaysRing issuedAt={item.cardIssuedAt ?? null} expiresAt={item.cardExpiresAt ?? null} locale={locale} />
+          </div>
+          <FormFactTile
+            icon={CalendarDays}
+            label={t('cases.stewardship.cardIssued')}
+            value={item.cardIssuedAt ? <DateText value={item.cardIssuedAt} /> : '—'}
+            empty={!item.cardIssuedAt}
+          />
+          <FormFactTile
+            icon={CalendarDays}
+            label={t('cases.stewardship.cardExpires')}
+            value={item.cardExpiresAt ? <DateText value={item.cardExpiresAt} /> : '—'}
+            empty={!item.cardExpiresAt}
+            tone="mint"
+          />
+        </>
+      ) : (
+        <>
+          <FormFactTile icon={BadgeCheck} label={t('cases.licenseNumber')} copyValue={item.licenseNumber} tone="mint" />
+          <FormFactTile
+            icon={CalendarDays}
+            label={t('cases.licenseIssued')}
+            value={item.licenseIssuedAt ? <DateText value={item.licenseIssuedAt} /> : '—'}
+            empty={!item.licenseIssuedAt}
+          />
+          <FormFactTile
+            icon={CalendarDays}
+            label={t('cases.licenseExpires')}
+            value={item.licenseExpiresAt ? <DateText value={item.licenseExpiresAt} /> : '—'}
+            empty={!item.licenseExpiresAt}
+            tone="mint"
+          />
+        </>
+      )}
+    </div>
+  )
+}
+
+function isoUtcDay(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
+  if (!match) return null
+  return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+}
+
+function todayIso() {
+  const now = new Date()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${now.getFullYear()}-${month}-${day}`
+}
+
+function cardSpan(issuedAt: string | null, expiresAt: string | null) {
+  if (!expiresAt) return null
+  const end = isoUtcDay(expiresAt)
+  const today = isoUtcDay(todayIso())
+  if (end == null || today == null) return null
+  const remaining = Math.max(0, Math.round((end - today) / 86_400_000))
+  const start = issuedAt ? isoUtcDay(issuedAt) : null
+  const total = start == null ? null : Math.round((end - start) / 86_400_000)
+  const ratio = total == null || total <= 0 ? (remaining > 0 ? 1 : 0) : Math.min(1, remaining / total)
+  return { remaining, ratio }
+}
+
+function RemainingDaysRing({
+  issuedAt,
+  expiresAt,
+  locale,
+}: {
+  issuedAt: string | null
+  expiresAt: string | null
+  locale: string
+}) {
+  const { t } = useTranslation()
+  const span = cardSpan(issuedAt, expiresAt)
+  const size = 52
+  const stroke = 5
+  const radius = (size - stroke) / 2
+  const circ = 2 * Math.PI * radius
+  const ratio = span?.ratio ?? 0
+  const dash = circ * ratio
+  const daysLabel = span ? formatNumber(span.remaining, locale) : '—'
+  const caption = t('cases.daysRemaining')
+  return (
+    <div className="flex flex-col items-center gap-1" role="img" aria-label={span ? `${caption}: ${daysLabel}` : caption}>
+      <div className="relative size-[3.25rem] shrink-0">
+        <svg viewBox={`0 0 ${size} ${size}`} className="size-[3.25rem] -rotate-90" aria-hidden>
+          <circle cx={size / 2} cy={size / 2} r={radius} fill="none" className="stroke-mint-100" strokeWidth={stroke} />
+          {dash > 0 ? (
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              className="stroke-mint-500"
+              strokeWidth={stroke}
+              strokeLinecap="round"
+              strokeDasharray={`${dash} ${circ - dash}`}
+            />
+          ) : null}
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold leading-none text-ink-900" aria-hidden>
+          {daysLabel}
+        </span>
+      </div>
+      <span className="max-w-24 text-center text-[11px] font-medium leading-4 text-ink-500">{caption}</span>
     </div>
   )
 }

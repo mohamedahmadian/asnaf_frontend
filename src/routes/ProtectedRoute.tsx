@@ -17,7 +17,7 @@ export function ProtectedRoute() {
     return <Navigate to={withNext('/login', next)} replace />
   }
 
-  if (!canAccessPath(user, location.pathname)) {
+  if (!canAccessPath(user, location.pathname, location.search)) {
     return <Navigate to="/dashboard" replace />
   }
 

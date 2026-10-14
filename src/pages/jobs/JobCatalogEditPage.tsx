@@ -44,8 +44,6 @@ export function JobCatalogEditPage() {
           annualFee: query.data.annualFee,
           groupId: query.data.groupId ?? '',
           isActive: query.data.isActive,
-          inquiryCenterIds: query.data.inquiryCenters.map((center) => center.id),
-          inquiryCenters: query.data.inquiryCenters,
           documents: query.data.documents ?? [],
         }}
         onSubmit={async (payload) => {

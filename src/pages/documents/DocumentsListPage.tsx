@@ -17,7 +17,6 @@ import { useListParams } from '../../hooks/useListParams'
 import { useListSort } from '../../hooks/useListSort'
 import { api } from '../../lib/api'
 import type { DocumentItem, Paginated } from '../../types/app'
-import { DocumentFlag } from './DocumentFlag'
 
 export function DocumentsListPage() {
   const { t } = useTranslation()
@@ -73,27 +72,6 @@ export function DocumentsListPage() {
                 sortDir={sortDir}
                 onSort={onSort}
               />
-              <SortableTh
-                column="isRequired"
-                label={t('documents.isRequired')}
-                sortBy={sortBy}
-                sortDir={sortDir}
-                onSort={onSort}
-              />
-              <SortableTh
-                column="gender"
-                label={t('documents.gender')}
-                sortBy={sortBy}
-                sortDir={sortDir}
-                onSort={onSort}
-              />
-              <SortableTh
-                column="isFixed"
-                label={t('documents.isFixed')}
-                sortBy={sortBy}
-                sortDir={sortDir}
-                onSort={onSort}
-              />
               <ActionsTh />
             </tr>
           </thead>
@@ -101,21 +79,6 @@ export function DocumentsListPage() {
             {rows.map((item) => (
               <tr key={item.id} className="border-t border-line">
                 <td className="px-4 py-3">{item.title}</td>
-                <td className="px-4 py-3">
-                  <DocumentFlag
-                    on={item.isRequired}
-                    onLabel={t('documents.required')}
-                    offLabel={t('documents.optional')}
-                  />
-                </td>
-                <td className="px-4 py-3">{t(`documents.genders.${item.gender}`)}</td>
-                <td className="px-4 py-3">
-                  <DocumentFlag
-                    on={item.isFixed}
-                    onLabel={t('documents.fixed')}
-                    offLabel={t('documents.notFixed')}
-                  />
-                </td>
                 <td className={actionsColClassName}>
                   <EntityRowActions
                     viewTo={`/base-info/documents/${item.id}`}

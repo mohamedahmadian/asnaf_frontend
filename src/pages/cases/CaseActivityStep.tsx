@@ -21,6 +21,7 @@ export function CaseActivityStep({
   onPosCountChange,
   onSubmit,
   actions,
+  locked = false,
 }: {
   unitTitle: string
   groupId: string
@@ -36,6 +37,7 @@ export function CaseActivityStep({
   onPosCountChange: (value: string) => void
   onSubmit: () => void
   actions?: ReactNode
+  locked?: boolean
 }) {
   const { t } = useTranslation()
   const jobOptions = groupId ? jobs.filter((item) => item.groupId === groupId) : jobs
@@ -45,11 +47,12 @@ export function CaseActivityStep({
     <AppForm
       onSubmit={(event) => {
         event.preventDefault()
-        onSubmit()
+        if (!locked) onSubmit()
       }}
-      autoFocusFirst
+      autoFocusFirst={!locked}
       className="space-y-4"
     >
+      <fieldset disabled={locked} className="min-w-0 space-y-4 border-0 p-0">
       <div className="grid gap-4 lg:grid-cols-2">
         <FormField icon={Building2} label={t('cases.unitTitle')} htmlFor="case-unit-title">
           <input
@@ -133,6 +136,7 @@ export function CaseActivityStep({
           />
         </FormField>
       </div>
+      </fieldset>
       {actions}
     </AppForm>
   )

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button, FormField } from '../../components/ui/Form'
-import { formCardBodyClassName, FormCard } from '../../components/ui/FormLayout'
+import { FormCard, FormEmptyHint, formCardBodyClassName } from '../../components/ui/FormLayout'
 import { PersianDateField } from '../../components/ui/PersianDateField'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { api, getApiErrorMessage, getImageUrl } from '../../lib/api'
@@ -110,9 +110,11 @@ export function ActivityLicenseSheet({ view }: { view: LicenseView }) {
 export function ActivityLicensePanel({
   caseId,
   onIssued,
+  readOnly = false,
 }: {
   caseId: string
   onIssued?: (issuedAt: string) => void
+  readOnly?: boolean
 }) {
   const { t } = useTranslation()
   const [busy, setBusy] = useState<'print' | 'download' | 'issue' | null>(null)
@@ -173,7 +175,7 @@ export function ActivityLicensePanel({
     if (!datesReady()) return
     setBusy('issue')
     try {
-      await api.post('/cases/formation/complete', {
+      await api.post('/cases/issuance/complete', {
         caseId,
         step: 6,
         licenseIssuedAt: issuedAt,
@@ -203,6 +205,15 @@ export function ActivityLicensePanel({
   const issueLabel = applicantName
     ? t('cases.issueLicenseFor', { person: honorific ? `${honorific} ${applicantName}` : applicantName })
     : t('cases.issueLicense')
+  if (readOnly && !issued) {
+    return (
+      <FormCard icon={BadgeCheck} title={t('cases.steps.issuance')}>
+        <div className={formCardBodyClassName}>
+          <FormEmptyHint>{t('cases.licenseNotIssued')}</FormEmptyHint>
+        </div>
+      </FormCard>
+    )
+  }
   if (query.isError || !issued) {
     return (
       <FormCard icon={BadgeCheck} title={t('cases.steps.issuance')}>

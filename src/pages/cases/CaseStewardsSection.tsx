@@ -34,7 +34,15 @@ const STATUS_BADGE: Record<ReturnType<typeof stewardStatusKey>, string> = {
   revoked: 'bg-red-50 text-red-700 ring-red-200',
 }
 
-export function CaseStewardsSection({ caseId, items }: { caseId: string; items: StewardRow[] }) {
+export function CaseStewardsSection({
+  caseId,
+  items,
+  readOnly = false,
+}: {
+  caseId: string
+  items: StewardRow[]
+  readOnly?: boolean
+}) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const navigate = useNavigate()
@@ -47,10 +55,12 @@ export function CaseStewardsSection({ caseId, items }: { caseId: string; items: 
       icon={IdCard}
       title={t('cases.stewardship.title')}
       action={
+        readOnly ? undefined : (
         <Button type="button" variant="soft" onClick={() => navigate(`/cases/${caseId}/stewards/new`)}>
           <Plus className="size-4" aria-hidden />
           {t('cases.stewardship.add')}
         </Button>
+        )
       }
     >
       <div className="p-5 sm:p-6">
@@ -75,7 +85,9 @@ export function CaseStewardsSection({ caseId, items }: { caseId: string; items: 
                     ? `/cases/${row.id}/dossier`
                     : issued
                       ? `/cases/${row.id}/stewardship/card`
-                      : `/cases/${row.id}/stewardship`
+                      : readOnly
+                        ? `/cases/${row.id}/stewardship?focus=places`
+                        : `/cases/${row.id}/stewardship`
                   return (
                     <tr key={row.id} className="border-t border-line">
                       <td className="px-4 py-3">
@@ -121,13 +133,15 @@ export function CaseStewardsSection({ caseId, items }: { caseId: string; items: 
                               ? t('cases.viewDossier')
                               : issued
                                 ? t('cases.stewardship.viewCard')
-                                : t('cases.stewardship.continue')
+                                : readOnly
+                                  ? t('cases.viewRequest')
+                                  : t('cases.stewardship.continue')
                           }
                           viewIcon={issued ? IdCard : Eye}
                           rowOpensView
                           rowTo={issued ? `/cases/${row.id}/stewardship` : undefined}
-                          extra={
-                            row.status === 'REVOKED' ? null : (
+                            extra={
+                            readOnly || row.status === 'REVOKED' ? null : (
                               <Button
                                 type="button"
                                 variant="ghost"

@@ -12,6 +12,7 @@ import {
   SortableTh,
   actionsColClassName,
 } from '../../components/ui/ListControls'
+import { OpenUserPanelButton } from '../../components/auth/OpenUserPanelButton'
 import { SendUserSmsModal } from '../../components/sms/SendUserSmsModal'
 import { Button, PageHeader, listShellClassName } from '../../components/ui/Form'
 import { SearchSelect } from '../../components/ui/SearchSelect'
@@ -147,12 +148,16 @@ export function UsersListPage() {
                 <td className={actionsColClassName}>
                   <EntityRowActions
                     viewTo={`/users/${item.id}`}
+                    showView={false}
                     editTo={`/users/${item.id}/edit`}
                     extra={
-                      <Button type="button" variant="soft" onClick={() => setSmsUser(item)}>
-                        <Send className="size-4" aria-hidden />
-                        {t('sms.send')}
-                      </Button>
+                      <>
+                        <OpenUserPanelButton userId={item.id} status={item.status} />
+                        <Button type="button" variant="soft" onClick={() => setSmsUser(item)}>
+                          <Send className="size-4" aria-hidden />
+                          {t('sms.send')}
+                        </Button>
+                      </>
                     }
                     onDelete={() =>
                       confirmDelete({

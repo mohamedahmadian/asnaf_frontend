@@ -1,4 +1,4 @@
-import { Mail, Phone, ScrollText, Shield } from 'lucide-react'
+import { CalendarClock, Mail, Phone, ScrollText, Shield } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +16,7 @@ type PlacesOffice = {
   officerRoleName: string | null
   letterTitle: string | null
   letterBody: string | null
+  responseDays: number
 }
 
 export function CasePlacesOfficePanel() {
@@ -25,6 +26,7 @@ export function CasePlacesOfficePanel() {
   const [phone, setPhone] = useState('')
   const [letterTitle, setLetterTitle] = useState('')
   const [letterBody, setLetterBody] = useState('')
+  const [responseDays, setResponseDays] = useState('5')
   const [saving, setSaving] = useState(false)
   const office = useQuery({
     queryKey: ['cases', 'places-office'],
@@ -41,6 +43,7 @@ export function CasePlacesOfficePanel() {
     setPhone(office.data.phone ?? '')
     setLetterTitle(office.data.letterTitle ?? '')
     setLetterBody(office.data.letterBody ?? '')
+    setResponseDays(String(office.data.responseDays ?? 5))
   }, [office.data])
 
   function reset() {
@@ -48,6 +51,7 @@ export function CasePlacesOfficePanel() {
     setPhone(office.data?.phone ?? '')
     setLetterTitle(office.data?.letterTitle ?? '')
     setLetterBody(office.data?.letterBody ?? '')
+    setResponseDays(String(office.data?.responseDays ?? 5))
   }
 
   async function submit(event: FormEvent) {
@@ -55,11 +59,17 @@ export function CasePlacesOfficePanel() {
     setSaving(true)
     try {
       const digits = toLatinDigits(phone).replace(/\D/g, '')
+      const days = Number(toLatinDigits(responseDays))
+      if (!Number.isInteger(days) || days < 1 || days > 90) {
+        toast.error(t('cases.placesResponseDaysInvalid'))
+        return
+      }
       await api.put('/cases/settings/places-office', {
         officerRoleId: officerRoleId || null,
         phone: digits || null,
         letterTitle: letterTitle.trim() || null,
         letterBody: letterBody.trim() || null,
+        responseDays: days,
       })
       toast.success(t('cases.placesOfficerSaved'))
       await queryClient.invalidateQueries({ queryKey: ['cases', 'places-office'] })
@@ -86,6 +96,22 @@ export function CasePlacesOfficePanel() {
 
   return (
     <AppForm onSubmit={submit} className="space-y-4" autoFocusFirst={false}>
+      <FormField icon={CalendarClock} label={t('cases.placesResponseDays')} htmlFor="places-response-days">
+        <div className="flex items-center gap-2">
+          <input
+            id="places-response-days"
+            type="number"
+            min={1}
+            max={90}
+            required
+            className={`${fieldClassName} digit-field !w-16 !min-w-16 !max-w-16 !px-2`}
+            value={responseDays}
+            onChange={(event) => setResponseDays(event.target.value)}
+          />
+          <span className="text-sm text-ink-700">{t('cases.responseDaysUnit')}</span>
+        </div>
+        <p className="text-xs text-ink-500">{t('cases.placesResponseDaysHint')}</p>
+      </FormField>
       <FormField icon={Shield} label={t('cases.placesOfficer')} htmlFor="places-officer">
         <SearchSelect
           id="places-officer"

@@ -1,29 +1,18 @@
-import { BadgeCheck, Briefcase, Files, FolderKanban, Gavel, IdCard, Layers, ListOrdered, MapPinned, RefreshCw, UserRound, type LucideIcon } from 'lucide-react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { AlarmClock, BadgeCheck, Briefcase, Clock3, Files, FolderKanban, Gavel, IdCard, Landmark, Layers, ListOrdered, MapPinned, RefreshCw, UserRound, type LucideIcon } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 import { FormField, PageHeader, caseShellClassName } from '../../components/ui/Form'
-import {
-  ActionsTh,
-  EntityRowActions,
-  PaginationBar,
-  SearchBar,
-  SortableTh,
-  TableCard,
-  actionsColClassName,
-} from '../../components/ui/ListControls'
+import { PaginationBar, SearchBar, SortableTh, TableCard } from '../../components/ui/ListControls'
 import { SearchSelect } from '../../components/ui/SearchSelect'
-import { useConfirmDelete } from '../../hooks/useConfirmDelete'
 import { useListParams } from '../../hooks/useListParams'
 import { useListSort } from '../../hooks/useListSort'
-import { api, getApiErrorMessage } from '../../lib/api'
+import { api } from '../../lib/api'
 import { DateText } from '../../components/ui/DateText'
 import { formatNumber, localizeDigits } from '../../lib/datetime'
 import type { Job, JobGroup, Paginated } from '../../types/app'
-import { CaseDeleteDependentsDialog } from './CaseDeleteDependentsDialog'
-import type { StewardRow } from './CaseStewardsSection'
 import { FORMATION_STEPS, STEWARDSHIP_STEPS } from './formation-types'
+import { InquiryDateBadge, InquiryElapsedBadge } from './InquiryDateBadges'
 
 type CaseListKind = 'ISSUANCE' | 'RENEWAL' | 'LOCATION_CHANGE' | 'AUCTION' | 'STEWARD_REQUEST' | 'STEWARD_CARD'
 
@@ -98,6 +87,9 @@ type CaseRow = {
   licenseExpiresAt: string | null
   job: { id: string; title: string } | null
   jobTitle: string | null
+  placesReferredAt?: string | null
+  placesDecidedAt?: string | null
+  placesDecidedByName?: string | null
 }
 
 function NameRequestCell({
@@ -151,6 +143,45 @@ function NameRequestCell({
           </span>
         ) : null}
       </span>
+    </div>
+  )
+}
+
+function remainingLicenseDays(expiresAt: string | null) {
+  if (!expiresAt) return null
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(expiresAt)
+  if (!match) return null
+  const end = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  const now = new Date()
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+  const days = Math.round((end - today) / 86_400_000)
+  return days > 0 ? days : null
+}
+
+function LicenseNumberCell({
+  licenseNumber,
+  licenseExpiresAt,
+  locale,
+}: {
+  licenseNumber: string
+  licenseExpiresAt: string | null
+  locale: string
+}) {
+  const { t } = useTranslation()
+  const remaining = remainingLicenseDays(licenseExpiresAt)
+  return (
+    <div className="flex flex-col items-start gap-1.5">
+      <span
+        dir="ltr"
+        className="inline-flex rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-teal-900 ring-1 ring-teal-200"
+      >
+        {localizeDigits(licenseNumber, locale)}
+      </span>
+      {remaining != null ? (
+        <span className="inline-flex rounded-full bg-mint-50 px-2.5 py-0.5 text-xs font-medium text-teal-900 ring-1 ring-mint-200">
+          {t('cases.listActiveDays', { count: formatNumber(remaining, locale) })}
+        </span>
+      ) : null}
     </div>
   )
 }
@@ -235,14 +266,113 @@ function CaseStepCell({
   )
 }
 
-export function CaseManagementPage() {
+const placesViews = ['referred', 'decided', 'reviewing', 'overdue'] as const
+
+type PlacesView = (typeof placesViews)[number]
+
+function placesViewOf(value: string): PlacesView {
+  return placesViews.includes(value as PlacesView) ? (value as PlacesView) : 'referred'
+}
+
+type PlacesInboxStatsData = {
+  referred: number
+  decided: number
+  reviewing: number
+  overdue: number
+}
+
+function PlacesInboxStats({ active, onSelect }: { active: PlacesView; onSelect: (view: PlacesView) => void }) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
-  const queryClient = useQueryClient()
-  const { confirmDelete } = useConfirmDelete()
-  const [checkingId, setCheckingId] = useState<string | null>(null)
-  const [dependentsDelete, setDependentsDelete] = useState<{ id: string; rows: StewardRow[] } | null>(null)
-  const [removingDependents, setRemovingDependents] = useState(false)
+  const stats = useQuery({
+    queryKey: ['cases', 'places-stats'],
+    queryFn: async () => (await api.get<PlacesInboxStatsData>('/cases/places/stats')).data,
+  })
+  if (stats.isLoading && !stats.data) {
+    return (
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-hidden>
+        <div className="h-[4.75rem] animate-pulse rounded-2xl bg-teal-50" />
+        <div className="h-[4.75rem] animate-pulse rounded-2xl bg-mint-50" />
+        <div className="h-[4.75rem] animate-pulse rounded-2xl bg-teal-50" />
+        <div className="h-[4.75rem] animate-pulse rounded-2xl bg-amber-50" />
+      </div>
+    )
+  }
+  if (!stats.data) return null
+  const cards: { view: PlacesView; icon: LucideIcon; label: string; value: number; tone: 'teal' | 'mint' | 'amber' }[] = [
+    { view: 'referred', icon: Landmark, label: t('cases.placesStatsReferred'), value: stats.data.referred, tone: 'teal' },
+    { view: 'decided', icon: BadgeCheck, label: t('cases.placesStatsDecided'), value: stats.data.decided, tone: 'mint' },
+    { view: 'reviewing', icon: Clock3, label: t('cases.placesStatsReviewing'), value: stats.data.reviewing, tone: 'teal' },
+    { view: 'overdue', icon: AlarmClock, label: t('cases.placesStatsOverdue'), value: stats.data.overdue, tone: 'amber' },
+  ]
+  return (
+    <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {cards.map((card) => (
+        <PlacesStatCard
+          key={card.view}
+          {...card}
+          locale={locale}
+          active={card.view === active}
+          onSelect={() => onSelect(card.view)}
+        />
+      ))}
+    </section>
+  )
+}
+
+function PlacesStatCard({
+  icon: Icon,
+  label,
+  value,
+  locale,
+  tone,
+  active,
+  onSelect,
+}: {
+  icon: LucideIcon
+  label: string
+  value: number
+  locale: string
+  tone: 'teal' | 'mint' | 'amber'
+  active: boolean
+  onSelect: () => void
+}) {
+  const wrap = {
+    teal: 'border-teal-100 bg-gradient-to-b from-teal-50 to-white',
+    mint: 'border-mint-100 bg-gradient-to-b from-mint-50 to-white',
+    amber: 'border-amber-100 bg-gradient-to-b from-amber-50 to-white',
+  }[tone]
+  const iconClass = {
+    teal: 'bg-teal-500 shadow-[0_10px_18px_rgba(46,189,182,0.28)]',
+    mint: 'bg-mint-500 shadow-[0_10px_18px_rgba(63,214,190,0.28)]',
+    amber: 'bg-amber-500 shadow-[0_10px_18px_rgba(245,158,11,0.28)]',
+  }[tone]
+  const activeRing = {
+    teal: 'ring-2 ring-teal-400',
+    mint: 'ring-2 ring-mint-400',
+    amber: 'ring-2 ring-amber-400',
+  }[tone]
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={active}
+      className={`flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3.5 text-start shadow-[0_8px_22px_rgba(46,189,182,0.08)] transition hover:border-teal-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300 ${wrap} ${active ? activeRing : ''}`}
+    >
+      <span className={`flex size-11 shrink-0 items-center justify-center rounded-2xl text-white ${iconClass}`}>
+        <Icon className="size-5" aria-hidden />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-ink-500">{label}</p>
+        <p className="mt-0.5 text-2xl font-semibold text-ink-900">{formatNumber(value, locale)}</p>
+      </div>
+    </button>
+  )
+}
+
+export function CaseManagementPage({ placesInbox = false }: { placesInbox?: boolean } = {}) {
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language.split('-')[0] ?? 'fa'
   const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams } = useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const step = searchParams.get('step') ?? ''
@@ -250,6 +380,7 @@ export function CaseManagementPage() {
   const caseKind = searchParams.get('caseKind') ?? ''
   const jobGroupId = searchParams.get('jobGroupId') ?? ''
   const jobId = searchParams.get('jobId') ?? ''
+  const placesView = placesInbox ? placesViewOf(searchParams.get('placesView') ?? '') : 'referred'
 
   const jobs = useQuery({
     queryKey: ['jobs', 'lookup'],
@@ -264,9 +395,9 @@ export function CaseManagementPage() {
   )
 
   const query = useQuery({
-    queryKey: ['cases', 'list', q, page, step, status, caseKind, jobGroupId, jobId, sortBy, sortDir],
+    queryKey: ['cases', placesInbox ? 'places-cases' : 'list', q, page, step, status, caseKind, jobGroupId, jobId, placesView, sortBy, sortDir],
     queryFn: async () => {
-      const { data } = await api.get<Paginated<CaseRow>>('/cases', {
+      const { data } = await api.get<Paginated<CaseRow>>(placesInbox ? '/cases/places/cases' : '/cases', {
         params: {
           q: q || undefined,
           page,
@@ -275,6 +406,7 @@ export function CaseManagementPage() {
           ...(caseKind ? { caseKind } : {}),
           ...(jobGroupId ? { jobGroupId } : {}),
           ...(jobId ? { jobId } : {}),
+          ...(placesInbox && placesView !== 'referred' ? { placesView } : {}),
           ...sortParams,
         },
       })
@@ -283,52 +415,20 @@ export function CaseManagementPage() {
   })
 
   const rows = query.data?.items ?? []
-  const filtered = Boolean(q || step || status || caseKind || jobGroupId || jobId)
+  const filtered = Boolean(q || step || status || caseKind || jobGroupId || jobId || (placesInbox && placesView !== 'referred'))
 
-  function confirmCaseDelete(id: string) {
-    confirmDelete({
-      message: t('cases.confirmDelete'),
-      successMessage: t('cases.deleted'),
-      path: `/cases/${id}`,
-      queryKey: ['cases', 'list'],
-    })
-  }
-
-  async function askDelete(id: string) {
-    if (checkingId || dependentsDelete) return
-    setCheckingId(id)
-    try {
-      const { data } = await api.get<StewardRow[]>(`/cases/${id}/stewards`)
-      if (data.length) {
-        setDependentsDelete({ id, rows: data })
-        return
-      }
-      confirmCaseDelete(id)
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, t('common.error')))
-    } finally {
-      setCheckingId(null)
-    }
-  }
-
-  async function confirmDependentsDelete() {
-    if (!dependentsDelete || removingDependents) return
-    setRemovingDependents(true)
-    try {
-      await api.delete(`/cases/${dependentsDelete.id}`)
-      toast.success(t('cases.deleted'))
-      setDependentsDelete(null)
-      void queryClient.invalidateQueries({ queryKey: ['cases', 'list'] })
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, t('common.error')))
-    } finally {
-      setRemovingDependents(false)
-    }
+  function selectPlacesView(next: PlacesView) {
+    setParams({ placesView: next === 'referred' || next === placesView ? undefined : next }, { resetPage: true })
   }
 
   return (
     <div className={caseShellClassName}>
-      <PageHeader icon={Files} title={t('menus.caseManagement')} subtitle={t('cases.managementSubtitle')} />
+      <PageHeader
+        icon={placesInbox ? Landmark : Files}
+        title={t(placesInbox ? 'menus.casePlaces' : 'menus.caseManagement')}
+        subtitle={t(placesInbox ? 'cases.placesSubtitle' : 'cases.managementSubtitle')}
+      />
+      {placesInbox ? <PlacesInboxStats active={placesView} onSelect={selectPlacesView} /> : null}
       <SearchBar
         term={term}
         onTermChange={setTerm}
@@ -442,6 +542,31 @@ export function CaseManagementPage() {
               <SortableTh column="nationalId" label={t('users.nationalId')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="job" label={t('cases.job')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="jobTitle" label={t('cases.listJobTitle')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              {placesInbox ? (
+                <>
+                  <SortableTh
+                    column="placesReferredAt"
+                    label={t('cases.placesReferredAt')}
+                    sortBy={sortBy}
+                    sortDir={sortDir}
+                    onSort={onSort}
+                  />
+                  <SortableTh
+                    column="placesDecidedBy"
+                    label={t('cases.inquiryDecidedBy')}
+                    sortBy={sortBy}
+                    sortDir={sortDir}
+                    onSort={onSort}
+                  />
+                  <SortableTh
+                    column="placesDecidedAt"
+                    label={t('cases.inquiryDecidedAt')}
+                    sortBy={sortBy}
+                    sortDir={sortDir}
+                    onSort={onSort}
+                  />
+                </>
+              ) : null}
               <SortableTh
                 column="formationStep"
                 label={t('cases.listStep')}
@@ -450,7 +575,6 @@ export function CaseManagementPage() {
                 onSort={onSort}
                 align="center"
               />
-              <ActionsTh />
             </tr>
           </thead>
           <tbody>
@@ -466,17 +590,24 @@ export function CaseManagementPage() {
                 <tr key={item.id} className={`border-t border-line ${statusStyle.row}`}>
                 <td className={`border-s-4 px-4 py-3 ${statusStyle.edge}`}>
                   {item.licenseNumber ? (
-                    <span
-                      dir="ltr"
-                      className="inline-flex rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-teal-900 ring-1 ring-teal-200"
-                    >
-                      {localizeDigits(item.licenseNumber, locale)}
-                    </span>
+                    <LicenseNumberCell
+                      licenseNumber={item.licenseNumber}
+                      licenseExpiresAt={item.licenseExpiresAt}
+                      locale={locale}
+                    />
                   ) : (
                     '—'
                   )}
                 </td>
                 <td className="px-4 py-3">
+                  <Link
+                    to={placesInbox ? `/cases/${item.id}?stay=1` : `/cases/${item.id}`}
+                    data-row-view
+                    tabIndex={-1}
+                    className="sr-only"
+                  >
+                    {t('common.view')}
+                  </Link>
                   <NameRequestCell item={item} caseKind={caseKind} locale={locale} />
                 </td>
                 <td className="px-4 py-3">
@@ -484,6 +615,24 @@ export function CaseManagementPage() {
                 </td>
                 <td className="px-4 py-3">{item.job?.title || '—'}</td>
                 <td className="px-4 py-3">{item.jobTitle || '—'}</td>
+                {placesInbox ? (
+                  <>
+                    <td className="px-4 py-3">
+                      <InquiryDateBadge value={item.placesReferredAt} tone="teal" />
+                    </td>
+                    <td className="px-4 py-3">{item.placesDecidedByName || '—'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col items-start gap-1.5">
+                        <InquiryDateBadge value={item.placesDecidedAt} tone="mint" />
+                        <InquiryElapsedBadge
+                          from={item.placesReferredAt}
+                          to={item.placesDecidedAt}
+                          locale={locale}
+                        />
+                      </div>
+                    </td>
+                  </>
+                ) : null}
                 <td className="px-4 py-3 text-center">
                   <CaseStepCell
                     step={item.formationStep}
@@ -493,14 +642,6 @@ export function CaseManagementPage() {
                     licenseIssuedAt={item.licenseIssuedAt}
                     licenseExpiresAt={item.licenseExpiresAt}
                     kind={item.kind}
-                  />
-                </td>
-                <td className={actionsColClassName}>
-                  <EntityRowActions
-                    showView={false}
-                    rowOpensView
-                    viewTo={`/cases/${item.id}`}
-                    onDelete={() => void askDelete(item.id)}
                   />
                 </td>
               </tr>
@@ -515,16 +656,6 @@ export function CaseManagementPage() {
           pageSize={query.data.pageSize}
           total={query.data.total}
           onPageChange={setPage}
-        />
-      ) : null}
-      {dependentsDelete ? (
-        <CaseDeleteDependentsDialog
-          rows={dependentsDelete.rows}
-          pending={removingDependents}
-          onClose={() => {
-            if (!removingDependents) setDependentsDelete(null)
-          }}
-          onConfirm={() => void confirmDependentsDelete()}
         />
       ) : null}
     </div>

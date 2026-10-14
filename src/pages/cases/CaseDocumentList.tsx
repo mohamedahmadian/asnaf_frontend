@@ -19,6 +19,7 @@ export function CaseDocumentList({
   framed = false,
   layout = 'grid',
   emphasizeRequired = false,
+  fileBase = '/cases/formation/documents',
   onFile,
   onDelete,
 }: {
@@ -31,6 +32,7 @@ export function CaseDocumentList({
   framed?: boolean
   layout?: 'grid' | 'tabs'
   emphasizeRequired?: boolean
+  fileBase?: string
   onFile: (documentId: string, file: File) => void
   onDelete?: (documentId: string) => void
 }) {
@@ -55,6 +57,7 @@ export function CaseDocumentList({
         framed={layout === 'tabs' ? false : framed}
         previewClassName={layout === 'tabs' ? documentPreviewClassName : undefined}
         markRequired={emphasizeRequired && item.isRequired}
+        fileBase={fileBase}
         onFile={(file) => onFile(item.id, file)}
         onDelete={onDelete ? () => onDelete(item.id) : undefined}
       />
@@ -137,6 +140,7 @@ function DocumentUpload({
   framed,
   previewClassName,
   markRequired = false,
+  fileBase,
   onFile,
   onDelete,
 }: {
@@ -148,6 +152,7 @@ function DocumentUpload({
   framed: boolean
   previewClassName?: string
   markRequired?: boolean
+  fileBase: string
   onFile: (file: File) => void
   onDelete?: () => void
 }) {
@@ -162,7 +167,7 @@ function DocumentUpload({
     let cancelled = false
     let url = ''
     void api
-      .get<Blob>(`/cases/formation/documents/${current.id}/file`, { responseType: 'blob' })
+      .get<Blob>(`${fileBase}/${current.id}/file`, { responseType: 'blob' })
       .then(({ data }) => {
         if (cancelled) return
         url = URL.createObjectURL(data)
@@ -175,7 +180,7 @@ function DocumentUpload({
       cancelled = true
       if (url) URL.revokeObjectURL(url)
     }
-  }, [current])
+  }, [current, fileBase])
 
   const frame = framed
     ? item.isRequired

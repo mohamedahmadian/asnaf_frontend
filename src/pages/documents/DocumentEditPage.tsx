@@ -36,9 +36,6 @@ export function DocumentEditPage() {
       <DocumentForm
         initial={{
           title: query.data.title,
-          isRequired: query.data.isRequired,
-          gender: query.data.gender,
-          isFixed: query.data.isFixed,
         }}
         onSubmit={async (payload) => {
           await api.patch(`/documents/${id}`, payload)

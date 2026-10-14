@@ -2,6 +2,8 @@ import {
   Briefcase,
   Building2,
   Car,
+  Eye,
+  EyeOff,
   FileText,
   Flag,
   IdCard,
@@ -25,6 +27,7 @@ import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { OpenUserPanelButton } from '../../components/auth/OpenUserPanelButton'
 import { SendUserSmsModal } from '../../components/sms/SendUserSmsModal'
 import { ChangeUserPasswordModal } from '../../components/users/ChangeUserPasswordModal'
 import { CheckboxField } from '../../components/ui/CheckboxField'
@@ -55,6 +58,7 @@ import {
 } from '../../lib/identity'
 import { EMPLOYEE_ROLE_CODE } from '../../lib/roles'
 import { optimizeImageFile } from '../../lib/optimize-image'
+import { PersonIdentityDocuments } from './PersonIdentityDocuments'
 import {
   religions,
   userGenders,
@@ -72,8 +76,6 @@ import {
 } from '../../types/app'
 
 const tabs = ['personal', 'account', 'location', 'documents', 'social', 'other'] as const
-
-type PhotoField = 'photo' | 'nationalCard' | 'passport' | 'identityBooklet'
 
 type IdentityCheckResponse = {
   taken: boolean
@@ -120,9 +122,6 @@ export type UserPayload = {
   provinceId: string | null
   cityId: string | null
   photoId: string | null
-  nationalCardPhotoId: string | null
-  passportPhotoId: string | null
-  identityBookletPhotoId: string | null
   workUnitId: string | null
   staffPostId: string | null
   roleIds: string[]
@@ -154,7 +153,8 @@ export function UserForm({
   const [username, setUsername] = useState(initial?.username ?? '')
   const [firstName, setFirstName] = useState(initial?.firstName ?? '')
   const [lastName, setLastName] = useState(initial?.lastName ?? '')
-  const [password, setPassword] = useState('')
+  const [password, setPassword] = useState(initial?.id ? '' : '11111111')
+  const [showPassword, setShowPassword] = useState(false)
   const [locale, setLocale] = useState(selectableLocale(initial?.locale))
   const [status, setStatus] = useState<UserStatus>(initial?.status ?? userStatuses.ACTIVE)
   const [gender, setGender] = useState(initial?.gender ?? '')
@@ -177,15 +177,10 @@ export function UserForm({
   const [provinceId, setProvinceId] = useState(initial?.provinceId ?? '')
   const [cityId, setCityId] = useState(initial?.cityId ?? '')
   const [photoId, setPhotoId] = useState(initial?.photoId ?? '')
-  const [nationalCardPhotoId, setNationalCardPhotoId] = useState(initial?.nationalCardPhotoId ?? '')
-  const [passportPhotoId, setPassportPhotoId] = useState(initial?.passportPhotoId ?? '')
-  const [identityBookletPhotoId, setIdentityBookletPhotoId] = useState(
-    initial?.identityBookletPhotoId ?? '',
-  )
   const [workUnitId, setWorkUnitId] = useState(initial?.workUnitId ?? '')
   const [staffPostId, setStaffPostId] = useState(initial?.staffPostId ?? '')
   const [roleIds, setRoleIds] = useState<string[]>(initial?.roles?.map((role) => role.id) ?? [])
-  const [uploading, setUploading] = useState<PhotoField>()
+  const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [smsOpen, setSmsOpen] = useState(false)
   const [passwordOpen, setPasswordOpen] = useState(false)
@@ -295,21 +290,18 @@ export function UserForm({
     },
   })
 
-  async function uploadImage(file: File, field: PhotoField) {
-    setUploading(field)
+  async function uploadImage(file: File) {
+    setUploading(true)
     try {
       const optimized = await optimizeImageFile(file)
       const body = new FormData()
       body.append('file', optimized)
       const { data } = await api.post<{ id: string }>('/images', body)
-      if (field === 'photo') setPhotoId(data.id)
-      if (field === 'nationalCard') setNationalCardPhotoId(data.id)
-      if (field === 'passport') setPassportPhotoId(data.id)
-      if (field === 'identityBooklet') setIdentityBookletPhotoId(data.id)
+      setPhotoId(data.id)
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('common.error')))
     } finally {
-      setUploading(undefined)
+      setUploading(false)
     }
   }
 
@@ -579,9 +571,6 @@ export function UserForm({
         provinceId: emptyToNull(provinceId),
         cityId: emptyToNull(cityId),
         photoId: emptyToNull(photoId),
-        nationalCardPhotoId: emptyToNull(nationalCardPhotoId),
-        passportPhotoId: emptyToNull(passportPhotoId),
-        identityBookletPhotoId: emptyToNull(identityBookletPhotoId),
         workUnitId: emptyToNull(workUnitId),
         staffPostId: emptyToNull(staffPostId),
         roleIds,
@@ -617,6 +606,21 @@ export function UserForm({
       icon={UserRound}
       title={isEdit ? displayName || t('users.edit') : t('users.create')}
       subtitle={isEdit ? undefined : t('users.createSubtitle')}
+      action={
+        isEdit && !selfProfile && initial ? (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button type="button" variant="soft" onClick={() => setPasswordOpen(true)}>
+              <KeyRound className="size-4" aria-hidden />
+              {t('auth.changePassword')}
+            </Button>
+            <Button type="button" variant="soft" onClick={() => setSmsOpen(true)}>
+              <Send className="size-4" aria-hidden />
+              {t('sms.send')}
+            </Button>
+            <OpenUserPanelButton userId={initial.id} status={initial.status} />
+          </div>
+        ) : undefined
+      }
     >
       <div className="space-y-4 p-5 sm:p-6">
         <nav className="flex flex-wrap gap-2 rounded-2xl border border-line bg-cream-50/80 p-3">
@@ -870,19 +874,36 @@ export function UserForm({
               </FormField>
               {hidePassword || isEdit ? null : (
                 <FormField icon={KeyRound} label={t('users.password')} htmlFor="password" error={fieldErrors.password}>
-                  <input
-                    id="password"
-                    type="password"
-                    className={inputClassName(Boolean(fieldErrors.password))}
-                    value={password}
-                    required={requirePassword}
-                    minLength={requirePassword ? 8 : undefined}
-                    onChange={(e) => {
-                      setPassword(e.target.value)
-                      clearError('password')
-                    }}
-                    autoComplete="new-password"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      className={`${inputClassName(Boolean(fieldErrors.password))} digit-field min-w-0 flex-1`}
+                      value={password}
+                      required={requirePassword}
+                      minLength={requirePassword ? 8 : undefined}
+                      onChange={(e) => {
+                        setPassword(e.target.value)
+                        clearError('password')
+                      }}
+                      autoComplete="new-password"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      icon
+                      className="shrink-0"
+                      aria-pressed={showPassword}
+                      aria-label={t(showPassword ? 'users.hidePassword' : 'users.showPassword')}
+                      onClick={() => setShowPassword((current) => !current)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="size-4" aria-hidden />
+                      ) : (
+                        <Eye className="size-4" aria-hidden />
+                      )}
+                    </Button>
+                  </div>
                 </FormField>
               )}
             </div>
@@ -979,52 +1000,27 @@ export function UserForm({
           </div>
 
           <div className={`space-y-4 ${tab === 'documents' ? '' : 'hidden'}`}>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField icon={ImagePlus} label={t('users.photo')} htmlFor="photo">
-                <FileDropField
-                  id="photo"
-                  accept="image/*"
-                  capture="user"
-                  previewUrl={photoId ? getImageUrl(photoId) : undefined}
-                  uploading={uploading === 'photo'}
-                  onFile={(file) => void uploadImage(file, 'photo')}
-                  onClear={() => setPhotoId('')}
-                />
-              </FormField>
-              <FormField icon={IdCard} label={t('users.nationalCardPhoto')} htmlFor="nationalCardPhoto">
-                <FileDropField
-                  id="nationalCardPhoto"
-                  accept="image/*"
-                  capture="environment"
-                  previewUrl={nationalCardPhotoId ? getImageUrl(nationalCardPhotoId) : undefined}
-                  uploading={uploading === 'nationalCard'}
-                  onFile={(file) => void uploadImage(file, 'nationalCard')}
-                  onClear={() => setNationalCardPhotoId('')}
-                />
-              </FormField>
-              <FormField icon={IdCard} label={t('users.passportPhoto')} htmlFor="passportPhoto">
-                <FileDropField
-                  id="passportPhoto"
-                  accept="image/*"
-                  capture="environment"
-                  previewUrl={passportPhotoId ? getImageUrl(passportPhotoId) : undefined}
-                  uploading={uploading === 'passport'}
-                  onFile={(file) => void uploadImage(file, 'passport')}
-                  onClear={() => setPassportPhotoId('')}
-                />
-              </FormField>
-              <FormField icon={FileText} label={t('users.identityBookletPhoto')} htmlFor="identityBookletPhoto">
-                <FileDropField
-                  id="identityBookletPhoto"
-                  accept="image/*"
-                  capture="environment"
-                  previewUrl={identityBookletPhotoId ? getImageUrl(identityBookletPhotoId) : undefined}
-                  uploading={uploading === 'identityBooklet'}
-                  onFile={(file) => void uploadImage(file, 'identityBooklet')}
-                  onClear={() => setIdentityBookletPhotoId('')}
-                />
-              </FormField>
-            </div>
+            <FormField icon={ImagePlus} label={t('users.photo')} htmlFor="photo">
+              <FileDropField
+                id="photo"
+                accept="image/*"
+                capture="user"
+                previewUrl={photoId ? getImageUrl(photoId) : undefined}
+                uploading={uploading}
+                onFile={(file) => void uploadImage(file)}
+                onClear={() => setPhotoId('')}
+              />
+            </FormField>
+            {initial?.id ? (
+              <PersonIdentityDocuments
+                userId={initial.id}
+                gender={gender === 'MALE' || gender === 'FEMALE' ? gender : null}
+                scope={selfProfile ? 'account' : 'user'}
+                enabled={tab === 'documents'}
+              />
+            ) : (
+              <p className="text-sm text-ink-500">{t('users.identityDocumentsAfterSave')}</p>
+            )}
           </div>
 
           <div className={`space-y-4 ${tab === 'social' ? '' : 'hidden'}`}>

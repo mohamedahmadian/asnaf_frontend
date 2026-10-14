@@ -11,6 +11,22 @@ export function isCaseDetailsLocation(pathname: string, search = '') {
   return new URLSearchParams(query).get('view') === CASE_DETAILS_VIEW
 }
 
+const CASE_MENU_SEGMENTS = new Set(['formation', 'inquiries', 'places', 'management-reviews', 'issuance', 'reports', 'settings'])
+
+/** پرونده، درخواست و ویزارد؛ صفحهٔ ایجاد و ویرایش بیرون است. */
+export function isPlacesCaseBrowse(pathname: string, search = '') {
+  const path = normalizeMenuPath(pathname)
+  if (path.endsWith('/edit') || path.endsWith('/new')) return false
+  if (path === '/cases/formation') {
+    const query = search.startsWith('?') ? search.slice(1) : search
+    return Boolean(new URLSearchParams(query).get('caseId'))
+  }
+  if (path.startsWith('/cases/formation/')) return false
+  const match = path.match(/^\/cases\/([^/]+)/)
+  if (!match || CASE_MENU_SEGMENTS.has(match[1] ?? '')) return false
+  return true
+}
+
 export function menuPathMatches(pathname: string, menuPath: string) {
   const path = normalizeMenuPath(pathname)
   const itemPath = normalizeMenuPath(menuPath)

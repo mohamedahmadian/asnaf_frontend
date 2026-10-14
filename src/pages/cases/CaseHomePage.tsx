@@ -2,25 +2,32 @@ import {
   BadgeCheck,
   Ban,
   Briefcase,
+  Building2,
   CalendarClock,
   CalendarDays,
   CirclePause,
   CirclePlay,
   ClipboardList,
   Eye,
+  FileText,
   Files,
   FolderKanban,
   Gavel,
   IdCard,
-  Info,
+  Layers,
   MapPin,
   MapPinned,
   MapPinPlus,
   MessageSquareText,
+  Mic,
+  Paperclip,
   Phone,
   RefreshCw,
   RotateCcw,
   ShieldAlert,
+  Store,
+  Tag,
+  Trash2,
   UserRound,
   X,
   type LucideIcon,
@@ -33,10 +40,10 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { confirmToast } from '../../components/ui/confirmToast'
 import { Button, EntityNameSubtitle, PageHeader, caseShellClassName } from '../../components/ui/Form'
-import { isAdmin } from '../../lib/roles'
+import { hasPermission, isAdmin, isIssuerViewer } from '../../lib/roles'
 import { useAuth } from '../../auth/AuthProvider'
 import { CopyableDigits } from '../../components/ui/CopyableDigits'
-import { FormCard, FormEmptyHint, FormFactTile, formCardBodyClassName } from '../../components/ui/FormLayout'
+import { FormCard, FormEmptyHint, FormFactTile, FormSectionTitle, formCardBodyClassName } from '../../components/ui/FormLayout'
 import {
   ActionsTh,
   EntityRowActions,
@@ -48,19 +55,24 @@ import { LoadingState } from '../../components/ui/LoadingState'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { formatNumber } from '../../lib/datetime'
 import { useGeoName } from '../../lib/geo'
-import { violationCreatePath, violationsPath } from '../../lib/paths/violations'
+import { violationsPath } from '../../lib/paths/violations'
 import type { Violation, ViolationAttachment } from '../../types/app'
 import { isAudioAttachment, openViolationFile } from '../violations/files'
+import { RegisterViolationModal } from '../violations/RegisterViolationModal'
 import { FORMATION_STEPS } from './formation-types'
+import { useManagementReviewer } from './management-reviewer'
+import { usePlacesViewer } from './places-viewer'
 import {
   CaseLiftSuspensionDialog,
   CaseRevokeDialog,
+  CaseStewardRevokeDialog,
   CaseSuspendDialog,
   CaseSuspensionsDialog,
   SuspensionCountBadge,
   SuspensionFiles,
 } from './CaseSuspensions'
 import { CaseStewardsSection, type StewardRow } from './CaseStewardsSection'
+import { DeleteCaseButton, caseIsIssued, useCaseDelete } from './useCaseDelete'
 
 type CaseRequestRow = {
   id: string
@@ -74,6 +86,7 @@ type CaseRequestRow = {
   expiresAt: string | null
   auctionStartsAt: string | null
   auctionEndsAt: string | null
+  placesStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | null
 }
 
 function requestDone(status: CaseRequestRow['status']) {
@@ -93,6 +106,10 @@ type CaseHome = {
     firstName: string
     lastName: string
     fullName: string
+    phone: string | null
+    jobGroupTitle: string | null
+    jobTitle: string | null
+    jobTypeTitle: string | null
   } | null
   formationStep: number
   trackingCode: string | null
@@ -259,7 +276,7 @@ function ActiveSuspensionNotice({
   onLift,
 }: {
   suspension: CaseHome['suspensions'][number] | null
-  onLift: () => void
+  onLift?: () => void
 }) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
@@ -282,10 +299,12 @@ function ActiveSuspensionNotice({
             <SuspensionDaysChart total={span.total} ratio={span.ratio} locale={locale} label={t('cases.suspensionDays')} />
           ) : null}
         </div>
+        {onLift ? (
         <Button type="button" variant="soft" className="ms-auto shrink-0" onClick={onLift}>
           <CirclePlay className="size-4" aria-hidden />
           {t('cases.liftAction')}
         </Button>
+        ) : null}
       </div>
       <p className="whitespace-pre-wrap leading-6">{suspension.reason}</p>
       <SuspensionFiles files={attachments} />
@@ -353,13 +372,21 @@ export function CaseHomePage() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
   const admin = isAdmin(user)
+  const placesViewer = usePlacesViewer()
+  const managementReviewer = useManagementReviewer()
+  const issuerViewer = isIssuerViewer(user)
+  const visitor = placesViewer || managementReviewer || issuerViewer
+  const canManageCases = hasPermission(user, 'cases.management') && !visitor
+  const { askDelete, dialog: deleteDialog } = useCaseDelete(id)
   const geoName = useGeoName()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const [violationsOpen, setViolationsOpen] = useState(false)
+  const [violationFormOpen, setViolationFormOpen] = useState(false)
   const [suspensionsOpen, setSuspensionsOpen] = useState(false)
   const [suspendOpen, setSuspendOpen] = useState(false)
   const [liftOpen, setLiftOpen] = useState(false)
   const [revokeOpen, setRevokeOpen] = useState(false)
+  const [stewardRevokeOpen, setStewardRevokeOpen] = useState(false)
   const showHome = searchParams.get('stay') === '1'
   const query = useQuery({
     queryKey: ['cases', 'home', id],
@@ -379,11 +406,25 @@ export function CaseHomePage() {
     queryFn: async () => (await api.get<StewardRow[]>(`/cases/${id}/stewards`)).data,
   })
   const activityDayCount = item?.licenseNumber ? activityDays(item) : null
+  const issued = item ? caseIsIssued(item) : false
   const openRequest = item?.requests.find((request) => request.status === 'OPEN') ?? null
-  const redirecting = Boolean(item && !showHome && openRequest?.type === 'ISSUANCE')
+  const redirecting = Boolean(item && !visitor && !showHome && openRequest?.type === 'ISSUANCE')
+  const showHeaderDelete = Boolean(item && canManageCases && !issued && !redirecting)
+  const showOperationsDelete = Boolean(item && canManageCases && issued)
 
   function canDeleteRequest(status: CaseRequestRow['status']) {
+    if (visitor) return false
     return admin || !requestDone(status)
+  }
+
+  function placesPath(path: string, placesStatus: CaseRequestRow['placesStatus'], requestType?: CaseRequestRow['type']) {
+    if (managementReviewer) {
+      if (requestType === 'AUCTION') return path
+      const focus = placesViewer && placesStatus ? 'places' : 'management'
+      return path.includes('?') ? `${path}&focus=${focus}` : `${path}?focus=${focus}`
+    }
+    if (!placesViewer || !placesStatus) return path
+    return path.includes('?') ? `${path}&focus=places` : `${path}?focus=places`
   }
 
   function askDeleteRequest(requestId: string, number: string) {
@@ -471,7 +512,16 @@ export function CaseHomePage() {
             </span>
           ) : undefined
         }
-        backTo="/cases"
+        backTo={
+          placesViewer
+            ? '/cases/places'
+            : managementReviewer
+              ? '/cases/management-reviews'
+              : issuerViewer
+                ? '/cases/issuance'
+                : '/cases'
+        }
+        action={showHeaderDelete ? <DeleteCaseButton onClick={() => void askDelete()} /> : undefined}
       />
       {query.isLoading || redirecting ? <LoadingState /> : null}
       {item && !redirecting ? (
@@ -577,7 +627,7 @@ export function CaseHomePage() {
               {item.status === 'SUSPENDED' ? (
                 <ActiveSuspensionNotice
                   suspension={item.suspensions.find((row) => row.active) ?? null}
-                  onLift={() => setLiftOpen(true)}
+                  onLift={visitor ? undefined : () => setLiftOpen(true)}
                 />
               ) : null}
               {item.status === 'REVOKED' ? (
@@ -588,30 +638,7 @@ export function CaseHomePage() {
                 />
               ) : null}
               {stewardWithoutLicense ? (
-                <div
-                  role="status"
-                  onClick={(event) => event.stopPropagation()}
-                  className="flex flex-wrap items-center gap-3 rounded-2xl bg-amber-50 px-3 py-3 text-sm leading-7 text-amber-950 ring-1 ring-amber-200"
-                >
-                  <p className="flex min-w-0 flex-1 items-start gap-2.5">
-                    <Info className="mt-1 size-4 shrink-0 text-amber-700" aria-hidden />
-                    <span>
-                      {t('cases.stewardship.noOwnLicenseLead')}{' '}
-                      <StewardInlineBadge value={item.host?.businessUnitTitle || '—'} />{' '}
-                      {t('cases.stewardship.noOwnLicenseMid')}{' '}
-                      <StewardInlineBadge value={item.host?.fullName || '—'} />{' '}
-                      {t('cases.stewardship.noOwnLicenseEnd')}
-                    </span>
-                  </p>
-                  {item.host ? (
-                    <Link to={`/cases/${item.host.id}`} className="shrink-0">
-                      <Button type="button" variant="soft">
-                        <BadgeCheck className="size-4" aria-hidden />
-                        {t('cases.stewardship.relatedLicense')}
-                      </Button>
-                    </Link>
-                  ) : null}
-                </div>
+                <HostLicenseInfo host={item.host ?? null} />
               ) : (
               <>
               <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
@@ -629,7 +656,7 @@ export function CaseHomePage() {
                     empty={!item.licenseExpiresAt}
                     className={item.licenseNumber && item.status !== 'REVOKED' ? 'pe-24' : ''}
                   />
-                  {item.licenseNumber && item.status !== 'REVOKED' ? (
+                  {item.licenseNumber && item.status !== 'REVOKED' && !visitor ? (
                     <button
                       type="button"
                       onClick={() => void startRequest('RENEWAL')}
@@ -679,6 +706,118 @@ export function CaseHomePage() {
                   <DateText value={item.reactivatedAt} withTime />
                 </p>
               ) : null}
+              {visitor && item.kind !== 'STEWARDSHIP' ? null : (
+              <section
+                className="rounded-2xl border border-teal-100 bg-cream-50/70 p-4"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <FormSectionTitle icon={ClipboardList} className="mb-3">
+                  {t('cases.operationsTitle')}
+                </FormSectionTitle>
+                {item.kind === 'STEWARDSHIP' ? (
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button type="button" onClick={() => navigate(`/cases/${item.id}/dossier`)}>
+                      <Eye className="size-4" aria-hidden />
+                      {t('cases.viewDossier')}
+                    </Button>
+                    {item.cardNumber ? (
+                      <Button type="button" onClick={() => navigate(`/cases/${item.id}/stewardship/card`)}>
+                        <IdCard className="size-4" aria-hidden />
+                        {t('cases.stewardship.cardTitle')}
+                      </Button>
+                    ) : item.status !== 'REVOKED' ? (
+                      <Button type="button" onClick={() => navigate(visitor ? `/cases/${item.id}/stewardship?focus=${placesViewer ? 'places' : 'management'}` : `/cases/${item.id}/stewardship`)}>
+                        <IdCard className="size-4" aria-hidden />
+                        {visitor ? t('cases.viewRequest') : t('cases.stewardship.continue')}
+                      </Button>
+                    ) : null}
+                    {item.host ? (
+                      <Button type="button" variant="ghost" onClick={() => navigate(`/cases/${item.host?.id}/dossier`)}>
+                        <BadgeCheck className="size-4" aria-hidden />
+                        {t('cases.stewardship.viewRelatedLicense')}
+                      </Button>
+                    ) : null}
+                    {item.cardNumber && item.status !== 'REVOKED' && !visitor ? (
+                      <Button type="button" variant="danger" onClick={() => setStewardRevokeOpen(true)}>
+                        <Ban className="size-4" aria-hidden />
+                        {t('cases.stewardship.revokeCard')}
+                      </Button>
+                    ) : null}
+                    {showOperationsDelete ? (
+                      <Button type="button" variant="danger" onClick={() => void askDelete()}>
+                        <Trash2 className="size-4" aria-hidden />
+                        {t('cases.deleteCase')}
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : visitor ? null : (
+                  <CaseOperations
+                    suspended={item.status === 'SUSPENDED'}
+                    revoked={item.status === 'REVOKED'}
+                    stewardTo={`/cases/${item.id}/stewards/new`}
+                    onDelete={showOperationsDelete ? () => void askDelete() : undefined}
+                    onPick={(key) => {
+                      const startsRequest =
+                        key === 'renewLicense' ||
+                        key === 'changeLocation' ||
+                        key === 'issueAuction' ||
+                        key === 'issueStewardship' ||
+                        key === 'renewWithLocation'
+                      if (item.status === 'REVOKED' && startsRequest) {
+                        toast.error(t('cases.revokedNoRequest'))
+                        return
+                      }
+                      if (key === 'suspend') {
+                        if (item.status === 'REVOKED') {
+                          toast.error(t('cases.revokeAlready'))
+                          return
+                        }
+                        if (item.status === 'SUSPENDED') setLiftOpen(true)
+                        else setSuspendOpen(true)
+                      } else if (key === 'reactivate') {
+                        confirmToast({
+                          title: t('cases.reactivateConfirm'),
+                          confirmLabel: t('common.yes'),
+                          cancelLabel: t('common.cancel'),
+                          onConfirm: async () => {
+                            try {
+                              await api.post(`/cases/${id}/reactivation`)
+                              toast.success(t('cases.reactivated'))
+                              await queryClient.invalidateQueries({ queryKey: ['cases', 'home', id] })
+                              await queryClient.invalidateQueries({ queryKey: ['cases', 'list'] })
+                            } catch (error) {
+                              toast.error(getApiErrorMessage(error, t('common.error')))
+                            }
+                          },
+                        })
+                      } else if (key === 'revoke') {
+                        if (item.status === 'REVOKED') {
+                          toast.error(t('cases.revokeAlready'))
+                          return
+                        }
+                        setRevokeOpen(true)
+                      } else if (key === 'renewLicense') void startRequest('RENEWAL')
+                      else if (key === 'changeLocation') void startRequest('LOCATION_CHANGE')
+                      else if (key === 'issueAuction') openAuction()
+                      else if (key === 'registerViolation') {
+                        if (!item.person.nationalId) {
+                          toast.error(t('violations.nationalIdInvalid'))
+                          return
+                        }
+                        setViolationFormOpen(true)
+                      } else toast.message(t('cases.requestTypeLater'))
+                    }}
+                  />
+                )}
+              </section>
+              )}
+              {violationFormOpen && item.person.nationalId ? (
+                <RegisterViolationModal
+                  nationalId={item.person.nationalId}
+                  caseId={item.id}
+                  onClose={() => setViolationFormOpen(false)}
+                />
+              ) : null}
               {violationsOpen && item.person.nationalId ? (
                 <PersonViolationsModal
                   nationalId={item.person.nationalId}
@@ -702,11 +841,14 @@ export function CaseHomePage() {
                 />
               ) : null}
               {revokeOpen ? <CaseRevokeDialog caseId={item.id} onClose={() => setRevokeOpen(false)} /> : null}
+              {stewardRevokeOpen ? (
+                <CaseStewardRevokeDialog caseId={item.id} onClose={() => setStewardRevokeOpen(false)} />
+              ) : null}
             </div>
           </FormCard>
 
           {item.kind !== 'STEWARDSHIP' ? (
-            <CaseStewardsSection caseId={item.id} items={stewardsQuery.data ?? []} />
+            <CaseStewardsSection caseId={item.id} items={stewardsQuery.data ?? []} readOnly={visitor} />
           ) : null}
 
           <FormCard icon={Files} title={t('cases.requestsTitle')}>
@@ -735,19 +877,21 @@ export function CaseHomePage() {
                             ? t(`cases.steps.${stepKey}`)
                             : t(`cases.requestStatus.${request.status}`)
                         const stewardshipDone = request.type === 'STEWARDSHIP' && request.status !== 'OPEN' && Boolean(item.cardNumber)
-                        const requestTo = stewardshipDone
-                          ? `/cases/${item.id}/stewardship/card`
-                          : request.type === 'STEWARDSHIP'
-                            ? `/cases/${item.id}/stewardship`
-                            : request.type === 'ISSUANCE'
-                            ? caseRequestPath(item.id, item.person.nationalId)
-                            : request.type === 'RENEWAL' && request.status !== 'OPEN'
-                              ? `/cases/${item.id}/renewal/${request.id}`
-                              : request.type === 'LOCATION_CHANGE' && request.status !== 'OPEN'
-                                ? `/cases/${item.id}/place-change/${request.id}`
+                        const requestTo = placesPath(
+                          stewardshipDone
+                            ? `/cases/${item.id}/stewardship/card`
+                            : request.type === 'STEWARDSHIP'
+                              ? `/cases/${item.id}/stewardship`
+                              : request.type === 'ISSUANCE'
+                              ? caseRequestPath(item.id, item.person.nationalId)
+                              : request.type === 'RENEWAL' || request.type === 'LOCATION_CHANGE'
+                                ? `/cases/${item.id}/process?requestId=${request.id}`
                                 : request.status === 'OPEN'
-                                  ? `/cases/${item.id}/process`
-                                  : `/cases/${item.id}?stay=1`
+                                    ? `/cases/${item.id}/process`
+                                    : `/cases/${item.id}?stay=1`,
+                          request.placesStatus,
+                          request.type,
+                        )
                         const TypeIcon = REQUEST_TYPE_ICONS[request.type]
                         const typeStyle = REQUEST_TYPE_STYLES[request.type]
                         return (
@@ -773,11 +917,15 @@ export function CaseHomePage() {
                             <td className={actionsColClassName}>
                               {request.type === 'AUCTION' ? (
                                 <EntityRowActions
-                                  viewTo={`/cases/${item.id}/auction/${request.id}`}
-                                  viewLabel={request.status === 'OPEN' ? t('cases.continueRequest') : t('cases.viewRequest')}
+                                  viewTo={
+                                    managementReviewer
+                                      ? `/cases/${item.id}/auction/${request.id}?step=management`
+                                      : `/cases/${item.id}/auction/${request.id}`
+                                  }
+                                  viewLabel={visitor || request.status !== 'OPEN' ? t('cases.viewRequest') : t('cases.continueRequest')}
                                   viewClassName={requestActionClassName}
                                   viewIcon={Eye}
-                                  editTo={request.status === 'OPEN' ? `/cases/${item.id}/auction/${request.id}/edit` : undefined}
+                                  editTo={visitor || request.status !== 'OPEN' ? undefined : `/cases/${item.id}/auction/${request.id}/edit`}
                                   rowOpensView={request.status !== 'OPEN'}
                                   onDelete={
                                     canDeleteRequest(request.status)
@@ -791,7 +939,8 @@ export function CaseHomePage() {
                                   viewLabel={
                                     stewardshipDone
                                       ? t('cases.stewardship.viewCard')
-                                      : issued ||
+                                      : visitor ||
+                                          issued ||
                                           ((request.type === 'RENEWAL' || request.type === 'LOCATION_CHANGE') &&
                                             request.status !== 'OPEN')
                                         ? t('cases.viewRequest')
@@ -803,7 +952,7 @@ export function CaseHomePage() {
                                   rowTo={stewardshipDone ? `/cases/${item.id}/stewardship` : undefined}
                                   extra={
                                     request.type === 'STEWARDSHIP' && item.host ? (
-                                      <Link to={`/cases/${item.host.id}`}>
+                                      <Link to={visitor ? `/cases/${item.host.id}?stay=1` : `/cases/${item.host.id}`}>
                                         <Button type="button" variant="soft" className={requestActionClassName}>
                                           <BadgeCheck className="size-3.5" aria-hidden />
                                           {t('cases.stewardship.relatedLicense')}
@@ -834,111 +983,30 @@ export function CaseHomePage() {
               )}
             </div>
           </FormCard>
-
-          <FormCard icon={ClipboardList} title={t('cases.operationsTitle')}>
-            <div className={formCardBodyClassName}>
-              {item.kind === 'STEWARDSHIP' ? (
-                <div className="flex flex-wrap justify-center gap-2">
-                  {item.cardNumber ? (
-                    <Button type="button" onClick={() => navigate(`/cases/${item.id}/stewardship/card`)}>
-                      <IdCard className="size-4" aria-hidden />
-                      {t('cases.stewardship.cardTitle')}
-                    </Button>
-                  ) : item.status !== 'REVOKED' ? (
-                    <Button type="button" onClick={() => navigate(`/cases/${item.id}/stewardship`)}>
-                      <IdCard className="size-4" aria-hidden />
-                      {t('cases.stewardship.continue')}
-                    </Button>
-                  ) : null}
-                  {item.host ? (
-                    <Button type="button" variant="ghost" onClick={() => navigate(`/cases/${item.host?.id}/dossier`)}>
-                      <BadgeCheck className="size-4" aria-hidden />
-                      {t('cases.viewLicense')}
-                    </Button>
-                  ) : null}
-                </div>
-              ) : (
-              <CaseOperations
-                suspended={item.status === 'SUSPENDED'}
-                revoked={item.status === 'REVOKED'}
-                stewardTo={`/cases/${item.id}/stewards/new`}
-                violationTo={
-                  item.person.nationalId
-                    ? `${violationCreatePath()}?${new URLSearchParams({
-                        nationalId: item.person.nationalId,
-                        caseId: item.id,
-                      }).toString()}`
-                    : null
-                }
-                onPick={(key) => {
-                  const startsRequest =
-                    key === 'renewLicense' ||
-                    key === 'changeLocation' ||
-                    key === 'issueAuction' ||
-                    key === 'issueStewardship' ||
-                    key === 'renewWithLocation'
-                  if (item.status === 'REVOKED' && startsRequest) {
-                    toast.error(t('cases.revokedNoRequest'))
-                    return
-                  }
-                  if (key === 'suspend') {
-                    if (item.status === 'REVOKED') {
-                      toast.error(t('cases.revokeAlready'))
-                      return
-                    }
-                    if (item.status === 'SUSPENDED') setLiftOpen(true)
-                    else setSuspendOpen(true)
-                  } else if (key === 'reactivate') {
-                    confirmToast({
-                      title: t('cases.reactivateConfirm'),
-                      confirmLabel: t('common.yes'),
-                      cancelLabel: t('common.cancel'),
-                      onConfirm: async () => {
-                        try {
-                          await api.post(`/cases/${id}/reactivation`)
-                          toast.success(t('cases.reactivated'))
-                          await queryClient.invalidateQueries({ queryKey: ['cases', 'home', id] })
-                          await queryClient.invalidateQueries({ queryKey: ['cases', 'list'] })
-                        } catch (error) {
-                          toast.error(getApiErrorMessage(error, t('common.error')))
-                        }
-                      },
-                    })
-                  } else if (key === 'revoke') {
-                    if (item.status === 'REVOKED') {
-                      toast.error(t('cases.revokeAlready'))
-                      return
-                    }
-                    setRevokeOpen(true)
-                  } else if (key === 'renewLicense') void startRequest('RENEWAL')
-                  else if (key === 'changeLocation') void startRequest('LOCATION_CHANGE')
-                  else if (key === 'issueAuction') openAuction()
-                  else toast.message(t('cases.requestTypeLater'))
-                }}
-              />
-              )}
-            </div>
-          </FormCard>
         </div>
       ) : null}
+      {deleteDialog}
     </div>
   )
 }
 
 function CaseOperations({
   onPick,
+  onDelete,
   stewardTo,
-  violationTo,
   suspended,
   revoked,
 }: {
   onPick: (key: string) => void
+  onDelete?: () => void
   stewardTo: string
-  violationTo: string | null
   suspended: boolean
   revoked: boolean
 }) {
   const { t } = useTranslation()
+  const deleteButton = onDelete ? (
+    <CaseOperationButton icon={Trash2} tone="rose" label={t('cases.deleteCase')} onClick={onDelete} />
+  ) : null
   if (revoked) {
     return (
       <div className="flex flex-wrap justify-center gap-2">
@@ -948,6 +1016,7 @@ function CaseOperations({
           label={t('cases.operations.reactivate')}
           onClick={() => onPick('reactivate')}
         />
+        {deleteButton}
       </div>
     )
   }
@@ -978,11 +1047,11 @@ function CaseOperations({
               icon={unsuspend ? CirclePlay : operation.icon}
               tone={unsuspend ? 'teal' : operation.tone}
               label={unsuspend ? t('cases.operations.unsuspend') : t(`cases.operations.${operation.key}`)}
-              to={operation.key === 'registerViolation' ? violationTo ?? undefined : undefined}
               onClick={() => onPick(operation.key)}
             />
           )
         })}
+        {deleteButton}
       </div>
     </div>
   )
@@ -1125,11 +1194,78 @@ function RequestDateCell({ request, part }: { request: CaseRequestRow; part: 'st
   )
 }
 
-function StewardInlineBadge({ value }: { value: string }) {
+function HostLicenseInfo({ host }: { host: CaseHome['host'] }) {
+  const { t } = useTranslation()
   return (
-    <span className="mx-0.5 inline-flex max-w-full items-center rounded-full bg-white px-2.5 py-0.5 align-middle text-sm font-bold text-amber-950 shadow-[0_2px_6px_rgba(120,80,20,0.08)] ring-1 ring-amber-300">
-      {value}
-    </span>
+    <div onClick={(event) => event.stopPropagation()} className="space-y-4">
+      <FormSectionTitle icon={BadgeCheck} className="mb-0">
+        {t('cases.stewardship.hostInfoTitle')}
+      </FormSectionTitle>
+      <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+        <FormFactTile
+          icon={BadgeCheck}
+          label={t('cases.stewardship.hostLicense')}
+          copyValue={host?.licenseNumber ?? null}
+          tone="teal"
+        />
+        <FormFactTile
+          icon={Building2}
+          label={t('cases.stewardship.hostActivityTitle')}
+          value={host?.businessUnitTitle || '—'}
+          empty={!host?.businessUnitTitle}
+          tone="mint"
+        />
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
+        <FormFactTile
+          icon={FolderKanban}
+          label={t('cases.activityGroup')}
+          value={host?.jobGroupTitle || '—'}
+          empty={!host?.jobGroupTitle}
+          tone="teal"
+        />
+        <FormFactTile
+          icon={Briefcase}
+          label={t('cases.activityJob')}
+          value={host?.jobTitle || '—'}
+          empty={!host?.jobTitle}
+          tone="mint"
+        />
+        <FormFactTile
+          icon={Layers}
+          label={t('cases.activityType')}
+          value={host?.jobTypeTitle || '—'}
+          empty={!host?.jobTypeTitle}
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-3 sm:gap-3">
+          <FormFactTile
+            icon={UserRound}
+            label={t('users.firstName')}
+            value={host?.firstName || '—'}
+            empty={!host?.firstName}
+            tone="teal"
+          />
+          <FormFactTile
+            icon={UserRound}
+            label={t('users.lastName')}
+            value={host?.lastName || '—'}
+            empty={!host?.lastName}
+            tone="mint"
+          />
+          <FormFactTile icon={Phone} label={t('cases.stewardship.hostPhone')} copyValue={host?.phone ?? null} />
+        </div>
+        {host ? (
+          <Link to={`/cases/${host.id}`} className="shrink-0">
+            <Button type="button" variant="soft">
+              <BadgeCheck className="size-4" aria-hidden />
+              {t('cases.stewardship.relatedLicense')}
+            </Button>
+          </Link>
+        ) : null}
+      </div>
+    </div>
   )
 }
 
@@ -1263,7 +1399,11 @@ function PersonViolationsModal({
 
   return createPortal(
     <>
-      <div className="fixed inset-0 z-[80] flex items-start justify-center bg-ink-900/30 p-4 pt-[10vh]" data-nested-dialog>
+      <div
+        className="fixed inset-0 z-[80] flex items-start justify-center bg-ink-900/30 p-4 pt-[10vh]"
+        data-nested-dialog
+        onClick={(event) => event.stopPropagation()}
+      >
         <button type="button" className="absolute inset-0 cursor-default" aria-label={t('common.close')} onClick={onClose} />
         <section
           role="dialog"
@@ -1299,18 +1439,34 @@ function PersonViolationsModal({
                 <li key={item.id}>
                   <button
                     type="button"
-                    onClick={() => setSelectedId(item.id)}
-                    className="flex w-full cursor-pointer flex-col gap-1.5 rounded-2xl border border-orange-100 bg-white px-3 py-3 text-start transition hover:border-orange-300 hover:bg-orange-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setSelectedId(item.id)
+                    }}
+                    className="flex w-full cursor-pointer items-start gap-3 rounded-2xl border border-orange-100 bg-white px-3 py-3 text-start transition hover:border-orange-300 hover:bg-orange-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"
                   >
-                    <span className="flex items-center justify-between gap-2">
-                      <span className="min-w-0 truncate text-sm font-medium text-ink-900">{item.violationType.title}</span>
-                      <span className="shrink-0 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 ring-1 ring-orange-200">
-                        {t(`violationStatuses.${item.status}`)}
-                      </span>
+                    <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
+                      <ShieldAlert className="size-4" aria-hidden />
                     </span>
-                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500">
-                      <DateText value={item.occurredAt} />
-                      {item.caseFile?.businessUnitTitle ? <span className="truncate">{item.caseFile.businessUnitTitle}</span> : null}
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate text-sm font-medium text-ink-900">{item.violationType.title}</span>
+                        <span className="shrink-0 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 ring-1 ring-orange-200">
+                          {t(`violationStatuses.${item.status}`)}
+                        </span>
+                      </span>
+                      <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500">
+                        <span className="inline-flex items-center gap-1">
+                          <CalendarDays className="size-3.5 shrink-0 text-orange-500" aria-hidden />
+                          <DateText value={item.occurredAt} />
+                        </span>
+                        {item.caseFile?.businessUnitTitle ? (
+                          <span className="inline-flex min-w-0 items-center gap-1">
+                            <Store className="size-3.5 shrink-0 text-orange-500" aria-hidden />
+                            <span className="truncate">{item.caseFile.businessUnitTitle}</span>
+                          </span>
+                        ) : null}
+                      </span>
                     </span>
                   </button>
                 </li>
@@ -1328,7 +1484,11 @@ function PersonViolationsModal({
         </section>
       </div>
       {selectedId ? (
-        <div className="fixed inset-0 z-[90] flex items-start justify-center bg-ink-900/40 p-4 pt-[8vh]" data-nested-dialog>
+        <div
+          className="fixed inset-0 z-[90] flex items-start justify-center bg-ink-900/40 p-4 pt-[8vh]"
+          data-nested-dialog
+          onClick={(event) => event.stopPropagation()}
+        >
           <button
             type="button"
             className="absolute inset-0 cursor-default"
@@ -1361,20 +1521,50 @@ function PersonViolationsModal({
                 </button>
               </div>
             </header>
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
               {detail.isLoading || !selected ? <LoadingState /> : null}
               {selected ? (
                 <>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-ink-900">{selected.violationType.title}</p>
-                    <span className="shrink-0 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 ring-1 ring-orange-200">
-                      {t(`violationStatuses.${selected.status}`)}
-                    </span>
+                  <FormSectionTitle icon={ShieldAlert} className="mb-0">
+                    {selected.violationType.title}
+                  </FormSectionTitle>
+                  <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+                    <FormFactTile icon={Tag} label={t('violations.violationType')} value={selected.violationType.title} tone="teal" />
+                    <FormFactTile
+                      icon={ShieldAlert}
+                      label={t('violations.status')}
+                      value={t(`violationStatuses.${selected.status}`)}
+                      tone="mint"
+                    />
+                    <FormFactTile
+                      icon={CalendarDays}
+                      label={t('violations.occurredAt')}
+                      value={<DateText value={selected.occurredAt} />}
+                      tone="teal"
+                    />
+                    <FormFactTile
+                      icon={UserRound}
+                      label={t('violations.personName')}
+                      value={selected.person?.fullName || name || '—'}
+                      empty={!selected.person?.fullName && !name}
+                      tone="mint"
+                    />
+                    <FormFactTile icon={IdCard} label={t('violations.nationalId')} copyValue={selected.nationalId} tone="teal" />
+                    <FormFactTile
+                      icon={Store}
+                      label={t('cases.unitTitle')}
+                      value={selected.caseFile?.businessUnitTitle || '—'}
+                      empty={!selected.caseFile?.businessUnitTitle}
+                      tone="mint"
+                    />
+                    <FormFactTile
+                      icon={FileText}
+                      label={t('violations.description')}
+                      value={selected.description?.trim() || '—'}
+                      empty={!selected.description?.trim()}
+                      className="sm:col-span-2"
+                    />
                   </div>
-                  <p className="text-xs text-ink-500">
-                    <DateText value={selected.occurredAt} />
-                  </p>
-                  {selected.description ? <p className="text-sm leading-6 text-ink-800">{selected.description}</p> : null}
                   <ViolationAttachmentMedia violationId={selected.id} items={selected.attachments} />
                 </>
               ) : null}
@@ -1444,7 +1634,9 @@ function ViolationAttachmentMedia({
   if (!items.length) return null
   return (
     <div className="space-y-3">
-      <p className="text-xs font-medium text-ink-500">{t('violations.attachments')}</p>
+      <FormSectionTitle icon={Paperclip} className="mb-0">
+        {t('violations.attachments')}
+      </FormSectionTitle>
       {images.length ? (
         <div className="space-y-2">
           {images.map((item) => (
@@ -1474,6 +1666,7 @@ function ViolationAttachmentMedia({
             })
           }}
         >
+          <Paperclip className="size-4 shrink-0" aria-hidden />
           <span className="min-w-0 truncate">{item.originalName || t('violations.openAttachment')}</span>
         </button>
       ))}
@@ -1493,7 +1686,10 @@ function ViolationAudio({ href, label }: { href: string; label: string }) {
   const src = useApiObjectUrl(href)
   return (
     <div className="space-y-1 rounded-2xl bg-orange-50/70 px-3 py-2">
-      <p className="truncate text-xs text-ink-600">{label}</p>
+      <p className="flex min-w-0 items-center gap-1.5 truncate text-xs text-ink-600">
+        <Mic className="size-3.5 shrink-0 text-orange-600" aria-hidden />
+        <span className="truncate">{label}</span>
+      </p>
       {src ? (
         <audio src={src} controls preload="metadata" className="h-10 w-full" dir="ltr" />
       ) : (
