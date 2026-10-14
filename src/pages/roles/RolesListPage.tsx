@@ -71,6 +71,13 @@ export function RolesListPage() {
               <SortableTh column="name" label={t('accessRoles.name')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="code" label={t('accessRoles.code')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh
+                column="isSystem"
+                label={t('accessRoles.origin')}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={onSort}
+              />
+              <SortableTh
                 column="userCount"
                 label={t('accessRoles.userCount')}
                 sortBy={sortBy}
@@ -87,6 +94,17 @@ export function RolesListPage() {
                 <tr key={role.id} className="border-t border-line">
                   <td className="px-4 py-3">{role.name}</td>
                   <td className="px-4 py-3">{role.code}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={
+                        role.isSystem
+                          ? 'inline-flex rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-medium text-teal-800 ring-1 ring-teal-200'
+                          : 'inline-flex rounded-full bg-cream-100 px-2.5 py-0.5 text-xs font-medium text-ink-700 ring-1 ring-line'
+                      }
+                    >
+                      {t(role.isSystem ? 'accessRoles.systemRole' : 'accessRoles.customRole')}
+                    </span>
+                  </td>
                   <td className="px-4 py-3">{formatNumber(role._count?.users ?? 0, locale)}</td>
                   <td className={actionsColClassName}>
                     <EntityRowActions
