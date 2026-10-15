@@ -1,4 +1,4 @@
-import { Eye, FileText, KeyRound, Mail, Phone, ScanSearch, ScrollText, ToggleRight, Type, UserPlus, UserRound, X } from 'lucide-react'
+import { Eye, FileText, KeyRound, Mail, Phone, ScanSearch, ScrollText, TextQuote, ToggleRight, Type, UserPlus, UserRound, X } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -22,6 +22,7 @@ import { INQUIRY_OFFICER_ROLE_CODE } from '../../lib/roles'
 import { InquiryLetterModal } from '../cases/InquiryLetterModal'
 import { inquiryLetterVariables } from '../cases/inquiry-letter-variables'
 import type { CaseInquiryLetter, CaseLetterheadView } from '../cases/inquiry-types'
+import type { LetterPaper } from '../cases/inquiry-api'
 import type { AppRole, InquiryCenterOfficer, ManagedUser, Paginated } from '../../types/app'
 
 export type InquiryCenterPayload = {
@@ -63,11 +64,19 @@ export function InquiryCenterForm({
   const [officerModal, setOfficerModal] = useState(false)
   const [letterTitle, setLetterTitle] = useState(initial?.letterTitle ?? '')
   const [letterBody, setLetterBody] = useState(initial?.letterBody ?? '')
+  const [useDefaultLetter, setUseDefaultLetter] = useState(!(initial?.letterBody ?? '').trim())
   const letterBodyRef = useRef<HTMLTextAreaElement>(null)
   const letterCaretRef = useRef({ start: initial?.letterBody?.length ?? 0, end: initial?.letterBody?.length ?? 0 })
   const [isActive, setIsActive] = useState(initial?.isActive ?? true)
   const [previewAt, setPreviewAt] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const letterDefaultsQuery = useQuery({
+    queryKey: ['inquiry-centers', 'letter-defaults'],
+    queryFn: async () =>
+      (await api.get<{ defaultLetterBody: string; defaultPaper: LetterPaper }>('/inquiry-centers/letter-defaults')).data,
+  })
+  const defaultLetterBody = letterDefaultsQuery.data?.defaultLetterBody ?? ''
+  const shownLetterBody = useDefaultLetter ? defaultLetterBody : letterBody
   const letterheadQuery = useQuery({
     queryKey: ['inquiry-centers', 'letterhead'],
     enabled: previewAt != null,
@@ -85,7 +94,7 @@ export function InquiryCenterForm({
       issuedAt: previewAt,
       letterhead: letterheadQuery.data,
       letterTitle,
-      letterBody,
+      letterBody: shownLetterBody,
       fields: {
         fullName: '',
         nationalId: '',
@@ -101,7 +110,7 @@ export function InquiryCenterForm({
         letterNo: '',
       },
     } satisfies CaseInquiryLetter
-  }, [previewAt, letterheadQuery.data, name, letterTitle, letterBody, t])
+  }, [previewAt, letterheadQuery.data, name, letterTitle, shownLetterBody, t])
   const rolesQuery = useQuery({
     queryKey: ['roles', 'lookup'],
     queryFn: async () => {
@@ -138,12 +147,13 @@ export function InquiryCenterForm({
 
   function insertLetterVariable(token: string) {
     const snippet = `{{${token}}}`
-    const current = letterBodyRef.current?.value ?? letterBody
+    const current = letterBodyRef.current?.value ?? shownLetterBody
     const start = Math.max(0, Math.min(letterCaretRef.current.start, current.length))
     const end = Math.max(start, Math.min(letterCaretRef.current.end, current.length))
     const next = `${current.slice(0, start)}${snippet}${current.slice(end)}`.slice(0, 20000)
     const caret = Math.min(start + snippet.length, next.length)
     letterCaretRef.current = { start: caret, end: caret }
+    setUseDefaultLetter(false)
     setLetterBody(next)
     requestAnimationFrame(() => {
       const node = letterBodyRef.current
@@ -164,7 +174,7 @@ export function InquiryCenterForm({
         phone: digits || null,
         officerId: officerId || null,
         letterTitle: letterTitle.trim() || null,
-        letterBody: letterBody.trim() || null,
+        letterBody: useDefaultLetter ? null : letterBody.trim() || null,
         isActive,
       })
     } catch (error) {
@@ -255,7 +265,28 @@ export function InquiryCenterForm({
             maxLength={200}
           />
         </FormField>
-        <FormField icon={ScrollText} label={t('inquiryCenters.letterBody')} htmlFor="inquiryCenterLetterBody">
+        <div className="flex w-full min-w-0 max-w-full flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            <label htmlFor="inquiryCenterLetterBody" className="flex items-center gap-2 text-sm font-medium text-ink-900">
+              <ScrollText className="size-4 text-teal-600" aria-hidden />
+              {t('inquiryCenters.letterBody')}
+            </label>
+            <Button
+              type="button"
+              variant="ghost"
+              className="ms-auto shrink-0"
+              disabled={!defaultLetterBody.trim()}
+              onClick={() => {
+                setUseDefaultLetter(true)
+                setLetterBody('')
+                const caret = defaultLetterBody.length
+                letterCaretRef.current = { start: caret, end: caret }
+              }}
+            >
+              <TextQuote className="size-4" aria-hidden />
+              {t('inquiryCenters.useDefaultLetter')}
+            </Button>
+          </div>
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap gap-1.5">
               {inquiryLetterVariables.map((item) => (
@@ -275,18 +306,24 @@ export function InquiryCenterForm({
               ))}
             </div>
             <p className="text-xs text-ink-500">{t('inquiryCenters.letterVariableHint')}</p>
+            {useDefaultLetter && defaultLetterBody.trim() ? (
+              <p className="text-xs text-ink-500">{t('inquiryCenters.letterBodyUsingDefault')}</p>
+            ) : null}
             <textarea
               id="inquiryCenterLetterBody"
               ref={letterBodyRef}
               className={fieldClassName}
-              value={letterBody}
-              onChange={(e) => setLetterBody(e.target.value)}
+              value={shownLetterBody}
+              onChange={(e) => {
+                setUseDefaultLetter(false)
+                setLetterBody(e.target.value)
+              }}
               onSelect={(e) => rememberLetterCaret(e.currentTarget)}
               rows={8}
               maxLength={20000}
             />
           </div>
-        </FormField>
+        </div>
         <div>
           <Button type="button" variant="soft" onClick={() => setPreviewAt(todayIsoDate())}>
             <Eye className="size-4" aria-hidden />

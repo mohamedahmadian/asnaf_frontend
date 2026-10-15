@@ -1,6 +1,6 @@
 import { CalendarDays, Hash, RectangleVertical } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { FormField, fieldClassName } from '../../components/ui/Form'
@@ -89,6 +89,18 @@ export function useInquiryLetterMarkup(
     }
   }, [letter, locale, paper])
   return html
+}
+
+export function useLetterPaper(letter: CaseInquiryLetter | undefined) {
+  const [paper, setPaper] = useState<LetterPaper>('A4')
+  const applied = useRef(false)
+  useEffect(() => {
+    if (applied.current || !letter) return
+    applied.current = true
+    const size = letter.letterhead.defaultPaper
+    if (size === 'A4' || size === 'A5') setPaper(size)
+  }, [letter])
+  return [paper, setPaper] as const
 }
 
 export function LetterIssueBar({

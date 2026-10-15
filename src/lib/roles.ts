@@ -59,6 +59,7 @@ export function hasMenuAccess(
     return true
   }
   if (isAdmin(user) && ADMIN_HIDDEN_MENUS.has(menuCode)) return false
+  if (menuCode === 'base-info.letter-settings' && hasPermission(user, 'cases.settings')) return true
   return hasPermission(user, menuCode) || hasPermission(user, moduleCode)
 }
 
@@ -149,7 +150,7 @@ export function canAccessPath(
     | undefined
   for (const mod of APP_NAV) {
     for (const menu of mod.menus) {
-      if (!menuPathMatches(pathname, menu.path)) continue
+      if (!menuPathMatches(pathname, menu.path, search)) continue
       if (!best || menu.path.length > best.path.length) {
         best = { menuCode: menu.code, moduleCode: mod.code, path: menu.path }
       }

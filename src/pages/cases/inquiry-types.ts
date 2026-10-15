@@ -122,6 +122,7 @@ export type CaseLetterheadView = {
   signerTitle: string | null
   logoDataUrl: string | null
   signatureDataUrl: string | null
+  defaultPaper: 'A4' | 'A5'
 }
 
 export type CaseInquiryLetter = {

@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
-import { Check, IdCard, Trash2 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Check, FileText, IdCard, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button, FormField } from '../../components/ui/Form'
 import { FileDropField } from '../../components/ui/FileDropField'
+import { SearchSelect } from '../../components/ui/SearchSelect'
 import { confirmToast } from '../../components/ui/confirmToast'
 import { api } from '../../lib/api'
 import type { DocumentTypeRow, StoredVersion } from './formation-types'
@@ -20,7 +22,10 @@ export function CaseDocumentList({
   layout = 'grid',
   emphasizeRequired = false,
   fileBase = '/cases/formation/documents',
+  showOtherDocuments = false,
+  otherReservedIds,
   onFile,
+  onOtherFile,
   onDelete,
 }: {
   items: DocumentTypeRow[]
@@ -33,17 +38,37 @@ export function CaseDocumentList({
   layout?: 'grid' | 'tabs'
   emphasizeRequired?: boolean
   fileBase?: string
+  showOtherDocuments?: boolean
+  otherReservedIds?: string[]
   onFile: (documentId: string, file: File) => void
+  onOtherFile?: (documentId: string, file: File) => void
   onDelete?: (documentId: string) => void
 }) {
   const { t } = useTranslation()
-  const [activeId, setActiveId] = useState(() => items[0]?.id ?? '')
+  const otherTabId = 'other-documents'
+  const reserved = new Set(otherReservedIds ?? items.map((item) => item.id))
+  const otherDone = showOtherDocuments && stored.some((row) => row.current && !reserved.has(row.documentId))
+  const [activeId, setActiveId] = useState(() => items[0]?.id ?? (showOtherDocuments ? otherTabId : ''))
 
   useEffect(() => {
     if (layout !== 'tabs') return
     if (items.some((item) => item.id === activeId)) return
-    setActiveId(items[0]?.id ?? '')
-  }, [activeId, items, layout])
+    if (showOtherDocuments && activeId === otherTabId) return
+    setActiveId(items[0]?.id ?? (showOtherDocuments ? otherTabId : ''))
+  }, [activeId, items, layout, otherTabId, showOtherDocuments])
+
+  const otherPanel: ReactNode = showOtherDocuments ? (
+    <CaseOtherDocumentsPanel
+      reservedIds={[...reserved]}
+      stored={stored}
+      uploadingId={uploadingId}
+      removingId={removingId}
+      disabled={disabled || readOnly}
+      fileBase={fileBase}
+      onFile={(documentId, file) => (onOtherFile ?? onFile)(documentId, file)}
+      onDelete={onDelete}
+    />
+  ) : null
 
   function uploadFor(item: DocumentTypeRow) {
     return (
@@ -65,14 +90,14 @@ export function CaseDocumentList({
   }
 
   if (layout === 'tabs') {
-    const active = items.find((item) => item.id === activeId) ?? items[0]
+    const active = items.find((item) => item.id === activeId)
     return (
       <div className="space-y-4">
         {disabled && !readOnly ? <p className="text-sm text-ink-500">{t('cases.saveBeforeDocuments')}</p> : null}
         <div role="tablist" className="flex flex-wrap gap-2">
           {items.map((item) => {
             const uploaded = Boolean(stored.find((row) => row.documentId === item.id)?.current)
-            const selected = item.id === active?.id
+            const selected = item.id === activeId
             const requiredMark = emphasizeRequired && item.isRequired
             const requiredDone = requiredMark && uploaded
             const tabTone = requiredDone
@@ -113,8 +138,28 @@ export function CaseDocumentList({
               </button>
             )
           })}
+          {showOtherDocuments ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeId === otherTabId}
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-2xl px-4 py-2 text-sm ${
+                activeId === otherTabId
+                  ? 'bg-teal-500 text-white'
+                  : 'border border-teal-400 bg-white text-ink-700'
+              }`}
+              onClick={() => setActiveId(otherTabId)}
+            >
+              <span>{t('cases.otherDocuments')}</span>
+              {otherDone ? <Check className="size-3.5 shrink-0" aria-hidden /> : null}
+            </button>
+          ) : null}
         </div>
-        {active ? (
+        {activeId === otherTabId && otherPanel ? (
+          <div role="tabpanel" className="rounded-2xl border border-teal-100 bg-cream-50/60 p-4">
+            {otherPanel}
+          </div>
+        ) : active ? (
           <div role="tabpanel" className="rounded-2xl border border-teal-100 bg-cream-50/60 p-4">
             {uploadFor(active)}
           </div>
@@ -127,6 +172,7 @@ export function CaseDocumentList({
     <div className="grid gap-4 lg:grid-cols-2">
       {disabled && !readOnly ? <p className="text-sm text-ink-500 lg:col-span-2">{t('cases.saveBeforeDocuments')}</p> : null}
       {items.map((item) => uploadFor(item))}
+      {otherPanel ? <div className="lg:col-span-2">{otherPanel}</div> : null}
     </div>
   )
 }
@@ -228,6 +274,110 @@ function DocumentUpload({
           </div>
         ) : null}
       </FormField>
+    </div>
+  )
+}
+
+function CaseOtherDocumentsPanel({
+  reservedIds,
+  stored,
+  uploadingId,
+  removingId,
+  disabled,
+  fileBase,
+  onFile,
+  onDelete,
+}: {
+  reservedIds: string[]
+  stored: { documentId: string; current: StoredVersion | null }[]
+  uploadingId: string | null
+  removingId?: string | null
+  disabled: boolean
+  fileBase: string
+  onFile: (documentId: string, file: File) => void
+  onDelete?: (documentId: string) => void
+}) {
+  const { t } = useTranslation()
+  const [pick, setPick] = useState('')
+  const catalog = useQuery({
+    queryKey: ['cases', 'document-catalog'],
+    queryFn: async () => (await api.get<{ id: string; title: string }[]>('/cases/formation/document-catalog')).data,
+  })
+  const reservedKey = reservedIds.join('\0')
+  const reserved = new Set(reservedIds)
+  const options = (catalog.data ?? []).filter((item) => !reserved.has(item.id))
+  const added = options.filter((item) => stored.some((row) => row.documentId === item.id && row.current))
+  const selected = options.find((item) => item.id === pick) ?? null
+
+  useEffect(() => {
+    if (!pick || !catalog.data) return
+    const blocked = new Set(reservedKey ? reservedKey.split('\0') : [])
+    const stillThere = catalog.data.some((item) => item.id === pick && !blocked.has(item.id))
+    if (!stillThere) setPick('')
+  }, [catalog.data, pick, reservedKey])
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm leading-7 text-ink-600">{t('cases.otherDocumentsHint')}</p>
+      {added.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {added.map((item) => {
+            const chosen = item.id === pick
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-2xl px-3 py-1.5 text-sm ${
+                  chosen ? 'bg-teal-500 text-white' : 'border border-teal-300 bg-white text-ink-700'
+                }`}
+                onClick={() => setPick(item.id)}
+              >
+                <span>{item.title}</span>
+                <Check className="size-3.5 shrink-0" aria-hidden />
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
+      <FormField icon={FileText} label={t('cases.otherDocumentType')} htmlFor="case-other-document-type">
+        <SearchSelect
+          id="case-other-document-type"
+          value={pick}
+          onChange={setPick}
+          placeholder={
+            catalog.isLoading
+              ? t('cases.otherDocumentTypePlaceholder')
+              : options.length === 0
+                ? t('cases.otherDocumentsEmptyCatalog')
+                : t('cases.otherDocumentTypePlaceholder')
+          }
+          disabled={disabled || catalog.isLoading || options.length === 0}
+          options={options.map((item) => ({ value: item.id, label: item.title }))}
+        />
+      </FormField>
+      {selected ? (
+        <DocumentUpload
+          key={selected.id}
+          item={{
+            id: selected.id,
+            code: null,
+            title: selected.title,
+            isRequired: false,
+            gender: 'BOTH',
+          }}
+          current={stored.find((row) => row.documentId === selected.id)?.current ?? null}
+          uploading={uploadingId === selected.id}
+          removing={removingId === selected.id}
+          disabled={disabled}
+          framed={false}
+          previewClassName={documentPreviewClassName}
+          fileBase={fileBase}
+          onFile={(file) => onFile(selected.id, file)}
+          onDelete={onDelete ? () => onDelete(selected.id) : undefined}
+        />
+      ) : (
+        <p className="text-sm text-ink-500">{t('cases.otherDocumentPickType')}</p>
+      )}
     </div>
   )
 }

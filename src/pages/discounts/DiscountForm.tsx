@@ -1,17 +1,23 @@
-import { CalendarDays, FileText, Percent, ToggleRight, Type } from 'lucide-react'
+import { CalendarDays, FileText, Percent, ToggleRight, Type, Workflow } from 'lucide-react'
 import { type FormEvent, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { CheckboxField } from '../../components/ui/CheckboxField'
 import { AppForm, FormActions, FormField, ToggleField, fieldClassName } from '../../components/ui/Form'
 import { FormCard, formCardBodyClassName } from '../../components/ui/FormLayout'
 import { SearchSelect } from '../../components/ui/SearchSelect'
 import { getApiErrorMessage } from '../../lib/api'
 import { currentPersianYear, persianYearOptions, toLatinDigits } from '../../lib/datetime'
+import {
+  financialProcessTypes,
+  type FinancialProcessType,
+} from '../../types/app'
 
 export type DiscountPayload = {
   year: number
   title: string
   percent: number
+  processTypes: FinancialProcessType[]
   description?: string | null
   isActive: boolean
 }
@@ -28,6 +34,9 @@ export function DiscountForm({
   const [year, setYear] = useState(String(initial?.year ?? currentPersianYear()))
   const [title, setTitle] = useState(initial?.title ?? '')
   const [percent, setPercent] = useState(initial ? String(initial.percent) : '')
+  const [processTypes, setProcessTypes] = useState<FinancialProcessType[]>(
+    initial?.processTypes ?? [],
+  )
   const [description, setDescription] = useState(initial?.description ?? '')
   const [isActive, setIsActive] = useState(initial?.isActive ?? true)
   const [saving, setSaving] = useState(false)
@@ -44,6 +53,7 @@ export function DiscountForm({
         year: Number(year),
         title: title.trim(),
         percent: Number(toLatinDigits(percent).replace(/,/g, '.')),
+        processTypes,
         description: description.trim() || null,
         isActive,
       })
@@ -95,6 +105,29 @@ export function DiscountForm({
             onChange={(e) => setPercent(e.target.value)}
             required
           />
+        </FormField>
+        <FormField
+          icon={Workflow}
+          label={t('discounts.processTypes')}
+          htmlFor="discountProcessTypes"
+        >
+          <div id="discountProcessTypes" className="grid gap-2 sm:grid-cols-2">
+            {Object.values(financialProcessTypes).map((processType) => (
+              <CheckboxField
+                key={processType}
+                id={`discount-process-${processType}`}
+                checked={processTypes.includes(processType)}
+                label={t(`municipalFees.processType.${processType}`)}
+                onChange={(checked) =>
+                  setProcessTypes((current) =>
+                    checked
+                      ? [...current, processType]
+                      : current.filter((item) => item !== processType),
+                  )
+                }
+              />
+            ))}
+          </div>
         </FormField>
         <FormField icon={FileText} label={t('discounts.description')} htmlFor="discountDescription">
           <textarea

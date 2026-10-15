@@ -343,24 +343,33 @@ function DossierEditor({ item }: { item: CaseDossier }) {
     setSearchParams(params, { replace: true })
   }
 
-  async function uploadDocument(documentId: string, file: File, activity?: { jobId: string }) {
+  async function uploadDocument(
+    documentId: string,
+    file: File,
+    activity?: { jobId: string; other?: boolean } | { other: true },
+  ) {
+    const activityFile = activity && 'jobId' in activity ? activity : null
     setUploadingId(documentId)
     try {
       const prepared = file.type.startsWith('image/') ? await optimizeImageFile(file) : file
       const body = new FormData()
       body.append('userId', item.person.id)
       body.append('documentId', documentId)
-      if (activity) {
+      if (activityFile) {
         body.append('caseId', item.id)
-        body.append('jobId', activity.jobId)
+        body.append('jobId', activityFile.jobId)
+        if (activityFile.other) body.append('scope', 'other')
       } else {
         body.append('editCaseId', item.id)
+        if (activity && 'other' in activity) body.append('scope', 'other')
       }
       body.append('file', prepared)
       await api.post('/cases/formation/documents', body)
       toast.success(t('cases.documentUploaded'))
       await queryClient.invalidateQueries({
-        queryKey: activity ? ['cases', 'activity-documents', item.id] : ['cases', 'documents', item.person.id],
+        queryKey: activityFile
+          ? ['cases', 'activity-documents', item.id]
+          : ['cases', 'documents', item.person.id],
       })
       await queryClient.invalidateQueries({ queryKey: ['cases', 'dossier', item.id] })
     } catch (error) {
@@ -436,8 +445,6 @@ function DossierEditor({ item }: { item: CaseDossier }) {
               />
             ) : documentTypes.isLoading || storedDocuments.isLoading ? (
               <LoadingState />
-            ) : visibleDocuments.length === 0 ? (
-              <FormEmptyHint>{t('cases.identityDocumentsEmpty')}</FormEmptyHint>
             ) : (
               <CaseDocumentList
                 items={visibleDocuments}
@@ -446,7 +453,10 @@ function DossierEditor({ item }: { item: CaseDossier }) {
                 removingId={removingId}
                 disabled={false}
                 layout="tabs"
+                showOtherDocuments
+                otherReservedIds={(documentTypes.data ?? []).map((row) => row.id)}
                 onFile={(documentId, file) => void uploadDocument(documentId, file)}
+                onOtherFile={(documentId, file) => void uploadDocument(documentId, file, { other: true })}
                 onDelete={(documentId) => void removeDocument(documentId)}
               />
             )}
@@ -480,8 +490,6 @@ function DossierEditor({ item }: { item: CaseDossier }) {
                 </FormSectionTitle>
                 {activityRequirements.isLoading || storedActivityDocuments.isLoading ? (
                   <LoadingState />
-                ) : activityDocuments.length === 0 ? (
-                  <FormEmptyHint>{t('cases.activityDocumentsEmpty')}</FormEmptyHint>
                 ) : (
                   <CaseDocumentList
                     items={activityDocuments}
@@ -491,7 +499,12 @@ function DossierEditor({ item }: { item: CaseDossier }) {
                     disabled={false}
                     layout="tabs"
                     emphasizeRequired
+                    showOtherDocuments
+                    otherReservedIds={activityDocuments.map((row) => row.id)}
                     onFile={(documentId, file) => void uploadDocument(documentId, file, { jobId })}
+                    onOtherFile={(documentId, file) =>
+                      void uploadDocument(documentId, file, { jobId, other: true })
+                    }
                     onDelete={(documentId) => void removeDocument(documentId, true)}
                   />
                 )}

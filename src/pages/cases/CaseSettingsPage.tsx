@@ -1,5 +1,5 @@
-import { BadgeCheck, FileSignature, FileText, Gavel, IdCard, Landmark, MapPinned, RefreshCw, ScanSearch, Settings, Shield, SlidersHorizontal, UserRound, type LucideIcon } from 'lucide-react'
-import { useState } from 'react'
+import { BadgeCheck, Ban, FileSignature, FileText, Gavel, IdCard, Landmark, MapPinned, RefreshCw, ScanSearch, Settings, Shield, SlidersHorizontal, UserRound, type LucideIcon } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { PageHeader, caseShellClassName } from '../../components/ui/Form'
@@ -12,8 +12,21 @@ import { CaseIdentityDocumentsPanel } from './CaseIdentityDocumentsPanel'
 import { CasePlacesOfficePanel } from './CasePlacesOfficePanel'
 import { CaseProcessManagementRolesPanel } from './CaseProcessManagementRolesPanel'
 import { CaseRequirementsPanel } from './CaseRequirementsPanel'
+import { CaseRevocationSettingsPanel } from './CaseRevocationSettingsPanel'
 
 type RequestType = 'ISSUANCE' | 'RENEWAL' | 'LOCATION_CHANGE' | 'AUCTION' | 'STEWARDSHIP'
+
+const SETTINGS_TAB_IDS = [
+  'issuance',
+  'renewal',
+  'location',
+  'auction',
+  'stewardship',
+  'revocation',
+  'places',
+  'letterhead',
+  'general',
+] as const
 
 function RequestSettings({
   requestType,
@@ -77,7 +90,7 @@ function RequestSettings({
 
 export function CaseSettingsPage() {
   const { t } = useTranslation()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
   const requestedSection = searchParams.get('section')
   const tabs: { id: string; label: string; icon: LucideIcon }[] = [
@@ -86,6 +99,7 @@ export function CaseSettingsPage() {
     { id: 'location', label: t('cases.settingsLocationTab'), icon: MapPinned },
     { id: 'auction', label: t('cases.settingsAuctionTab'), icon: Gavel },
     { id: 'stewardship', label: t('cases.settingsStewardshipTab'), icon: UserRound },
+    { id: 'revocation', label: t('cases.settingsRevocationTab'), icon: Ban },
     { id: 'places', label: t('cases.settingsPlacesTab'), icon: Landmark },
     { id: 'letterhead', label: t('cases.settingsLetterheadTab'), icon: FileSignature },
     { id: 'general', label: t('cases.settingsGeneralTab'), icon: SlidersHorizontal },
@@ -93,6 +107,22 @@ export function CaseSettingsPage() {
   const [tab, setTab] = useState(
     tabs.some((item) => item.id === requestedTab) ? requestedTab! : 'issuance',
   )
+  useEffect(() => {
+    if (requestedTab && (SETTINGS_TAB_IDS as readonly string[]).includes(requestedTab)) {
+      setTab(requestedTab)
+      return
+    }
+    setTab('issuance')
+  }, [requestedTab])
+
+  function selectTab(next: string) {
+    setTab(next)
+    const nextParams = new URLSearchParams(searchParams)
+    if (next === 'issuance') nextParams.delete('tab')
+    else nextParams.set('tab', next)
+    setSearchParams(nextParams, { replace: true })
+  }
+
   const requestTab = tab === 'issuance' || tab === 'renewal' || tab === 'location' || tab === 'auction' || tab === 'stewardship'
 
   return (
@@ -103,7 +133,7 @@ export function CaseSettingsPage() {
         subtitle={t('cases.settingsSubtitle')}
       />
       <FormCard icon={Settings} title={t('menus.caseSettings')}>
-        <FormTabs value={tab} onChange={setTab} tabs={tabs} />
+        <FormTabs value={tab} onChange={selectTab} tabs={tabs} />
         <div
           role="tabpanel"
           id={`form-panel-${tab}`}
@@ -125,6 +155,7 @@ export function CaseSettingsPage() {
           {tab === 'stewardship' ? (
             <RequestSettings requestType="STEWARDSHIP" initialSection={requestedSection} />
           ) : null}
+          {tab === 'revocation' ? <CaseRevocationSettingsPanel /> : null}
           {tab === 'places' ? <CasePlacesOfficePanel /> : null}
           {tab === 'letterhead' ? <CaseLetterheadPanel /> : null}
           {tab === 'general' ? <CaseGeneralSettingsPanel /> : null}

@@ -10,6 +10,8 @@ export const inquiryLetterVariables = [
   { key: 'jobTitle', token: 'شغل' },
 ] as const
 
-export const inquiryLetterVariableKeys = new Map(inquiryLetterVariables.map((item) => [item.token, item.key]))
+export const inquiryLetterVariableKeys = new Map<string, string>(
+  inquiryLetterVariables.map((item) => [item.token, item.key]),
+)
 
 export const inquiryLetterBlank = '...........'

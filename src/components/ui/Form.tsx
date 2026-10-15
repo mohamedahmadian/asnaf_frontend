@@ -548,6 +548,7 @@ export function FormActions({
   headerIcons,
   extraItems,
   cancelEnd = false,
+  submitVariant = 'primary',
 }: {
   submitLabel: string
   cancelLabel?: string
@@ -559,6 +560,8 @@ export function FormActions({
   extraItems?: DetailActionExtraItem[]
   /** انصراف در انتهای اینلاین فرم (سمت چپ در RTL) */
   cancelEnd?: boolean
+  /** عملیات مخرب مانند ابطال با دکمه قرمز نمایش داده می‌شود. */
+  submitVariant?: 'primary' | 'danger'
 }) {
   const { pathname } = useLocation()
   const formId = useContext(AppFormContext)
@@ -582,7 +585,7 @@ export function FormActions({
         className={`flex flex-wrap items-center gap-3 ${hasExtra || cancelEnd ? 'w-full justify-between' : ''} ${isEntryPath ? 'pt-4' : ''} ${className}`.trim()}
       >
         <div className="flex flex-wrap gap-3">
-          <Button type="submit" disabled={submitting}>
+          <Button type="submit" variant={submitVariant} disabled={submitting}>
             <Check className="size-4" aria-hidden />
             {submitLabel}
           </Button>

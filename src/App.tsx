@@ -41,6 +41,7 @@ import { CasePlacesReportPage } from './pages/cases/CasePlacesReportPage'
 import { CaseReportsPage } from './pages/cases/CaseReportsPage'
 import { ExpiringCasesPage } from './pages/reports/ExpiringCasesPage'
 import { CaseSettingsPage } from './pages/cases/CaseSettingsPage'
+import { CaseRevocationPage } from './pages/cases/CaseRevocationPage'
 import { CaseStewardCardPage, CaseStewardshipPage } from './pages/cases/CaseStewardshipPage'
 import { CaseStewardNewPage } from './pages/cases/CaseStewardNewPage'
 import { CitiesListPage } from './pages/geo/CitiesListPage'
@@ -55,6 +56,10 @@ import { DiscountCreatePage } from './pages/discounts/DiscountCreatePage'
 import { DiscountDetailPage } from './pages/discounts/DiscountDetailPage'
 import { DiscountEditPage } from './pages/discounts/DiscountEditPage'
 import { DiscountsListPage } from './pages/discounts/DiscountsListPage'
+import { FinancialHeadingCreatePage } from './pages/financial-headings/FinancialHeadingCreatePage'
+import { FinancialHeadingDetailPage } from './pages/financial-headings/FinancialHeadingDetailPage'
+import { FinancialHeadingEditPage } from './pages/financial-headings/FinancialHeadingEditPage'
+import { FinancialHeadingsListPage } from './pages/financial-headings/FinancialHeadingsListPage'
 import { MunicipalFeeCreatePage } from './pages/municipal-fees/MunicipalFeeCreatePage'
 import { MunicipalFeeDetailPage } from './pages/municipal-fees/MunicipalFeeDetailPage'
 import { MunicipalFeeEditPage } from './pages/municipal-fees/MunicipalFeeEditPage'
@@ -246,6 +251,10 @@ export default function App() {
                   <Route path="/base-info/discounts/new" element={<DiscountCreatePage />} />
                   <Route path="/base-info/discounts/:id" element={<DiscountDetailPage />} />
                   <Route path="/base-info/discounts/:id/edit" element={<DiscountEditPage />} />
+                  <Route path="/base-info/financial-headings" element={<FinancialHeadingsListPage />} />
+                  <Route path="/base-info/financial-headings/new" element={<FinancialHeadingCreatePage />} />
+                  <Route path="/base-info/financial-headings/:id" element={<FinancialHeadingDetailPage />} />
+                  <Route path="/base-info/financial-headings/:id/edit" element={<FinancialHeadingEditPage />} />
                   <Route path="/base-info/municipal-fees" element={<MunicipalFeesListPage />} />
                   <Route path="/base-info/municipal-fees/new" element={<MunicipalFeeCreatePage />} />
                   <Route path="/base-info/municipal-fees/:id" element={<MunicipalFeeDetailPage />} />
@@ -317,6 +326,7 @@ export default function App() {
                   <Route path="/cases/:id/stewardship" element={<CaseStewardshipPage />} />
                   <Route path="/cases/:id/dossier" element={<CaseDossierPage />} />
                   <Route path="/cases/:id/process" element={<CaseProcessPage />} />
+                  <Route path="/cases/:id/revocation" element={<CaseRevocationPage />} />
                   <Route path="/cases/:id" element={<CaseHomePage />} />
                   <Route path="/cases" element={<CaseManagementPage />} />
                   <Route path="/inspection/violation-types" element={<ViolationTypesListPage />} />

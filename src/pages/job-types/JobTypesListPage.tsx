@@ -85,13 +85,6 @@ export function JobTypesListPage() {
                 onSort={onSort}
               />
               <SortableTh
-                column="description"
-                label={t('jobTypes.description')}
-                sortBy={sortBy}
-                sortDir={sortDir}
-                onSort={onSort}
-              />
-              <SortableTh
                 column="annualFee"
                 label={t('jobTypes.annualFee')}
                 sortBy={sortBy}
@@ -112,7 +105,6 @@ export function JobTypesListPage() {
             {rows.map((item) => (
               <tr key={item.id} className="border-t border-line">
                 <td className="px-4 py-3">{item.title}</td>
-                <td className="px-4 py-3">{item.description || '—'}</td>
                 <td className="px-4 py-3">{formatFee(item.annualFee, locale)}</td>
                 <td className="px-4 py-3">{formatFee(dailyFee(item.annualFee), locale)}</td>
                 <td className={actionsColClassName}>

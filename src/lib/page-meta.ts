@@ -207,6 +207,33 @@ export function getPageMeta(pathname: string): {
   if (pathname.startsWith('/base-info/discounts')) {
     return { titleKey: 'menus.discounts', subtitleKey: 'discounts.subtitle' }
   }
+  if (pathname === '/base-info/financial-headings/new') {
+    return {
+      titleKey: 'financialHeadings.create',
+      subtitleKey: 'financialHeadings.createSubtitle',
+    }
+  }
+  if (
+    pathname.endsWith('/edit') &&
+    pathname.startsWith('/base-info/financial-headings/')
+  ) {
+    return {
+      titleKey: 'financialHeadings.edit',
+      subtitleKey: 'financialHeadings.editSubtitle',
+    }
+  }
+  if (pathname.startsWith('/base-info/financial-headings/')) {
+    return {
+      titleKey: 'financialHeadings.details',
+      subtitleKey: 'financialHeadings.detailsSubtitle',
+    }
+  }
+  if (pathname.startsWith('/base-info/financial-headings')) {
+    return {
+      titleKey: 'menus.financialHeadings',
+      subtitleKey: 'financialHeadings.subtitle',
+    }
+  }
   if (pathname === '/base-info/municipal-fees/new') {
     return { titleKey: 'municipalFees.create', subtitleKey: 'municipalFees.createSubtitle' }
   }
@@ -433,6 +460,9 @@ export function getPageMeta(pathname: string): {
   }
   if (/^\/cases\/[^/]+\/license$/.test(pathname)) {
     return { titleKey: 'cases.licenseTitle', subtitleKey: 'cases.licenseTitle' }
+  }
+  if (/^\/cases\/[^/]+\/revocation$/.test(pathname)) {
+    return { titleKey: 'cases.revocationPageTitle', subtitleKey: 'cases.revocationPageSubtitle' }
   }
   if (/^\/cases\/[^/]+$/.test(pathname)) {
     return { titleKey: 'cases.details', subtitleKey: 'cases.requestsTitle' }

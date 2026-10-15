@@ -38,6 +38,7 @@ export function DiscountEditPage() {
           year: query.data.year,
           title: query.data.title,
           percent: query.data.percent,
+          processTypes: query.data.processTypes,
           description: query.data.description ?? '',
           isActive: query.data.isActive,
         }}

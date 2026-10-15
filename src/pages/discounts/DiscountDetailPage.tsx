@@ -1,4 +1,4 @@
-import { CalendarDays, FileText, Percent, Type } from 'lucide-react'
+import { CalendarDays, FileText, Percent, Type, Workflow } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -68,6 +68,21 @@ export function DiscountDetailPage() {
               icon={Percent}
               label={t('discounts.isActive')}
               value={<GeoStatus active={discount.isActive} />}
+            />
+            <FormFactTile
+              icon={Workflow}
+              label={t('discounts.processTypes')}
+              value={
+                discount.processTypes.length
+                  ? discount.processTypes
+                      .map((processType) =>
+                        t(`municipalFees.processType.${processType}`),
+                      )
+                      .join('، ')
+                  : '—'
+              }
+              empty={discount.processTypes.length === 0}
+              className="sm:col-span-2"
             />
             <FormFactTile
               icon={FileText}

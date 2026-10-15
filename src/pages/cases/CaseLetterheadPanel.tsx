@@ -1,13 +1,16 @@
-import { Globe, Image, MapPin, PenLine, Phone, Type, UserRound } from 'lucide-react'
+import { Globe, Image, MapPin, PenLine, Phone, RectangleVertical, ScrollText, Type, UserRound } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AppForm, FormActions, FormField, LoadingState, fieldClassName } from '../../components/ui/Form'
 import { FileDropField } from '../../components/ui/FileDropField'
 import { FormSectionTitle } from '../../components/ui/FormLayout'
+import { SearchSelect } from '../../components/ui/SearchSelect'
 import { api, getApiErrorMessage, getImageUrl } from '../../lib/api'
 import { optimizeImageFile } from '../../lib/optimize-image'
+import type { LetterPaper } from './inquiry-api'
+import { inquiryLetterVariables } from './inquiry-letter-variables'
 
 type LetterheadSettings = {
   organizationName: string | null
@@ -18,6 +21,8 @@ type LetterheadSettings = {
   signerTitle: string | null
   logoId: string | null
   signatureId: string | null
+  defaultLetterBody: string | null
+  defaultPaper: LetterPaper
 }
 
 export function CaseLetterheadPanel() {
@@ -43,6 +48,10 @@ function LetterheadForm({ initial }: { initial: LetterheadSettings }) {
   const [signerTitle, setSignerTitle] = useState(initial.signerTitle ?? '')
   const [logoId, setLogoId] = useState(initial.logoId)
   const [signatureId, setSignatureId] = useState(initial.signatureId)
+  const [defaultLetterBody, setDefaultLetterBody] = useState(initial.defaultLetterBody ?? '')
+  const [defaultPaper, setDefaultPaper] = useState<LetterPaper>(initial.defaultPaper === 'A5' ? 'A5' : 'A4')
+  const letterBodyRef = useRef<HTMLTextAreaElement>(null)
+  const letterCaretRef = useRef({ start: initial.defaultLetterBody?.length ?? 0, end: initial.defaultLetterBody?.length ?? 0 })
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [signatureFile, setSignatureFile] = useState<File | null>(null)
   const [revision, setRevision] = useState(0)
@@ -57,6 +66,8 @@ function LetterheadForm({ initial }: { initial: LetterheadSettings }) {
     setSignerTitle(initial.signerTitle ?? '')
     setLogoId(initial.logoId)
     setSignatureId(initial.signatureId)
+    setDefaultLetterBody(initial.defaultLetterBody ?? '')
+    setDefaultPaper(initial.defaultPaper === 'A5' ? 'A5' : 'A4')
     setLogoFile(null)
     setSignatureFile(null)
   }, [
@@ -68,6 +79,8 @@ function LetterheadForm({ initial }: { initial: LetterheadSettings }) {
     initial.signerTitle,
     initial.logoId,
     initial.signatureId,
+    initial.defaultLetterBody,
+    initial.defaultPaper,
   ])
 
   function reset() {
@@ -79,9 +92,32 @@ function LetterheadForm({ initial }: { initial: LetterheadSettings }) {
     setSignerTitle(initial.signerTitle ?? '')
     setLogoId(initial.logoId)
     setSignatureId(initial.signatureId)
+    setDefaultLetterBody(initial.defaultLetterBody ?? '')
+    setDefaultPaper(initial.defaultPaper === 'A5' ? 'A5' : 'A4')
     setLogoFile(null)
     setSignatureFile(null)
     setRevision((value) => value + 1)
+  }
+
+  function rememberLetterCaret(element: HTMLTextAreaElement) {
+    letterCaretRef.current = { start: element.selectionStart, end: element.selectionEnd }
+  }
+
+  function insertLetterVariable(token: string) {
+    const snippet = `{{${token}}}`
+    const current = letterBodyRef.current?.value ?? defaultLetterBody
+    const start = Math.max(0, Math.min(letterCaretRef.current.start, current.length))
+    const end = Math.max(start, Math.min(letterCaretRef.current.end, current.length))
+    const next = `${current.slice(0, start)}${snippet}${current.slice(end)}`.slice(0, 20000)
+    const caret = Math.min(start + snippet.length, next.length)
+    letterCaretRef.current = { start: caret, end: caret }
+    setDefaultLetterBody(next)
+    requestAnimationFrame(() => {
+      const node = letterBodyRef.current
+      if (!node) return
+      node.focus()
+      node.setSelectionRange(caret, caret)
+    })
   }
 
   async function upload(file: File) {
@@ -107,6 +143,8 @@ function LetterheadForm({ initial }: { initial: LetterheadSettings }) {
         signerTitle: signerTitle.trim() || null,
         logoId: nextLogoId,
         signatureId: nextSignatureId,
+        defaultLetterBody: defaultLetterBody.trim() || null,
+        defaultPaper,
       })
       queryClient.setQueryData(['cases', 'letterhead'], data)
       setLogoFile(null)
@@ -225,6 +263,50 @@ function LetterheadForm({ initial }: { initial: LetterheadSettings }) {
           />
         </FormField>
       </div>
+      <FormSectionTitle icon={ScrollText} className="mb-3">{t('cases.letterheadDefaultSection')}</FormSectionTitle>
+      <FormField icon={ScrollText} label={t('cases.letterheadDefaultBody')} htmlFor="letterhead-default-body">
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-1.5">
+            {inquiryLetterVariables.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className="cursor-pointer rounded-full border border-teal-400 bg-white px-2.5 py-1 text-xs font-medium text-teal-800 shadow-[0_2px_8px_rgba(46,189,182,0.14)] hover:bg-teal-50"
+                onPointerDown={() => {
+                  const node = letterBodyRef.current
+                  if (node && document.activeElement === node) rememberLetterCaret(node)
+                }}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => insertLetterVariable(item.token)}
+              >
+                {t(`inquiryCenters.vars.${item.key}`)}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-ink-500">{t('cases.letterheadDefaultBodyHint')}</p>
+          <textarea
+            id="letterhead-default-body"
+            ref={letterBodyRef}
+            className={fieldClassName}
+            rows={8}
+            maxLength={20000}
+            value={defaultLetterBody}
+            onChange={(event) => setDefaultLetterBody(event.target.value)}
+            onSelect={(event) => rememberLetterCaret(event.currentTarget)}
+          />
+        </div>
+      </FormField>
+      <FormField icon={RectangleVertical} label={t('cases.letterheadDefaultPaper')} htmlFor="letterhead-default-paper">
+        <SearchSelect<LetterPaper>
+          id="letterhead-default-paper"
+          value={defaultPaper}
+          onChange={setDefaultPaper}
+          options={[
+            { value: 'A4', label: 'A4' },
+            { value: 'A5', label: 'A5' },
+          ]}
+        />
+      </FormField>
       <FormActions
         headerIcons={false}
         submitting={saving}

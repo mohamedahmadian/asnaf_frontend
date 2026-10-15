@@ -658,8 +658,13 @@ export function CaseFormationPage() {
     },
   )
 
-  async function upload(documentId: string, file: File, activity?: { caseId: string; jobId: string }) {
-    if (!person?.id || (activity && !activity.caseId)) {
+  async function upload(
+    documentId: string,
+    file: File,
+    activity?: { caseId: string; jobId: string; other?: boolean } | { other: true },
+  ) {
+    const activityFile = activity && 'caseId' in activity ? activity : null
+    if (!person?.id || (activityFile && !activityFile.caseId)) {
       toast.message(t('cases.saveBeforeDocuments'))
       return
     }
@@ -669,16 +674,19 @@ export function CaseFormationPage() {
       const body = new FormData()
       body.append('userId', person.id)
       body.append('documentId', documentId)
-      if (activity) {
-        body.append('caseId', activity.caseId)
-        body.append('jobId', activity.jobId)
+      if (activityFile) {
+        body.append('caseId', activityFile.caseId)
+        body.append('jobId', activityFile.jobId)
+        if (activityFile.other) body.append('scope', 'other')
+      } else if (activity && 'other' in activity) {
+        body.append('scope', 'other')
       }
       body.append('file', prepared)
       await api.post('/cases/formation/documents', body)
       toast.success(t('cases.documentUploaded'))
       await queryClient.invalidateQueries({
-        queryKey: activity
-          ? ['cases', 'activity-documents', activity.caseId]
+        queryKey: activityFile
+          ? ['cases', 'activity-documents', activityFile.caseId]
           : ['cases', 'documents', person.id],
       })
     } catch (error) {
@@ -911,9 +919,7 @@ export function CaseFormationPage() {
                     }
                     onSubmit={submitIdentity}
                   />
-                ) : documentTypes.isLoading ? null : visibleDocuments.length === 0 ? (
-                  <FormEmptyHint>{t('cases.identityDocumentsEmpty')}</FormEmptyHint>
-                ) : (
+                ) : documentTypes.isLoading ? null : (
                   <CaseDocumentList
                     items={visibleDocuments}
                     stored={storedDocuments.data ?? []}
@@ -922,7 +928,10 @@ export function CaseFormationPage() {
                     disabled={!person.id}
                     readOnly={formLocked}
                     layout="tabs"
+                    showOtherDocuments
+                    otherReservedIds={(documentTypes.data ?? []).map((item) => item.id)}
                     onFile={(documentId, file) => void upload(documentId, file)}
+                    onOtherFile={(documentId, file) => void upload(documentId, file, { other: true })}
                     onDelete={(documentId) => void removeDocument(documentId)}
                   />
                 )}
@@ -979,11 +988,7 @@ export function CaseFormationPage() {
                     <p>{t('cases.activityDocumentsHint')}</p>
                   </div>
                 ) : null}
-                {activityDocuments.length === 0 ? (
-                  activityRequirements.isLoading || jobs.isLoading ? null : (
-                    <FormEmptyHint>{t('cases.activityDocumentsEmpty')}</FormEmptyHint>
-                  )
-                ) : (
+                {activityRequirements.isLoading || jobs.isLoading ? null : (
                   <CaseDocumentList
                     items={activityDocuments}
                     stored={storedActivityDocuments.data ?? []}
@@ -993,9 +998,15 @@ export function CaseFormationPage() {
                     readOnly={formLocked}
                     layout="tabs"
                     emphasizeRequired
+                    showOtherDocuments
+                    otherReservedIds={activityDocuments.map((item) => item.id)}
                     onFile={(documentId, file) => {
                       if (!caseId) return
                       void upload(documentId, file, { caseId, jobId: activityJobId })
+                    }}
+                    onOtherFile={(documentId, file) => {
+                      if (!caseId) return
+                      void upload(documentId, file, { caseId, jobId: activityJobId, other: true })
                     }}
                     onDelete={(documentId) => {
                       if (!caseId) return

@@ -6,8 +6,8 @@ import { toast } from 'sonner'
 import { EntityNameSubtitle, LoadingState, PageHeader, baseInfoFormShellClassName } from '../../components/ui/Form'
 import { api } from '../../lib/api'
 import type { MunicipalFee } from '../../types/app'
+import { headingFeesReturnTo } from '../financial-headings/FinancialHeadingSections'
 import { MunicipalFeeForm } from './MunicipalFeeForm'
-import { accountFeesReturnTo } from './account-return'
 
 export function MunicipalFeeEditPage() {
   const { t } = useTranslation()
@@ -15,7 +15,7 @@ export function MunicipalFeeEditPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
-  const returnTo = accountFeesReturnTo(searchParams.get('returnTo'))
+  const returnTo = headingFeesReturnTo(searchParams.get('returnTo'))
   const query = useQuery({
     queryKey: ['municipal-fee', id],
     enabled: Boolean(id),
@@ -37,16 +37,32 @@ export function MunicipalFeeEditPage() {
         subtitle={<EntityNameSubtitle name={query.data.title} icon={HandCoins} />}
       />
       <MunicipalFeeForm
+        lockFinancialHeading={Boolean(returnTo)}
         initial={{
           title: query.data.title,
-          bankAccountId: query.data.bankAccountId,
+          financialHeadingId: query.data.financialHeadingId,
           amount: query.data.amount,
+          processTypes: query.data.processTypes,
           description: query.data.description ?? '',
           isActive: query.data.isActive,
-          bankAccount: query.data.bankAccount,
+          financialHeading: query.data.financialHeading,
         }}
-        onSubmit={async ({ title, bankAccountId, amount, description, isActive }) => {
-          await api.patch(`/municipal-fees/${id}`, { title, bankAccountId, amount, description, isActive })
+        onSubmit={async ({
+          title,
+          financialHeadingId,
+          amount,
+          processTypes,
+          description,
+          isActive,
+        }) => {
+          await api.patch(`/municipal-fees/${id}`, {
+            title,
+            financialHeadingId,
+            amount,
+            processTypes,
+            description,
+            isActive,
+          })
           await queryClient.invalidateQueries({ queryKey: ['municipal-fee', id] })
           await queryClient.invalidateQueries({ queryKey: ['municipal-fees'] })
           toast.success(t('municipalFees.updated'))

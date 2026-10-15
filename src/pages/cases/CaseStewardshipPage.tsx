@@ -242,7 +242,7 @@ export function CaseStewardshipPage() {
     }
   }
 
-  async function upload(documentId: string, file: File) {
+  async function upload(documentId: string, file: File, other = false) {
     if (!identity?.id) {
       toast.message(t('cases.saveBeforeDocuments'))
       return
@@ -253,6 +253,7 @@ export function CaseStewardshipPage() {
       const body = new FormData()
       body.append('userId', identity.id)
       body.append('documentId', documentId)
+      if (other) body.append('scope', 'other')
       body.append('file', prepared)
       await api.post('/cases/formation/documents', body)
       toast.success(t('cases.documentUploaded'))
@@ -486,7 +487,10 @@ export function CaseStewardshipPage() {
                 disabled={!identity.id}
                 readOnly={review || !canForm}
                 layout="tabs"
+                showOtherDocuments
+                otherReservedIds={(documentTypes.data ?? []).map((row) => row.id)}
                 onFile={(documentId, file) => void upload(documentId, file)}
+                onOtherFile={(documentId, file) => void upload(documentId, file, true)}
                 onDelete={review || !canForm ? undefined : (documentId) => void removeDocument(documentId)}
               />
             )}

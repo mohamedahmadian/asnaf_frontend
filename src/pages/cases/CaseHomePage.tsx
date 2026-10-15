@@ -64,7 +64,6 @@ import { useManagementReviewer } from './management-reviewer'
 import { usePlacesViewer } from './places-viewer'
 import {
   CaseLiftSuspensionDialog,
-  CaseRevokeDialog,
   CaseStewardRevokeDialog,
   CaseSuspendDialog,
   CaseSuspensionsDialog,
@@ -385,7 +384,6 @@ export function CaseHomePage() {
   const [suspensionsOpen, setSuspensionsOpen] = useState(false)
   const [suspendOpen, setSuspendOpen] = useState(false)
   const [liftOpen, setLiftOpen] = useState(false)
-  const [revokeOpen, setRevokeOpen] = useState(false)
   const [stewardRevokeOpen, setStewardRevokeOpen] = useState(false)
   const showHome = searchParams.get('stay') === '1'
   const query = useQuery({
@@ -795,7 +793,7 @@ export function CaseHomePage() {
                           toast.error(t('cases.revokeAlready'))
                           return
                         }
-                        setRevokeOpen(true)
+                        navigate(`/cases/${item.id}/revocation`)
                       } else if (key === 'renewLicense') void startRequest('RENEWAL')
                       else if (key === 'changeLocation') void startRequest('LOCATION_CHANGE')
                       else if (key === 'issueAuction') openAuction()
@@ -840,7 +838,6 @@ export function CaseHomePage() {
                   onClose={() => setLiftOpen(false)}
                 />
               ) : null}
-              {revokeOpen ? <CaseRevokeDialog caseId={item.id} onClose={() => setRevokeOpen(false)} /> : null}
               {stewardRevokeOpen ? (
                 <CaseStewardRevokeDialog caseId={item.id} onClose={() => setStewardRevokeOpen(false)} />
               ) : null}

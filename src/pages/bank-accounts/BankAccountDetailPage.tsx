@@ -16,9 +16,9 @@ import { api } from '../../lib/api'
 import type { BankAccount } from '../../types/app'
 import { GeoStatus } from '../geo/GeoShared'
 import {
-  AccountMunicipalFees,
+  AccountFinancialHeadings,
   BankAccountSectionTabs,
-  addMunicipalFeePath,
+  addFinancialHeadingPath,
   useBankAccountSection,
 } from './BankAccountSections'
 
@@ -43,7 +43,7 @@ export function BankAccountDetailPage() {
     return <LoadingState />
   }
 
-  const feesTab = section === 'fees'
+  const headingsTab = section === 'headings'
 
   return (
     <div className={baseInfoFormShellClassName}>
@@ -52,11 +52,11 @@ export function BankAccountDetailPage() {
         title={t('bankAccounts.details')}
         subtitle={<EntityNameSubtitle name={account.bankName} icon={Landmark} />}
         action={
-          feesTab ? (
-            <Link to={addMunicipalFeePath(account.id, pathname)}>
+          headingsTab ? (
+            <Link to={addFinancialHeadingPath(account.id, pathname)}>
               <Button>
                 <Plus className="size-4" />
-                {t('bankAccounts.addFee')}
+                {t('bankAccounts.addHeading')}
               </Button>
             </Link>
           ) : undefined
@@ -64,13 +64,13 @@ export function BankAccountDetailPage() {
       />
       <FormCard icon={Landmark} title={account.bankName}>
       <BankAccountSectionTabs section={section} onChange={setSection} />
-      {feesTab ? <AccountMunicipalFees accountId={account.id} /> : null}
+      {headingsTab ? <AccountFinancialHeadings accountId={account.id} /> : null}
       <div
         role="tabpanel"
         id="form-panel-info"
         aria-labelledby="form-tab-info"
-        hidden={feesTab}
-        className={feesTab ? 'hidden' : 'space-y-6 p-5 sm:p-6'}
+        hidden={headingsTab}
+        className={headingsTab ? 'hidden' : 'space-y-6 p-5 sm:p-6'}
       >
           <FormSectionTitle icon={Landmark}>{t('bankAccounts.details')}</FormSectionTitle>
           <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">

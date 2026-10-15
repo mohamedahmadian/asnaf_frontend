@@ -1,13 +1,13 @@
 import { Printer, X } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../../components/ui/Form'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { api, getApiErrorMessage } from '../../lib/api'
-import { presentInquiryLetter, printInquiryLetter, type LetterPaper } from './inquiry-api'
-import { LetterIssueBar, useEditableLetter, useInquiryLetterMarkup } from './LetterIssueBar'
+import { presentInquiryLetter, printInquiryLetter } from './inquiry-api'
+import { LetterIssueBar, useEditableLetter, useInquiryLetterMarkup, useLetterPaper } from './LetterIssueBar'
 import type { CaseInquiryLetter } from './inquiry-types'
 
 const printButtonClassName = 'min-w-40 px-8 disabled:opacity-60'
@@ -40,7 +40,7 @@ export function InquiryLetterModal({
   const source = preview ? preview.letter : query.data
   const loading = preview ? preview.loading : query.isLoading
   const failed = preview ? preview.error : query.isError ? query.error : null
-  const [paper, setPaper] = useState<LetterPaper>('A4')
+  const [paper, setPaper] = useLetterPaper(source)
   const issue = useEditableLetter(source, preview ? null : remoteUrl, queryKey)
   const fragment = useInquiryLetterMarkup(issue.view, locale, paper)
   const filled = useMemo(

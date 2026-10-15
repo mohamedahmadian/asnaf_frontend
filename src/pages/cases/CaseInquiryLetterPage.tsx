@@ -1,13 +1,12 @@
 import { Download, Landmark, Printer, ScanSearch } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useParams } from 'react-router-dom'
 import { Button, PageHeader, caseShellClassName } from '../../components/ui/Form'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { api } from '../../lib/api'
-import { LetterIssueBar, useEditableLetter, useInquiryLetterMarkup } from './LetterIssueBar'
-import { downloadInquiryLetter, inquiryLetterFilename, printInquiryLetter, type LetterPaper } from './inquiry-api'
+import { LetterIssueBar, useEditableLetter, useInquiryLetterMarkup, useLetterPaper } from './LetterIssueBar'
+import { downloadInquiryLetter, inquiryLetterFilename, printInquiryLetter } from './inquiry-api'
 import type { CaseInquiryLetter } from './inquiry-types'
 
 export function CaseInquiryLetterPage() {
@@ -25,7 +24,7 @@ export function CaseInquiryLetterPage() {
     queryFn: async () => (await api.get<CaseInquiryLetter>(`${apiBase}/${id}/letter`)).data,
   })
   const letter = query.data
-  const [paper, setPaper] = useState<LetterPaper>('A4')
+  const [paper, setPaper] = useLetterPaper(letter)
   const issue = useEditableLetter(letter, `${apiBase}/${id}/letter`, queryKey)
   const fragment = useInquiryLetterMarkup(issue.view, locale, paper)
 

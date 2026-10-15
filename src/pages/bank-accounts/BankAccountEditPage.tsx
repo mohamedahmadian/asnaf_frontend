@@ -15,9 +15,9 @@ import { api } from '../../lib/api'
 import type { BankAccount } from '../../types/app'
 import { BankAccountForm } from './BankAccountForm'
 import {
-  AccountMunicipalFees,
+  AccountFinancialHeadings,
   BankAccountSectionTabs,
-  addMunicipalFeePath,
+  addFinancialHeadingPath,
   useBankAccountSection,
 } from './BankAccountSections'
 
@@ -41,7 +41,7 @@ export function BankAccountEditPage() {
     return <LoadingState />
   }
 
-  const feesTab = section === 'fees'
+  const headingsTab = section === 'headings'
   const account = query.data
 
   return (
@@ -51,11 +51,11 @@ export function BankAccountEditPage() {
         title={t('bankAccounts.edit')}
         subtitle={<EntityNameSubtitle name={account.bankName} icon={Landmark} />}
         action={
-          feesTab ? (
-            <Link to={addMunicipalFeePath(account.id, pathname)}>
+          headingsTab ? (
+            <Link to={addFinancialHeadingPath(account.id, pathname)}>
               <Button>
                 <Plus className="size-4" />
-                {t('bankAccounts.addFee')}
+                {t('bankAccounts.addHeading')}
               </Button>
             </Link>
           ) : undefined
@@ -63,8 +63,8 @@ export function BankAccountEditPage() {
       />
       <FormCard icon={Landmark} title={account.bankName}>
         <BankAccountSectionTabs section={section} onChange={setSection} />
-        {feesTab ? (
-          <AccountMunicipalFees accountId={account.id} />
+        {headingsTab ? (
+          <AccountFinancialHeadings accountId={account.id} />
         ) : (
           <BankAccountForm
             embedded

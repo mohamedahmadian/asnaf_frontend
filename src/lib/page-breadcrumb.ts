@@ -39,7 +39,7 @@ function findLongestMenu(pathname: string, modules: BreadcrumbNavModule[], searc
     | undefined;
   for (const mod of modules) {
     for (const menu of mod.menus) {
-      if (!menuPathMatches(path, menu.path)) continue;
+      if (!menuPathMatches(path, menu.path, search)) continue;
       const menuPath = normalizeMenuPath(menu.path);
       if (!best || menuPath.length > best.menuPath.length) {
         best = {

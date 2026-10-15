@@ -1163,19 +1163,52 @@ export type Discount = {
   year: number;
   title: string;
   percent: number;
+  processTypes: FinancialProcessType[];
   description: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
 };
 
+export const financialProcessTypes = {
+  ISSUANCE: "ISSUANCE",
+  RENEWAL: "RENEWAL",
+  AUCTION: "AUCTION",
+  STEWARDSHIP: "STEWARDSHIP",
+} as const;
+
+export type FinancialProcessType =
+  (typeof financialProcessTypes)[keyof typeof financialProcessTypes];
+
 export type MunicipalFee = {
   id: string;
   title: string;
-  bankAccountId: string;
+  financialHeadingId: string;
   amount: number;
+  processTypes: FinancialProcessType[];
   description: string | null;
   isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  financialHeading: {
+    id: string;
+    title: string;
+    paymentId: string | null;
+    bankAccount: {
+      id: string;
+      bankName: string;
+      accountNumber: string;
+      isActive: boolean;
+    };
+  };
+};
+
+export type FinancialHeading = {
+  id: string;
+  title: string;
+  description: string | null;
+  bankAccountId: string;
+  paymentId: string | null;
   createdAt: string;
   updatedAt: string;
   bankAccount: {

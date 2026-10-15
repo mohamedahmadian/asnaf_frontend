@@ -28,6 +28,10 @@ export function InquiryCenterDetailPage() {
       return data
     },
   })
+  const defaultsQuery = useQuery({
+    queryKey: ['inquiry-centers', 'letter-defaults'],
+    queryFn: async () => (await api.get<{ defaultLetterBody: string }>('/inquiry-centers/letter-defaults')).data,
+  })
 
   const item = query.data
   if (!item) {
@@ -84,13 +88,20 @@ export function InquiryCenterDetailPage() {
               icon={ScrollText}
               label={t('inquiryCenters.letterBody')}
               value={
-                item.letterBody ? (
-                  <span className="whitespace-pre-wrap">{item.letterBody}</span>
+                item.letterBody || defaultsQuery.data?.defaultLetterBody ? (
+                  <span className="whitespace-pre-wrap">
+                    {item.letterBody || defaultsQuery.data?.defaultLetterBody}
+                    {!item.letterBody ? (
+                      <span className="mt-1 block text-xs font-normal text-ink-500">
+                        {t('inquiryCenters.letterBodyUsingDefault')}
+                      </span>
+                    ) : null}
+                  </span>
                 ) : (
                   '—'
                 )
               }
-              empty={!item.letterBody}
+              empty={!item.letterBody && !defaultsQuery.data?.defaultLetterBody}
               className="sm:col-span-2"
             />
           </div>

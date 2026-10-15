@@ -27,11 +27,26 @@ export function isPlacesCaseBrowse(pathname: string, search = '') {
   return true
 }
 
-export function menuPathMatches(pathname: string, menuPath: string) {
+function menuTarget(menuPath: string) {
+  const [rawPath, query = ''] = menuPath.split('?')
+  return { path: normalizeMenuPath(rawPath || '/'), query }
+}
+
+export function menuPathMatches(pathname: string, menuPath: string, search = '') {
   const path = normalizeMenuPath(pathname)
-  const itemPath = normalizeMenuPath(menuPath)
-  if (itemPath === '/') return path === '/'
-  return path === itemPath || path.startsWith(`${itemPath}/`)
+  const item = menuTarget(menuPath)
+  if (item.path === '/') {
+    if (path !== '/') return false
+  } else if (path !== item.path && !path.startsWith(`${item.path}/`)) {
+    return false
+  }
+  if (!item.query) return true
+  const wanted = new URLSearchParams(item.query)
+  const actual = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
+  for (const [key, value] of wanted) {
+    if (actual.get(key) !== value) return false
+  }
+  return true
 }
 
 /** Create form stays on `/board/requests`; existing request pages belong to `/board/plans`. */
@@ -49,10 +64,10 @@ export function sidebarMenuPathname(pathname: string, search = '') {
 /** Longest matching menu path wins, so `/evaluations` stays inactive on `/evaluations/campaigns`. */
 export function isSidebarMenuActive(pathname: string, menuPath: string, allMenuPaths: string[], search = '') {
   const path = sidebarMenuPathname(pathname, search)
-  if (!menuPathMatches(path, menuPath)) return false
+  if (!menuPathMatches(path, menuPath, search)) return false
   const normalized = normalizeMenuPath(menuPath)
   return !allMenuPaths.some((other) => {
     const otherPath = normalizeMenuPath(other)
-    return otherPath !== normalized && otherPath.length > normalized.length && menuPathMatches(path, other)
+    return otherPath !== normalized && otherPath.length > normalized.length && menuPathMatches(path, other, search)
   })
 }
