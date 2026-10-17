@@ -29,7 +29,7 @@ import {
 } from '../../components/ui/Form'
 import { CopyableDigits } from '../../components/ui/CopyableDigits'
 import { DateText } from '../../components/ui/DateText'
-import { FormCard, FormEmptyHint, FormSectionTitle, formCardBodyClassName } from '../../components/ui/FormLayout'
+import { FormCard, FormSectionTitle, formCardBodyClassName } from '../../components/ui/FormLayout'
 import { formatNumber } from '../../lib/datetime'
 import { useDoubleSaveShortcut } from '../../hooks/useEscapeLeave'
 import { api, getApiErrorMessage } from '../../lib/api'
