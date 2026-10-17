@@ -56,14 +56,15 @@ import { DiscountCreatePage } from './pages/discounts/DiscountCreatePage'
 import { DiscountDetailPage } from './pages/discounts/DiscountDetailPage'
 import { DiscountEditPage } from './pages/discounts/DiscountEditPage'
 import { DiscountsListPage } from './pages/discounts/DiscountsListPage'
-import { FinancialHeadingCreatePage } from './pages/financial-headings/FinancialHeadingCreatePage'
-import { FinancialHeadingDetailPage } from './pages/financial-headings/FinancialHeadingDetailPage'
-import { FinancialHeadingEditPage } from './pages/financial-headings/FinancialHeadingEditPage'
-import { FinancialHeadingsListPage } from './pages/financial-headings/FinancialHeadingsListPage'
 import { MunicipalFeeCreatePage } from './pages/municipal-fees/MunicipalFeeCreatePage'
 import { MunicipalFeeDetailPage } from './pages/municipal-fees/MunicipalFeeDetailPage'
 import { MunicipalFeeEditPage } from './pages/municipal-fees/MunicipalFeeEditPage'
 import { MunicipalFeesListPage } from './pages/municipal-fees/MunicipalFeesListPage'
+import { FinancialSettingsPage } from './pages/financial-settings/FinancialSettingsPage'
+import { PaymentDetailPage } from './pages/payments/PaymentDetailPage'
+import { PublicPaymentPage } from './pages/payments/PublicPaymentPage'
+import { PaymentHistoryPage } from './pages/payments/PaymentHistoryPage'
+import { PaymentPage } from './pages/payments/PaymentPage'
 import { DocumentCreatePage } from './pages/documents/DocumentCreatePage'
 import { DocumentDetailPage } from './pages/documents/DocumentDetailPage'
 import { DocumentEditPage } from './pages/documents/DocumentEditPage'
@@ -199,6 +200,7 @@ export default function App() {
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/impersonate" element={<ImpersonateEntryPage />} />
               <Route path="/impersonate-ended" element={<ImpersonateEndedPage />} />
+              <Route path="/pay/:token" element={<PublicPaymentPage />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<DashboardLayout />}>
                   <Route path="/dashboard" element={<DashboardPage />} />
@@ -251,14 +253,14 @@ export default function App() {
                   <Route path="/base-info/discounts/new" element={<DiscountCreatePage />} />
                   <Route path="/base-info/discounts/:id" element={<DiscountDetailPage />} />
                   <Route path="/base-info/discounts/:id/edit" element={<DiscountEditPage />} />
-                  <Route path="/base-info/financial-headings" element={<FinancialHeadingsListPage />} />
-                  <Route path="/base-info/financial-headings/new" element={<FinancialHeadingCreatePage />} />
-                  <Route path="/base-info/financial-headings/:id" element={<FinancialHeadingDetailPage />} />
-                  <Route path="/base-info/financial-headings/:id/edit" element={<FinancialHeadingEditPage />} />
                   <Route path="/base-info/municipal-fees" element={<MunicipalFeesListPage />} />
                   <Route path="/base-info/municipal-fees/new" element={<MunicipalFeeCreatePage />} />
                   <Route path="/base-info/municipal-fees/:id" element={<MunicipalFeeDetailPage />} />
                   <Route path="/base-info/municipal-fees/:id/edit" element={<MunicipalFeeEditPage />} />
+                  <Route path="/finance/settings" element={<FinancialSettingsPage />} />
+                  <Route path="/finance/payments" element={<PaymentPage />} />
+                  <Route path="/finance/payment-history" element={<PaymentHistoryPage />} />
+                  <Route path="/finance/payment-history/:id" element={<PaymentDetailPage />} />
                   <Route path="/base-info/job-types" element={<JobTypesListPage />} />
                   <Route path="/base-info/job-types/new" element={<JobTypeCreatePage />} />
                   <Route path="/base-info/job-types/:id" element={<JobTypeDetailPage />} />

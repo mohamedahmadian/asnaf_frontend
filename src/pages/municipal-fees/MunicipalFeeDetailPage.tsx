@@ -1,7 +1,7 @@
-import { Banknote, FileText, HandCoins, ScrollText, ToggleRight, Type, Workflow } from 'lucide-react'
+import { Banknote, FileText, HandCoins, Landmark, ToggleRight, Type } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   DetailActions,
   EntityNameSubtitle,
@@ -13,17 +13,14 @@ import { FormCard, FormFactTile, FormSectionTitle } from '../../components/ui/Fo
 import { useConfirmDelete } from '../../hooks/useConfirmDelete'
 import { api } from '../../lib/api'
 import type { MunicipalFee } from '../../types/app'
-import { headingFeesReturnTo } from '../financial-headings/FinancialHeadingSections'
 import { GeoStatus } from '../geo/GeoShared'
-import { formatFeeAmount } from './MunicipalFeeForm'
+import { bankAccountOptionLabel, formatFeeAmount } from './MunicipalFeeForm'
 
 export function MunicipalFeeDetailPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const { id } = useParams()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const returnTo = headingFeesReturnTo(searchParams.get('returnTo'))
   const { confirmDelete } = useConfirmDelete()
   const query = useQuery({
     queryKey: ['municipal-fee', id],
@@ -52,9 +49,9 @@ export function MunicipalFeeDetailPage() {
           <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
             <FormFactTile icon={Type} label={t('municipalFees.title')} value={fee.title} tone="teal" />
             <FormFactTile
-              icon={ScrollText}
-              label={t('municipalFees.financialHeading')}
-              value={fee.financialHeading.title}
+              icon={Landmark}
+              label={t('municipalFees.bankAccount')}
+              value={bankAccountOptionLabel(fee.bankAccount, locale, t('geo.inactive'))}
               tone="mint"
             />
             <FormFactTile
@@ -69,21 +66,6 @@ export function MunicipalFeeDetailPage() {
               value={<GeoStatus active={fee.isActive} />}
             />
             <FormFactTile
-              icon={Workflow}
-              label={t('municipalFees.processTypes')}
-              value={
-                fee.processTypes.length
-                  ? fee.processTypes
-                      .map((processType) =>
-                        t(`municipalFees.processType.${processType}`),
-                      )
-                      .join('، ')
-                  : '—'
-              }
-              empty={fee.processTypes.length === 0}
-              className="sm:col-span-2"
-            />
-            <FormFactTile
               icon={FileText}
               label={t('municipalFees.description')}
               value={fee.description || '—'}
@@ -92,11 +74,7 @@ export function MunicipalFeeDetailPage() {
             />
           </div>
           <DetailActions
-            editTo={
-              returnTo
-                ? `/base-info/municipal-fees/${fee.id}/edit?${new URLSearchParams({ returnTo })}`
-                : `/base-info/municipal-fees/${fee.id}/edit`
-            }
+            editTo={`/base-info/municipal-fees/${fee.id}/edit`}
             editLabel={t('common.edit')}
             deleteLabel={t('municipalFees.delete')}
             onDelete={() =>
@@ -105,7 +83,7 @@ export function MunicipalFeeDetailPage() {
                 successMessage: t('municipalFees.deleted'),
                 path: `/municipal-fees/${fee.id}`,
                 queryKey: ['municipal-fees'],
-                onDeleted: () => navigate(returnTo ?? '/base-info/municipal-fees'),
+                onDeleted: () => navigate('/base-info/municipal-fees'),
               })
             }
           />

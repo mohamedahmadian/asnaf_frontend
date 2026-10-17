@@ -1,9 +1,8 @@
-import { CreditCard, FileText, Hash, Landmark, Plus, Wallet } from 'lucide-react'
+import { CreditCard, FileText, Hash, Landmark, Receipt, Wallet } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
-  Button,
   DetailActions,
   EntityNameSubtitle,
   LoadingState,
@@ -15,20 +14,12 @@ import { useConfirmDelete } from '../../hooks/useConfirmDelete'
 import { api } from '../../lib/api'
 import type { BankAccount } from '../../types/app'
 import { GeoStatus } from '../geo/GeoShared'
-import {
-  AccountFinancialHeadings,
-  BankAccountSectionTabs,
-  addFinancialHeadingPath,
-  useBankAccountSection,
-} from './BankAccountSections'
 
 export function BankAccountDetailPage() {
   const { t } = useTranslation()
   const { id } = useParams()
-  const { pathname } = useLocation()
   const navigate = useNavigate()
   const { confirmDelete } = useConfirmDelete()
-  const { section, setSection } = useBankAccountSection()
   const query = useQuery({
     queryKey: ['bank-account', id],
     enabled: Boolean(id),
@@ -43,35 +34,15 @@ export function BankAccountDetailPage() {
     return <LoadingState />
   }
 
-  const headingsTab = section === 'headings'
-
   return (
     <div className={baseInfoFormShellClassName}>
       <PageHeader
         icon={Landmark}
         title={t('bankAccounts.details')}
         subtitle={<EntityNameSubtitle name={account.bankName} icon={Landmark} />}
-        action={
-          headingsTab ? (
-            <Link to={addFinancialHeadingPath(account.id, pathname)}>
-              <Button>
-                <Plus className="size-4" />
-                {t('bankAccounts.addHeading')}
-              </Button>
-            </Link>
-          ) : undefined
-        }
       />
       <FormCard icon={Landmark} title={account.bankName}>
-      <BankAccountSectionTabs section={section} onChange={setSection} />
-      {headingsTab ? <AccountFinancialHeadings accountId={account.id} /> : null}
-      <div
-        role="tabpanel"
-        id="form-panel-info"
-        aria-labelledby="form-tab-info"
-        hidden={headingsTab}
-        className={headingsTab ? 'hidden' : 'space-y-6 p-5 sm:p-6'}
-      >
+        <div className="space-y-6 p-5 sm:p-6">
           <FormSectionTitle icon={Landmark}>{t('bankAccounts.details')}</FormSectionTitle>
           <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
             <FormFactTile
@@ -92,6 +63,12 @@ export function BankAccountDetailPage() {
               copyValue={account.cardNumber}
             />
             <FormFactTile icon={Wallet} label={t('bankAccounts.iban')} copyValue={account.iban} />
+            <FormFactTile
+              icon={Receipt}
+              label={t('bankAccounts.paymentId')}
+              copyValue={account.paymentId}
+              tone="teal"
+            />
             <FormFactTile
               icon={Landmark}
               label={t('bankAccounts.isActive')}
@@ -119,7 +96,7 @@ export function BankAccountDetailPage() {
               })
             }
           />
-      </div>
+        </div>
       </FormCard>
     </div>
   )

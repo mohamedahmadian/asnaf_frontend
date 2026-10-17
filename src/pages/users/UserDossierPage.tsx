@@ -2,6 +2,7 @@ import {
   BadgeCheck,
   Ban,
   Briefcase,
+  Building,
   CalendarClock,
   CalendarDays,
   CirclePause,
@@ -47,7 +48,7 @@ import { RoleBadges } from '../../components/ui/RoleBadges'
 import { api, getImageUrl } from '../../lib/api'
 import { formatNumber, fromIsoDateOnly, todayIsoDate, usesJalaliCalendar } from '../../lib/datetime'
 import { useGeoName } from '../../lib/geo'
-import type { ManagedUser } from '../../types/app'
+import { personTypes, type ManagedUser } from '../../types/app'
 import { FORMATION_STEPS, STEWARDSHIP_STEPS } from '../cases/formation-types'
 
 type GeoCity = { nameFa: string; nameEn: string }
@@ -149,6 +150,29 @@ export function UserDossierPage() {
                 />
               ) : null}
               <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
+                <FormFactTile
+                  icon={UserRound}
+                  label={t('users.personType')}
+                  value={t(`personTypes.${user.personType ?? personTypes.NATURAL}`)}
+                  tone="ink"
+                />
+                {user.personType === personTypes.LEGAL ? (
+                  <FormFactTile
+                    icon={Building}
+                    label={t('users.companyName')}
+                    value={user.companyName || '—'}
+                    empty={!user.companyName}
+                    tone="teal"
+                  />
+                ) : null}
+                {user.personType === personTypes.LEGAL ? (
+                  <FormFactTile
+                    icon={IdCard}
+                    label={t('users.companyNationalId')}
+                    copyValue={user.companyNationalId}
+                    tone="mint"
+                  />
+                ) : null}
                 <FormFactTile icon={IdCard} label={t('users.nationalId')} copyValue={user.nationalId} tone="teal" />
                 <FormFactTile icon={Phone} label={t('users.phone')} copyValue={user.phone} tone="mint" />
                 <FormFactTile

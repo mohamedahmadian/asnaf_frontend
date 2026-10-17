@@ -1,13 +1,17 @@
 import {
   Briefcase,
+  Building,
   Building2,
   Calendar,
+  CalendarDays,
   Car,
   FileText,
   Flag,
+  Hash,
   IdCard,
   ImagePlus,
   KeyRound,
+  Landmark,
   Languages,
   LocateFixed,
   Mail,
@@ -52,7 +56,7 @@ import { languages, type AppLanguage } from '../../i18n'
 import { api, getImageUrl } from '../../lib/api'
 import { localizeDigits } from '../../lib/datetime'
 import { useGeoName } from '../../lib/geo'
-import type { ManagedUser } from '../../types/app'
+import { personTypes, type ManagedUser } from '../../types/app'
 import { PersonIdentityDocuments } from './PersonIdentityDocuments'
 
 const tabs = ['personal', 'account', 'location', 'documents', 'social', 'other'] as const
@@ -150,8 +154,14 @@ export function UserDetailPage() {
             <section>
               <FormSectionTitle icon={UserRound}>{t('users.tabs.personal')}</FormSectionTitle>
               <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
-                <FormFactTile icon={UserRound} label={t('users.firstName')} value={user.firstName} tone="teal" />
-                <FormFactTile icon={UserRound} label={t('users.lastName')} value={user.lastName} tone="mint" />
+                <FormFactTile
+                  icon={UserRound}
+                  label={t('users.personType')}
+                  value={t(`personTypes.${user.personType ?? personTypes.NATURAL}`)}
+                  tone="teal"
+                />
+                <FormFactTile icon={UserRound} label={t('users.firstName')} value={user.firstName} tone="mint" />
+                <FormFactTile icon={UserRound} label={t('users.lastName')} value={user.lastName} tone="teal" />
                 <FormFactTile
                   icon={UserRound}
                   label={t('users.gender')}
@@ -183,6 +193,53 @@ export function UserDetailPage() {
                   tone="ink"
                 />
               </div>
+              {user.personType === personTypes.LEGAL ? (
+                <>
+                  <FormSectionTitle icon={Building} className="mb-2.5 mt-6">
+                    {t('users.legalSection')}
+                  </FormSectionTitle>
+                  <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+                    <FormFactTile
+                      icon={Building}
+                      label={t('users.companyName')}
+                      value={user.companyName || empty}
+                      empty={!user.companyName}
+                      tone="teal"
+                      className="sm:col-span-2"
+                    />
+                    <FormFactTile
+                      icon={IdCard}
+                      label={t('users.companyNationalId')}
+                      copyValue={user.companyNationalId}
+                      tone="mint"
+                    />
+                    <FormFactTile
+                      icon={Hash}
+                      label={t('users.companyRegistrationNo')}
+                      value={
+                        user.companyRegistrationNo
+                          ? localizeDigits(user.companyRegistrationNo, uiLocale)
+                          : empty
+                      }
+                      empty={!user.companyRegistrationNo}
+                      tone="ink"
+                    />
+                    <FormFactTile
+                      icon={CalendarDays}
+                      label={t('users.companyRegisteredAt')}
+                      value={user.companyRegisteredAt ? <DateText value={user.companyRegisteredAt} /> : empty}
+                      empty={!user.companyRegisteredAt}
+                      tone="teal"
+                    />
+                    <FormFactTile
+                      icon={Landmark}
+                      label={t('users.economicCode')}
+                      copyValue={user.economicCode}
+                      tone="mint"
+                    />
+                  </div>
+                </>
+              ) : null}
             </section>
           ) : null}
 

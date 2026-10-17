@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { localizeDigits } from '../../lib/datetime'
 import { useGeoName } from '../../lib/geo'
-import type { ManagedUser, Paginated } from '../../types/app'
+import { personTypes, type ManagedUser, type Paginated } from '../../types/app'
 import { AppForm, fieldClassName } from '../ui/Form'
 
 const MIN_SEARCH_LENGTH = 3
@@ -147,9 +147,15 @@ export function UserSearchModal({
                     <UserRound className="size-4" aria-hidden />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{item.fullName}</span>
+                    <span className="block truncate font-medium">
+                      {item.personType === personTypes.LEGAL && item.companyName
+                        ? item.companyName
+                        : item.fullName}
+                    </span>
                     <span className="block truncate text-xs text-ink-400">
                       {[
+                        item.personType === personTypes.LEGAL ? t(`personTypes.${item.personType}`) : null,
+                        item.personType === personTypes.LEGAL && item.companyName ? item.fullName : null,
                         item.username,
                         item.nationalId ? localizeDigits(item.nationalId, locale) : null,
                         item.phone ? localizeDigits(item.phone, locale) : null,

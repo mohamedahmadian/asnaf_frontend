@@ -183,6 +183,18 @@ export function getPageMeta(pathname: string): {
   if (commercialMeta) {
     return commercialMeta
   }
+  if (pathname.startsWith('/finance/payment-history/')) {
+    return { titleKey: 'payments.details', subtitleKey: 'payments.detailsSubtitle' }
+  }
+  if (pathname.startsWith('/finance/payment-history')) {
+    return { titleKey: 'menus.paymentHistory', subtitleKey: 'payments.historySubtitle' }
+  }
+  if (pathname.startsWith('/finance/payments')) {
+    return { titleKey: 'menus.payments', subtitleKey: 'payments.subtitle' }
+  }
+  if (pathname.startsWith('/finance/settings')) {
+    return { titleKey: 'menus.financialSettings', subtitleKey: 'financialSettings.subtitle' }
+  }
   if (pathname === '/base-info/bank-accounts/new') {
     return { titleKey: 'bankAccounts.create', subtitleKey: 'bankAccounts.createSubtitle' }
   }
@@ -206,33 +218,6 @@ export function getPageMeta(pathname: string): {
   }
   if (pathname.startsWith('/base-info/discounts')) {
     return { titleKey: 'menus.discounts', subtitleKey: 'discounts.subtitle' }
-  }
-  if (pathname === '/base-info/financial-headings/new') {
-    return {
-      titleKey: 'financialHeadings.create',
-      subtitleKey: 'financialHeadings.createSubtitle',
-    }
-  }
-  if (
-    pathname.endsWith('/edit') &&
-    pathname.startsWith('/base-info/financial-headings/')
-  ) {
-    return {
-      titleKey: 'financialHeadings.edit',
-      subtitleKey: 'financialHeadings.editSubtitle',
-    }
-  }
-  if (pathname.startsWith('/base-info/financial-headings/')) {
-    return {
-      titleKey: 'financialHeadings.details',
-      subtitleKey: 'financialHeadings.detailsSubtitle',
-    }
-  }
-  if (pathname.startsWith('/base-info/financial-headings')) {
-    return {
-      titleKey: 'menus.financialHeadings',
-      subtitleKey: 'financialHeadings.subtitle',
-    }
   }
   if (pathname === '/base-info/municipal-fees/new') {
     return { titleKey: 'municipalFees.create', subtitleKey: 'municipalFees.createSubtitle' }

@@ -73,15 +73,17 @@ export function DiscountDetailPage() {
               icon={Workflow}
               label={t('discounts.processTypes')}
               value={
-                discount.processTypes.length
-                  ? discount.processTypes
-                      .map((processType) =>
-                        t(`municipalFees.processType.${processType}`),
-                      )
-                      .join('، ')
-                  : '—'
+                discount.appliesToAllRequests
+                  ? t('discounts.allRequests')
+                  : discount.processTypes.length
+                    ? discount.processTypes
+                        .map((processType) =>
+                          t(`municipalFees.processType.${processType}`),
+                        )
+                        .join('، ')
+                    : '—'
               }
-              empty={discount.processTypes.length === 0}
+              empty={!discount.appliesToAllRequests && discount.processTypes.length === 0}
               className="sm:col-span-2"
             />
             <FormFactTile

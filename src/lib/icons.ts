@@ -1,4 +1,5 @@
 import {
+  Banknote,
   Building2,
   Boxes,
   Briefcase,
@@ -132,6 +133,7 @@ const icons: Record<string, LucideIcon> = {
   shield: Shield,
   'shield-alert': ShieldAlert,
   tags: Tags,
+  banknote: Banknote,
   'hand-coins': HandCoins,
   'heart-handshake': HeartHandshake,
   handshake: Handshake,

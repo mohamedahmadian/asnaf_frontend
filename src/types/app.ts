@@ -12,6 +12,13 @@ export const userGenders = {
 
 export type UserGender = (typeof userGenders)[keyof typeof userGenders];
 
+export const personTypes = {
+  NATURAL: "NATURAL",
+  LEGAL: "LEGAL",
+} as const;
+
+export type PersonType = (typeof personTypes)[keyof typeof personTypes];
+
 export const religions = {
   ISLAM: "ISLAM",
   CHRISTIANITY: "CHRISTIANITY",
@@ -964,6 +971,12 @@ export type ManagedUser = {
   locale: string;
   status: UserStatus;
   gender: UserGender | null;
+  personType: PersonType;
+  companyName: string | null;
+  companyNationalId: string | null;
+  companyRegistrationNo: string | null;
+  companyRegisteredAt: string | null;
+  economicCode: string | null;
   nationalId: string | null;
   phone: string | null;
   birthDate?: string | null;
@@ -1152,6 +1165,7 @@ export type BankAccount = {
   accountNumber: string;
   cardNumber: string | null;
   iban: string | null;
+  paymentId: string | null;
   description: string | null;
   isActive: boolean;
   createdAt: string;
@@ -1164,6 +1178,7 @@ export type Discount = {
   title: string;
   percent: number;
   processTypes: FinancialProcessType[];
+  appliesToAllRequests: boolean;
   description: string | null;
   isActive: boolean;
   createdAt: string;
@@ -1173,6 +1188,7 @@ export type Discount = {
 export const financialProcessTypes = {
   ISSUANCE: "ISSUANCE",
   RENEWAL: "RENEWAL",
+  LOCATION_CHANGE: "LOCATION_CHANGE",
   AUCTION: "AUCTION",
   STEWARDSHIP: "STEWARDSHIP",
 } as const;
@@ -1180,41 +1196,183 @@ export const financialProcessTypes = {
 export type FinancialProcessType =
   (typeof financialProcessTypes)[keyof typeof financialProcessTypes];
 
-export type MunicipalFee = {
+export type PaymentCaseFile = {
   id: string;
-  title: string;
-  financialHeadingId: string;
-  amount: number;
-  processTypes: FinancialProcessType[];
-  description: string | null;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-  financialHeading: {
-    id: string;
-    title: string;
-    paymentId: string | null;
-    bankAccount: {
-      id: string;
-      bankName: string;
-      accountNumber: string;
-      isActive: boolean;
-    };
-  };
+  kind: "LICENSE" | "STEWARDSHIP";
+  status: "ACTIVE" | "SUSPENDED" | "REVOKED";
+  trackingCode: string | null;
+  licenseNumber: string | null;
+  cardNumber: string | null;
+  businessUnitTitle: string | null;
+  activityJobTitle: string | null;
+  jobGroupTitle: string | null;
+  openRequests?: { id: string; number: string; type: string }[];
 };
 
-export type FinancialHeading = {
+export type PaymentParty = {
+  id: string;
+  personType: PersonType;
+  fullName: string;
+  nationalId: string | null;
+  phone: string | null;
+  companyName: string | null;
+  companyNationalId: string | null;
+  companyRegistrationNo: string | null;
+  cases: PaymentCaseFile[];
+};
+
+export const paymentMethods = ["ONLINE", "POS", "BANK_RECEIPT"] as const;
+export type PaymentMethod = (typeof paymentMethods)[number];
+export const paymentStatuses = ["PENDING", "PAID", "FAILED"] as const;
+export type PaymentStatus = (typeof paymentStatuses)[number];
+export type OnlinePaymentChannel = "OPERATOR" | "PUBLIC_LINK";
+
+export type GatewayRedirect = {
+  url: string;
+  fields: Record<string, string>;
+};
+
+export type PaymentLinkSms = {
+  sent: boolean;
+  reason: "NO_PHONE" | "SMS_UNAVAILABLE" | null;
+};
+
+export type PaymentGatewayAttempt = {
+  id: string;
+  gateway: string;
+  channel: OnlinePaymentChannel;
+  orderId: string;
+  amount: number;
+  status: "INITIATED" | "VERIFIED" | "SETTLED" | "FAILED" | "REVERSED";
+  resCode: string | null;
+  saleReferenceId: string | null;
+  cardHolderPan: string | null;
+  createdAt: string;
+  verifiedAt: string | null;
+  settledAt: string | null;
+};
+
+export type PublicPaymentSummary = {
+  receiptNumber: string;
+  payerName: string;
+  personType: PersonType;
+  status: PaymentStatus;
+  open: boolean;
+  expiresAt: string | null;
+  subtotal: number;
+  discountAmount: number;
+  finalAmount: number;
+  trackingCode: string | null;
+  paidAt: string | null;
+  createdAt: string;
+  bankName: string;
+  lines: { id: string; title: string; amount: number }[];
+};
+
+export type PaymentGroupFee = {
   id: string;
   title: string;
-  description: string | null;
+  amount: number;
+  isActive: boolean;
   bankAccountId: string;
-  paymentId: string | null;
+};
+
+export type PaymentGroup = {
+  id: string;
+  title: string;
+  bankAccountId: string;
   createdAt: string;
   updatedAt: string;
   bankAccount: {
     id: string;
     bankName: string;
     accountNumber: string;
+    isActive: boolean;
+  };
+  fees: PaymentGroupFee[];
+};
+
+export type PaymentRecord = {
+  id: string;
+  personType: PersonType;
+  nationalId: string | null;
+  companyName: string | null;
+  companyNationalId: string | null;
+  companyRegistrationNo: string | null;
+  payerName: string;
+  currentPayerName: string | null;
+  payerPhone: string | null;
+  description: string | null;
+  paymentGroupId: string | null;
+  paymentGroupTitle: string | null;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  trackingCode: string | null;
+  receiptNumber: string;
+  payLink: {
+    url: string;
+    expiresAt: string | null;
+    sentAt: string | null;
+    open: boolean;
+  } | null;
+  deletedAt: string | null;
+  deleteReason: string | null;
+  deletedBy: { id: string; fullName: string } | null;
+  caseRequest: { id: string; number: string; type: string; status: string } | null;
+  discountMode: "MANUAL" | "CATALOG";
+  discountId: string | null;
+  discountTitle: string | null;
+  discountPercent: number | null;
+  feeCount: number;
+  subtotal: number;
+  discountAmount: number;
+  finalAmount: number;
+  paidAt: string | null;
+  createdAt: string;
+  recordedBy: { id: string; fullName: string };
+  bankAccount: {
+    id: string;
+    bankName: string;
+    accountNumber: string;
+    isActive: boolean;
+  };
+  caseFile: PaymentCaseFile | null;
+  receiptCount: number;
+  lines?: {
+    id: string;
+    municipalFeeId: string | null;
+    title: string;
+    amount: number;
+    sortOrder: number;
+  }[];
+  receipts?: PaymentReceipt[];
+  gatewayTransactions?: PaymentGatewayAttempt[];
+  sms?: PaymentLinkSms | null;
+};
+
+export type PaymentReceipt = {
+  id: string;
+  imageId: string;
+  originalName: string | null;
+  createdAt: string;
+  uploadedBy: { id: string; fullName: string };
+};
+
+export type MunicipalFee = {
+  id: string;
+  title: string;
+  bankAccountId: string;
+  amount: number;
+  processTypes: FinancialProcessType[];
+  description: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  bankAccount: {
+    id: string;
+    bankName: string;
+    accountNumber: string;
+    paymentId: string | null;
     isActive: boolean;
   };
 };

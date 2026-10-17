@@ -1,4 +1,4 @@
-import { HandCoins, Plus, ScrollText } from 'lucide-react'
+import { HandCoins, Landmark, Plus } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -17,11 +17,10 @@ import { useConfirmDelete } from '../../hooks/useConfirmDelete'
 import { useListParams } from '../../hooks/useListParams'
 import { useListSort } from '../../hooks/useListSort'
 import { api } from '../../lib/api'
-import type { FinancialHeading, MunicipalFee, Paginated } from '../../types/app'
-import { financialHeadingOptionLabel } from '../financial-headings/FinancialHeadingForm'
-import { formatFeeAmount } from './MunicipalFeeForm'
+import type { BankAccount, MunicipalFee, Paginated } from '../../types/app'
+import { bankAccountOptionLabel, formatFeeAmount } from './MunicipalFeeForm'
 
-function asHeadingList(data: FinancialHeading[] | Paginated<FinancialHeading>) {
+function asAccountList(data: BankAccount[] | Paginated<BankAccount>) {
   return Array.isArray(data) ? data : data.items
 }
 
@@ -31,24 +30,22 @@ export function MunicipalFeesListPage() {
   const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams } = useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const { confirmDelete } = useConfirmDelete()
-  const financialHeadingId = searchParams.get('financialHeadingId') ?? ''
-  const headingsQuery = useQuery({
-    queryKey: ['financial-headings', 'lookup', 'municipal-fees'],
+  const bankAccountId = searchParams.get('bankAccountId') ?? ''
+  const accountsQuery = useQuery({
+    queryKey: ['bank-accounts', 'lookup', 'municipal-fees'],
     queryFn: async () => {
-      const { data } = await api.get<FinancialHeading[] | Paginated<FinancialHeading>>(
-        '/financial-headings',
-      )
-      return asHeadingList(data)
+      const { data } = await api.get<BankAccount[] | Paginated<BankAccount>>('/bank-accounts')
+      return asAccountList(data)
     },
   })
   const query = useQuery({
-    queryKey: ['municipal-fees', 'list', q, financialHeadingId, page, sortBy, sortDir],
+    queryKey: ['municipal-fees', 'list', q, bankAccountId, page, sortBy, sortDir],
     queryFn: async () => {
       const { data } = await api.get<Paginated<MunicipalFee>>('/municipal-fees', {
         params: {
           q: q || undefined,
           page,
-          ...(financialHeadingId ? { financialHeadingId } : {}),
+          ...(bankAccountId ? { bankAccountId } : {}),
           ...sortParams,
         },
       })
@@ -79,25 +76,25 @@ export function MunicipalFeesListPage() {
         onSubmit={() => applySearch()}
         label={t('municipalFees.search')}
         placeholder={t('municipalFees.searchPlaceholder')}
-        filtersActive={Boolean(financialHeadingId)}
+        filtersActive={Boolean(bankAccountId)}
         extra={
           <FormField
-            icon={ScrollText}
-            label={t('municipalFees.financialHeading')}
-            htmlFor="municipal-fee-heading"
+            icon={Landmark}
+            label={t('municipalFees.bankAccount')}
+            htmlFor="municipal-fee-account"
           >
             <SearchSelect
-              id="municipal-fee-heading"
-              value={financialHeadingId}
-              placeholder={t('municipalFees.allFinancialHeadings')}
+              id="municipal-fee-account"
+              value={bankAccountId}
+              placeholder={t('municipalFees.allBankAccounts')}
               onChange={(next) =>
-                setParams({ financialHeadingId: next || undefined }, { resetPage: true })
+                setParams({ bankAccountId: next || undefined }, { resetPage: true })
               }
               options={[
-                { value: '', label: t('municipalFees.allFinancialHeadings') },
-                ...(headingsQuery.data ?? []).map((heading) => ({
-                  value: heading.id,
-                  label: financialHeadingOptionLabel(heading),
+                { value: '', label: t('municipalFees.allBankAccounts') },
+                ...(accountsQuery.data ?? []).map((account) => ({
+                  value: account.id,
+                  label: bankAccountOptionLabel(account, locale, t('geo.inactive')),
                 })),
               ]}
             />
@@ -107,9 +104,7 @@ export function MunicipalFeesListPage() {
       <TableCard
         loading={query.isLoading}
         empty={
-          q || financialHeadingId
-            ? t('municipalFees.noResults')
-            : t('municipalFees.empty')
+          q || bankAccountId ? t('municipalFees.noResults') : t('municipalFees.empty')
         }
         hasRows={rows.length > 0}
       >
@@ -131,8 +126,8 @@ export function MunicipalFeesListPage() {
                 onSort={onSort}
               />
               <SortableTh
-                column="financialHeading"
-                label={t('municipalFees.financialHeading')}
+                column="bankAccount"
+                label={t('municipalFees.bankAccount')}
                 sortBy={sortBy}
                 sortDir={sortDir}
                 onSort={onSort}
@@ -153,7 +148,7 @@ export function MunicipalFeesListPage() {
                 <td className="px-4 py-3">{fee.title}</td>
                 <td className="px-4 py-3">{formatFeeAmount(fee.amount, locale)}</td>
                 <td className="px-4 py-3">
-                  {fee.financialHeading.title}
+                  {bankAccountOptionLabel(fee.bankAccount, locale, t('geo.inactive'))}
                 </td>
                 <td className="px-4 py-3">{fee.description || '—'}</td>
                 <td className={actionsColClassName}>

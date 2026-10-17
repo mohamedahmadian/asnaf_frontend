@@ -95,6 +95,13 @@ export function BankAccountsListPage() {
                 sortDir={sortDir}
                 onSort={onSort}
               />
+              <SortableTh
+                column="paymentId"
+                label={t('bankAccounts.paymentId')}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={onSort}
+              />
               <ActionsTh />
             </tr>
           </thead>
@@ -110,6 +117,9 @@ export function BankAccountsListPage() {
                 </td>
                 <td className="px-4 py-3" dir="ltr">
                   {account.iban ? localizeDigits(account.iban, locale) : '—'}
+                </td>
+                <td className="px-4 py-3" dir="ltr">
+                  {account.paymentId ? localizeDigits(account.paymentId, locale) : '—'}
                 </td>
                 <td className={actionsColClassName}>
                   <EntityRowActions

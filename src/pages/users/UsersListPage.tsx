@@ -23,7 +23,7 @@ import { api } from '../../lib/api'
 import { localizeDigits } from '../../lib/datetime'
 import { useGeoName } from '../../lib/geo'
 import { RoleBadges } from '../../components/ui/RoleBadges'
-import { userStatuses, type AppRole, type ManagedUser, type Paginated } from '../../types/app'
+import { personTypes, userStatuses, type AppRole, type ManagedUser, type Paginated } from '../../types/app'
 
 export function UsersListPage() {
   const { t, i18n } = useTranslation()
@@ -35,6 +35,7 @@ export function UsersListPage() {
   const { confirmDelete } = useConfirmDelete()
   const [smsUser, setSmsUser] = useState<ManagedUser | null>(null)
   const status = searchParams.get('status') ?? ''
+  const personType = searchParams.get('personType') ?? ''
   const roleId = searchParams.get('roleId') ?? ''
 
   const roles = useQuery({
@@ -46,13 +47,14 @@ export function UsersListPage() {
   })
 
   const query = useQuery({
-    queryKey: ['users', 'list', q, page, status, roleId, sortBy, sortDir],
+    queryKey: ['users', 'list', q, page, status, personType, roleId, sortBy, sortDir],
     queryFn: async () => {
       const { data } = await api.get<Paginated<ManagedUser>>('/users', {
         params: {
           q: q || undefined,
           page,
           ...(status ? { status } : {}),
+          ...(personType ? { personType } : {}),
           ...(roleId ? { roleId } : {}),
           ...sortParams,
         },
@@ -62,7 +64,7 @@ export function UsersListPage() {
   })
 
   const rows = query.data?.items ?? []
-  const filtersActive = Boolean(status || roleId)
+  const filtersActive = Boolean(status || personType || roleId)
 
   return (
     <div className={listShellClassName}>
@@ -99,6 +101,18 @@ export function UsersListPage() {
               ]}
             />
             <SearchSelect
+              value={personType}
+              onChange={(next) => setParams({ personType: next || undefined }, { resetPage: true })}
+              placeholder={t('users.personType')}
+              options={[
+                { value: '', label: t('users.allPersonTypes') },
+                ...Object.values(personTypes).map((item) => ({
+                  value: item,
+                  label: t(`personTypes.${item}`),
+                })),
+              ]}
+            />
+            <SearchSelect
               value={roleId}
               onChange={(next) => setParams({ roleId: next || undefined }, { resetPage: true })}
               placeholder={t('users.filterRoles')}
@@ -122,6 +136,7 @@ export function UsersListPage() {
           <thead className="bg-cream-50 text-ink-700">
             <tr>
               <SortableTh column="fullName" label={t('users.fullName')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <SortableTh column="personType" label={t('users.personType')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="username" label={t('users.username')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="nationalId" label={t('users.nationalId')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="phone" label={t('users.phone')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
@@ -133,7 +148,13 @@ export function UsersListPage() {
           <tbody>
             {rows.map((item) => (
               <tr key={item.id} className="border-t border-line">
-                <td className="px-4 py-3">{item.fullName}</td>
+                <td className="px-4 py-3">
+                  <div>{item.fullName}</div>
+                  {item.personType === personTypes.LEGAL && item.companyName ? (
+                    <div className="text-xs text-ink-500">{item.companyName}</div>
+                  ) : null}
+                </td>
+                <td className="px-4 py-3">{t(`personTypes.${item.personType ?? personTypes.NATURAL}`)}</td>
                 <td className="px-4 py-3">{item.username}</td>
                 <td className="px-4 py-3">
                   {item.nationalId ? localizeDigits(item.nationalId, locale) : '—'}

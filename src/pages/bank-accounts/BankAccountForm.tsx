@@ -3,6 +3,7 @@ import {
   FileText,
   Hash,
   Landmark,
+  Receipt,
   ToggleRight,
   Wallet,
 } from 'lucide-react'
@@ -12,12 +13,14 @@ import { toast } from 'sonner'
 import { AppForm, FormActions, FormField, ToggleField, fieldClassName } from '../../components/ui/Form'
 import { FormCard, formCardBodyClassName } from '../../components/ui/FormLayout'
 import { getApiErrorMessage } from '../../lib/api'
+import { toLatinDigits } from '../../lib/datetime'
 
 export type BankAccountPayload = {
   bankName: string
   accountNumber: string
   cardNumber?: string | null
   iban?: string | null
+  paymentId?: string | null
   description?: string | null
   isActive: boolean
 }
@@ -37,6 +40,7 @@ export function BankAccountForm({
   const [accountNumber, setAccountNumber] = useState(initial?.accountNumber ?? '')
   const [cardNumber, setCardNumber] = useState(initial?.cardNumber ?? '')
   const [iban, setIban] = useState(initial?.iban ?? '')
+  const [paymentId, setPaymentId] = useState(initial?.paymentId ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
   const [isActive, setIsActive] = useState(initial?.isActive ?? true)
   const [saving, setSaving] = useState(false)
@@ -50,6 +54,7 @@ export function BankAccountForm({
         accountNumber: accountNumber.trim(),
         cardNumber: cardNumber.trim() || null,
         iban: iban.trim() || null,
+        paymentId: paymentId.trim() || null,
         description: description.trim() || null,
         isActive,
       })
@@ -108,6 +113,16 @@ export function BankAccountForm({
             onChange={(e) => setIban(e.target.value.toUpperCase())}
             title={t('bankAccounts.ibanHint')}
             placeholder="IR"
+          />
+        </FormField>
+        <FormField icon={Receipt} label={t('bankAccounts.paymentId')} htmlFor="paymentId">
+          <input
+            id="paymentId"
+            inputMode="numeric"
+            className={`${fieldClassName} digit-field`}
+            value={paymentId}
+            onChange={(e) => setPaymentId(toLatinDigits(e.target.value).replace(/\D/g, ''))}
+            maxLength={100}
           />
         </FormField>
         <FormField icon={FileText} label={t('bankAccounts.description')} htmlFor="description">

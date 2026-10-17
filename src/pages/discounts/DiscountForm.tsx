@@ -18,6 +18,7 @@ export type DiscountPayload = {
   title: string
   percent: number
   processTypes: FinancialProcessType[]
+  appliesToAllRequests: boolean
   description?: string | null
   isActive: boolean
 }
@@ -35,8 +36,9 @@ export function DiscountForm({
   const [title, setTitle] = useState(initial?.title ?? '')
   const [percent, setPercent] = useState(initial ? String(initial.percent) : '')
   const [processTypes, setProcessTypes] = useState<FinancialProcessType[]>(
-    initial?.processTypes ?? [],
+    initial?.appliesToAllRequests ? [] : (initial?.processTypes ?? []),
   )
+  const [allRequests, setAllRequests] = useState(initial?.appliesToAllRequests ?? false)
   const [description, setDescription] = useState(initial?.description ?? '')
   const [isActive, setIsActive] = useState(initial?.isActive ?? true)
   const [saving, setSaving] = useState(false)
@@ -53,7 +55,8 @@ export function DiscountForm({
         year: Number(year),
         title: title.trim(),
         percent: Number(toLatinDigits(percent).replace(/,/g, '.')),
-        processTypes,
+        processTypes: allRequests ? [] : processTypes,
+        appliesToAllRequests: allRequests,
         description: description.trim() || null,
         isActive,
       })
@@ -112,11 +115,23 @@ export function DiscountForm({
           htmlFor="discountProcessTypes"
         >
           <div id="discountProcessTypes" className="grid gap-2 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <CheckboxField
+                id="discount-process-all"
+                checked={allRequests}
+                label={t('discounts.allRequests')}
+                onChange={(checked) => {
+                  setAllRequests(checked)
+                  if (checked) setProcessTypes([])
+                }}
+              />
+            </div>
             {Object.values(financialProcessTypes).map((processType) => (
               <CheckboxField
                 key={processType}
                 id={`discount-process-${processType}`}
-                checked={processTypes.includes(processType)}
+                checked={!allRequests && processTypes.includes(processType)}
+                disabled={allRequests}
                 label={t(`municipalFees.processType.${processType}`)}
                 onChange={(checked) =>
                   setProcessTypes((current) =>

@@ -1,14 +1,18 @@
 import {
   Briefcase,
+  Building,
   Building2,
+  CalendarDays,
   Car,
   Eye,
   EyeOff,
   FileText,
   Flag,
+  Hash,
   IdCard,
   ImagePlus,
   KeyRound,
+  Landmark,
   Languages,
   Mail,
   MapPin,
@@ -42,7 +46,8 @@ import {
   fieldClassName,
   inputClassName,
 } from '../../components/ui/Form'
-import { FormCard } from '../../components/ui/FormLayout'
+import { FormCard, FormSectionTitle } from '../../components/ui/FormLayout'
+import { PersianDateField } from '../../components/ui/PersianDateField'
 import { UniqueFieldWrap, type UniqueCheckStatus } from '../../components/ui/UniqueFieldStatus'
 import { selectableLanguages, selectableLocale } from '../../i18n'
 import { api, getApiErrorMessage, getImageUrl } from '../../lib/api'
@@ -60,6 +65,7 @@ import { EMPLOYEE_ROLE_CODE } from '../../lib/roles'
 import { optimizeImageFile } from '../../lib/optimize-image'
 import { PersonIdentityDocuments } from './PersonIdentityDocuments'
 import {
+  personTypes,
   religions,
   userGenders,
   userStatuses,
@@ -67,6 +73,7 @@ import {
   type Country,
   type ManagedUser,
   type AppRole,
+  type PersonType,
   type StaffPost,
   type WorkUnit,
   type Province,
@@ -105,6 +112,12 @@ export type UserPayload = {
   locale: string
   status: UserStatus
   gender: UserGender | null
+  personType: PersonType
+  companyName: string | null
+  companyNationalId: string | null
+  companyRegistrationNo: string | null
+  companyRegisteredAt: string | null
+  economicCode: string | null
   nationalId: string | null
   phone: string | null
   email: string | null
@@ -158,6 +171,12 @@ export function UserForm({
   const [locale, setLocale] = useState(selectableLocale(initial?.locale))
   const [status, setStatus] = useState<UserStatus>(initial?.status ?? userStatuses.ACTIVE)
   const [gender, setGender] = useState(initial?.gender ?? '')
+  const [personType, setPersonType] = useState<PersonType>(initial?.personType ?? personTypes.NATURAL)
+  const [companyName, setCompanyName] = useState(initial?.companyName ?? '')
+  const [companyNationalId, setCompanyNationalId] = useState(initial?.companyNationalId ?? '')
+  const [companyRegistrationNo, setCompanyRegistrationNo] = useState(initial?.companyRegistrationNo ?? '')
+  const [companyRegisteredAt, setCompanyRegisteredAt] = useState(initial?.companyRegisteredAt ?? '')
+  const [economicCode, setEconomicCode] = useState(initial?.economicCode ?? '')
   const [nationalId, setNationalId] = useState(initial?.nationalId ?? '')
   const [phone, setPhone] = useState(initial?.phone ?? '')
   const [email, setEmail] = useState(initial?.email ?? '')
@@ -498,6 +517,16 @@ export function UserForm({
       failField('personal', 'lastName', t('users.nameRequired'))
       return
     }
+    const isLegal = personType === personTypes.LEGAL
+    if (isLegal && !companyName.trim()) {
+      failField('personal', 'companyName', t('users.companyNameRequired'))
+      return
+    }
+    const companyNationalDigits = parseDigitString(companyNationalId)
+    if (isLegal && companyNationalDigits && companyNationalDigits.length !== 11) {
+      failField('personal', 'companyNationalId', t('users.companyNationalIdInvalid'))
+      return
+    }
     const phoneDigits = parseDigitString(phone)
     if (phoneRequired && !phoneDigits) {
       failField('personal', 'phone', t('users.phoneRequired'))
@@ -554,6 +583,12 @@ export function UserForm({
         locale,
         status,
         gender: gender ? (gender as UserGender) : null,
+        personType,
+        companyName: isLegal ? emptyToNull(companyName) : null,
+        companyNationalId: isLegal ? emptyToNull(companyNationalDigits) : null,
+        companyRegistrationNo: isLegal ? emptyToNull(companyRegistrationNo) : null,
+        companyRegisteredAt: isLegal ? emptyToNull(companyRegisteredAt) : null,
+        economicCode: isLegal ? emptyToNull(parseDigitString(economicCode)) : null,
         nationalId: emptyToNull(normalizeNationalId(nationalId)),
         phone: emptyToNull(phoneDigits),
         email: emptyToNull(emailValue),
@@ -579,8 +614,12 @@ export function UserForm({
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 409) {
         const message = getApiErrorMessage(error, t('users.usernameTaken'))
-        if (message.includes('کد ملی')) {
+        if (message.includes('شناسه ملی')) {
+          failField('personal', 'companyNationalId', t('users.companyNationalIdTaken'))
+        } else if (message.includes('کد ملی')) {
           failField('personal', 'nationalId', t('users.nationalIdTakenUnknown'))
+        } else if (message.includes('نام شرکت')) {
+          failField('personal', 'companyName', t('users.companyNameRequired'))
         } else if (message.includes('تلفن')) {
           failField('personal', 'phone', t('users.phoneTaken'))
         } else if (message.includes('ایمیل')) {
@@ -642,6 +681,83 @@ export function UserForm({
 
         <AppForm noValidate onSubmit={submit} className="space-y-4">
           <div className={`space-y-4 ${tab === 'personal' ? '' : 'hidden'}`}>
+            <FormField icon={UserRound} label={t('users.personType')} htmlFor="personType">
+              <SearchSelect
+                id="personType"
+                value={personType}
+                onChange={(next) => setPersonType((next || personTypes.NATURAL) as PersonType)}
+                options={Object.values(personTypes).map((item) => ({
+                  value: item,
+                  label: t(`personTypes.${item}`),
+                }))}
+              />
+            </FormField>
+            {personType === personTypes.LEGAL ? (
+              <div className="space-y-4">
+                <FormSectionTitle icon={Building}>{t('users.legalSection')}</FormSectionTitle>
+                <FormField icon={Building} label={t('users.companyName')} htmlFor="companyName" error={fieldErrors.companyName}>
+                  <input
+                    id="companyName"
+                    className={inputClassName(Boolean(fieldErrors.companyName))}
+                    value={companyName}
+                    required
+                    onChange={(e) => {
+                      setCompanyName(e.target.value)
+                      clearError('companyName')
+                    }}
+                  />
+                </FormField>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField
+                    icon={IdCard}
+                    label={t('users.companyNationalId')}
+                    htmlFor="companyNationalId"
+                    error={fieldErrors.companyNationalId}
+                  >
+                    <input
+                      id="companyNationalId"
+                      className={`${inputClassName(Boolean(fieldErrors.companyNationalId))} digit-field`}
+                      value={companyNationalId}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={11}
+                      onChange={(e) => {
+                        setCompanyNationalId(parseDigitString(e.target.value).slice(0, 11))
+                        clearError('companyNationalId')
+                      }}
+                    />
+                  </FormField>
+                  <FormField icon={Hash} label={t('users.companyRegistrationNo')} htmlFor="companyRegistrationNo">
+                    <input
+                      id="companyRegistrationNo"
+                      className={`${fieldClassName} digit-field`}
+                      value={companyRegistrationNo}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      onChange={(e) => setCompanyRegistrationNo(parseDigitString(e.target.value).slice(0, 20))}
+                    />
+                  </FormField>
+                  <FormField icon={CalendarDays} label={t('users.companyRegisteredAt')} htmlFor="companyRegisteredAt">
+                    <PersianDateField
+                      id="companyRegisteredAt"
+                      value={companyRegisteredAt || undefined}
+                      onChange={(next) => setCompanyRegisteredAt(next ?? '')}
+                    />
+                  </FormField>
+                  <FormField icon={Landmark} label={t('users.economicCode')} htmlFor="economicCode">
+                    <input
+                      id="economicCode"
+                      className={`${fieldClassName} digit-field`}
+                      value={economicCode}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={14}
+                      onChange={(e) => setEconomicCode(parseDigitString(e.target.value).slice(0, 14))}
+                    />
+                  </FormField>
+                </div>
+              </div>
+            ) : null}
             <FormField icon={IdCard} label={t('users.nationalId')} htmlFor="nationalId" error={fieldErrors.nationalId}>
               <UniqueFieldWrap
                 status={identityStatus}

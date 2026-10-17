@@ -1,22 +1,15 @@
-import { Banknote, FileText, HandCoins, ScrollText, ToggleRight, Type, Workflow } from 'lucide-react'
+import { Banknote, FileText, HandCoins, Landmark, ToggleRight, Type } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { type FormEvent, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AmountInput } from '../../components/ui/AmountInput'
-import { CheckboxField } from '../../components/ui/CheckboxField'
 import { AppForm, FormActions, FormField, ToggleField, fieldClassName } from '../../components/ui/Form'
 import { FormCard, formCardBodyClassName } from '../../components/ui/FormLayout'
 import { SearchSelect } from '../../components/ui/SearchSelect'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { formatGroupedNumber, localizeDigits, parseGroupedAmount } from '../../lib/datetime'
-import {
-  financialProcessTypes,
-  type FinancialHeading,
-  type FinancialProcessType,
-  type Paginated,
-} from '../../types/app'
-import { financialHeadingOptionLabel } from '../financial-headings/FinancialHeadingForm'
+import type { BankAccount, Paginated } from '../../types/app'
 
 export type MunicipalFeeBankAccount = {
   id: string
@@ -25,21 +18,13 @@ export type MunicipalFeeBankAccount = {
   isActive: boolean
 }
 
-export type MunicipalFeeFinancialHeading = {
-  id: string
-  title: string
-  paymentId: string | null
-  bankAccount: MunicipalFeeBankAccount
-}
-
 export type MunicipalFeePayload = {
   title: string
-  financialHeadingId: string
+  bankAccountId: string
   amount: number
-  processTypes: FinancialProcessType[]
   description?: string | null
   isActive: boolean
-  financialHeading?: MunicipalFeeFinancialHeading | null
+  bankAccount?: MunicipalFeeBankAccount | null
 }
 
 export function formatFeeAmount(value: number, locale: string) {
@@ -55,63 +40,52 @@ export function bankAccountOptionLabel(
   return account.isActive ? label : `${label} (${inactiveLabel})`
 }
 
-function asHeadingList(data: FinancialHeading[] | Paginated<FinancialHeading>) {
+function asAccountList(data: BankAccount[] | Paginated<BankAccount>) {
   return Array.isArray(data) ? data : data.items
 }
 
 export function MunicipalFeeForm({
   initial,
-  presetFinancialHeadingId,
-  lockFinancialHeading = false,
   onSubmit,
 }: {
   initial?: MunicipalFeePayload
-  presetFinancialHeadingId?: string
-  lockFinancialHeading?: boolean
   onSubmit: (payload: MunicipalFeePayload) => Promise<void>
 }) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const [title, setTitle] = useState(initial?.title ?? '')
-  const [financialHeadingId, setFinancialHeadingId] = useState(
-    initial?.financialHeadingId ?? presetFinancialHeadingId ?? '',
-  )
+  const [bankAccountId, setBankAccountId] = useState(initial?.bankAccountId ?? '')
   const [amount, setAmount] = useState(
     initial?.amount != null ? formatGroupedNumber(initial.amount, locale) : '',
   )
   const [description, setDescription] = useState(initial?.description ?? '')
-  const [processTypes, setProcessTypes] = useState<FinancialProcessType[]>(
-    initial?.processTypes ?? [],
-  )
   const [isActive, setIsActive] = useState(initial?.isActive ?? true)
   const [saving, setSaving] = useState(false)
-  const headingsQuery = useQuery({
-    queryKey: ['financial-headings', 'lookup', 'municipal-fees'],
+  const accountsQuery = useQuery({
+    queryKey: ['bank-accounts', 'lookup', 'municipal-fees'],
     queryFn: async () => {
-      const { data } = await api.get<FinancialHeading[] | Paginated<FinancialHeading>>(
-        '/financial-headings',
-      )
-      return asHeadingList(data)
+      const { data } = await api.get<BankAccount[] | Paginated<BankAccount>>('/bank-accounts')
+      return asAccountList(data)
     },
   })
 
-  const headingOptions = useMemo(() => {
-    const headings = headingsQuery.data ?? []
-    const options = headings.map((heading) => ({
-      value: heading.id,
-      label: financialHeadingOptionLabel(heading),
+  const accountOptions = useMemo(() => {
+    const accounts = accountsQuery.data ?? []
+    const options = accounts.map((account) => ({
+      value: account.id,
+      label: bankAccountOptionLabel(account, locale, t('geo.inactive')),
     }))
     if (
-      initial?.financialHeading &&
-      !options.some((option) => option.value === initial.financialHeading?.id)
+      initial?.bankAccount &&
+      !options.some((option) => option.value === initial.bankAccount?.id)
     ) {
       options.unshift({
-        value: initial.financialHeading.id,
-        label: financialHeadingOptionLabel(initial.financialHeading),
+        value: initial.bankAccount.id,
+        label: bankAccountOptionLabel(initial.bankAccount, locale, t('geo.inactive')),
       })
     }
     return options
-  }, [headingsQuery.data, initial?.financialHeading])
+  }, [accountsQuery.data, initial?.bankAccount, locale, t])
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -120,9 +94,8 @@ export function MunicipalFeeForm({
       const parsedAmount = parseGroupedAmount(amount)
       await onSubmit({
         title: title.trim(),
-        financialHeadingId,
+        bankAccountId,
         amount: parsedAmount ?? 0,
-        processTypes,
         description: description.trim() || null,
         isActive,
       })
@@ -152,45 +125,21 @@ export function MunicipalFeeForm({
           />
         </FormField>
         <FormField
-          icon={ScrollText}
-          label={t('municipalFees.financialHeading')}
-          htmlFor="municipalFeeFinancialHeading"
+          icon={Landmark}
+          label={t('municipalFees.bankAccount')}
+          htmlFor="municipalFeeBankAccount"
         >
           <SearchSelect
-            id="municipalFeeFinancialHeading"
-            value={financialHeadingId}
-            onChange={setFinancialHeadingId}
-            placeholder={t('municipalFees.selectFinancialHeading')}
+            id="municipalFeeBankAccount"
+            value={bankAccountId}
+            onChange={setBankAccountId}
+            placeholder={t('municipalFees.selectBankAccount')}
             required
-            disabled={lockFinancialHeading}
-            options={headingOptions}
+            options={accountOptions}
           />
         </FormField>
         <FormField icon={Banknote} label={t('municipalFees.amount')} htmlFor="municipalFeeAmount">
           <AmountInput id="municipalFeeAmount" value={amount} onChange={setAmount} required />
-        </FormField>
-        <FormField
-          icon={Workflow}
-          label={t('municipalFees.processTypes')}
-          htmlFor="municipalFeeProcessTypes"
-        >
-          <div id="municipalFeeProcessTypes" className="grid gap-2 sm:grid-cols-2">
-            {Object.values(financialProcessTypes).map((processType) => (
-              <CheckboxField
-                key={processType}
-                id={`municipal-fee-process-${processType}`}
-                checked={processTypes.includes(processType)}
-                label={t(`municipalFees.processType.${processType}`)}
-                onChange={(checked) =>
-                  setProcessTypes((current) =>
-                    checked
-                      ? [...current, processType]
-                      : current.filter((item) => item !== processType),
-                  )
-                }
-              />
-            ))}
-          </div>
         </FormField>
         <FormField icon={FileText} label={t('municipalFees.description')} htmlFor="municipalFeeDescription">
           <textarea
