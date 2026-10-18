@@ -4,6 +4,7 @@ import {
   Hash,
   Landmark,
   Receipt,
+  Star,
   ToggleRight,
   Wallet,
 } from 'lucide-react'
@@ -23,6 +24,7 @@ export type BankAccountPayload = {
   paymentId?: string | null
   description?: string | null
   isActive: boolean
+  isDefault: boolean
 }
 
 export function BankAccountForm({
@@ -43,7 +45,13 @@ export function BankAccountForm({
   const [paymentId, setPaymentId] = useState(initial?.paymentId ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
   const [isActive, setIsActive] = useState(initial?.isActive ?? true)
+  const [isDefault, setIsDefault] = useState(initial?.isDefault ?? false)
   const [saving, setSaving] = useState(false)
+
+  function changeActive(next: boolean) {
+    setIsActive(next)
+    if (!next) setIsDefault(false)
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -57,6 +65,7 @@ export function BankAccountForm({
         paymentId: paymentId.trim() || null,
         description: description.trim() || null,
         isActive,
+        isDefault: isActive && isDefault,
       })
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('common.error')))
@@ -84,6 +93,7 @@ export function BankAccountForm({
             maxLength={120}
           />
         </FormField>
+        <div className="grid gap-4 sm:grid-cols-2">
         <FormField icon={Hash} label={t('bankAccounts.accountNumber')} htmlFor="accountNumber">
           <input
             id="accountNumber"
@@ -105,6 +115,8 @@ export function BankAccountForm({
             title={t('bankAccounts.cardHint')}
           />
         </FormField>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
         <FormField icon={Wallet} label={t('bankAccounts.iban')} htmlFor="iban">
           <input
             id="iban"
@@ -125,6 +137,7 @@ export function BankAccountForm({
             maxLength={100}
           />
         </FormField>
+        </div>
         <FormField icon={FileText} label={t('bankAccounts.description')} htmlFor="description">
           <textarea
             id="description"
@@ -135,17 +148,32 @@ export function BankAccountForm({
             maxLength={2000}
           />
         </FormField>
+        <div className="grid gap-4 sm:grid-cols-2">
+        <FormField icon={Star} label={t('bankAccounts.isDefault')} htmlFor="isDefault">
+          <ToggleField
+            id="isDefault"
+            checked={isActive && isDefault}
+            onChange={setIsDefault}
+            disabled={!isActive}
+            onLabel={t('bankAccounts.defaultOn')}
+            offLabel={t('bankAccounts.defaultOff')}
+          />
+          <p className="text-xs text-ink-500">
+            {isActive ? t('bankAccounts.defaultHint') : t('bankAccounts.defaultNeedsActive')}
+          </p>
+        </FormField>
         {initial ? (
           <FormField icon={ToggleRight} label={t('bankAccounts.isActive')} htmlFor="isActive">
             <ToggleField
               id="isActive"
               checked={isActive}
-              onChange={setIsActive}
+              onChange={changeActive}
               onLabel={t('geo.active')}
               offLabel={t('geo.inactive')}
             />
           </FormField>
         ) : null}
+        </div>
         </div>
         <FormActions
           submitLabel={t('bankAccounts.save')}

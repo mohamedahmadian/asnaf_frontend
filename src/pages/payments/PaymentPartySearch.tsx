@@ -6,22 +6,25 @@ import {
   IdCard,
   Layers,
   LoaderCircle,
+  Phone,
   Search,
   Store,
   UserRound,
+  Users,
   X,
   type LucideIcon,
 } from 'lucide-react'
-import { useEffect, useState, type MouseEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { CheckboxField } from '../../components/ui/CheckboxField'
 import { CopyableDigits } from '../../components/ui/CopyableDigits'
 import { FormEmptyHint } from '../../components/ui/FormLayout'
-import { FormField, fieldClassName } from '../../components/ui/Form'
+import { Button, FormField, fieldClassName } from '../../components/ui/Form'
 import { api } from '../../lib/api'
 import { formatNumber, localizeDigits } from '../../lib/datetime'
 import { personTypes, type PaymentCaseFile, type PaymentParty } from '../../types/app'
+import { PaymentPartyPickerModal } from './PaymentPartyPickerModal'
 
 export type PartySelection = {
   userId: string
@@ -100,6 +103,38 @@ function LicenseFacts({ item }: { item: PaymentCaseFile }) {
   )
 }
 
+function DigitsBadge({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon
+  label: string
+  value?: string | null
+}) {
+  if (!value) return null
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs text-teal-800"
+      title={label}
+    >
+      <Icon className="size-3.5 shrink-0 text-teal-600" aria-label={label} />
+      <CopyableDigits value={value} className="font-semibold" />
+    </span>
+  )
+}
+
+function PartyBadges({ nationalId, phone }: { nationalId?: string | null; phone?: string | null }) {
+  const { t } = useTranslation()
+  if (!nationalId && !phone) return null
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+      <DigitsBadge icon={IdCard} label={t('payments.nationalId')} value={nationalId} />
+      <DigitsBadge icon={Phone} label={t('payments.phone')} value={phone} />
+    </div>
+  )
+}
+
 function PartyHeader({
   icon: Icon,
   title,
@@ -142,11 +177,12 @@ export function PaymentPartySearch({
   useEffect(() => {
     setTerm('')
     setQueryText('')
+    setPickedId(null)
+    setPickerOpen(false)
   }, [resetKey])
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setQueryText(term.trim()), 300)
-    return () => window.clearTimeout(timer)
+    if (!term.trim()) setQueryText('')
   }, [term])
 
   const canSearch = queryText.length >= 2
@@ -160,6 +196,44 @@ export function PaymentPartySearch({
   })
   const parties = canSearch ? (query.data ?? []) : []
   const searching = canSearch && query.isFetching
+  const handledResults = useRef<PaymentParty[] | null>(null)
+  const [pickedId, setPickedId] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const shownParties =
+    parties.length === 1 ? parties : parties.filter((party) => party.id === pickedId)
+
+  const selectDefault = useCallback(
+    (party: PaymentParty) => {
+      const caseFile = party.personType === personTypes.LEGAL ? null : (party.cases[0] ?? null)
+      onChange({ userId: party.id, caseFileId: caseFile?.id ?? null, party, caseFile })
+    },
+    [onChange],
+  )
+
+  useEffect(() => {
+    const results = canSearch ? query.data : undefined
+    if (!results || handledResults.current === results) return
+    handledResults.current = results
+    const kept = value ? results.find((party) => party.id === value.userId) : undefined
+    if (results.length === 1) {
+      setPickedId(null)
+      if (!kept) selectDefault(results[0])
+      return
+    }
+    if (kept) {
+      setPickedId(kept.id)
+      return
+    }
+    setPickedId(null)
+    if (value) onChange(null)
+    if (results.length > 1) setPickerOpen(true)
+  }, [canSearch, query.data, value, onChange, selectDefault])
+
+  function pick(party: PaymentParty) {
+    setPickedId(party.id)
+    setPickerOpen(false)
+    selectDefault(party)
+  }
 
   function toggle(party: PaymentParty, caseFile: PaymentCaseFile | null, checked: boolean) {
     onChange(
@@ -170,6 +244,8 @@ export function PaymentPartySearch({
   function clear() {
     setTerm('')
     setQueryText('')
+    setPickedId(null)
+    setPickerOpen(false)
     onChange(null)
   }
 
@@ -215,18 +291,35 @@ export function PaymentPartySearch({
 
       {term.trim().length > 0 && term.trim().length < 2 ? (
         <p className="text-xs text-ink-500">{t('payments.searchPartyHint')}</p>
+      ) : term.trim().length >= 2 && term.trim() !== queryText ? (
+        <p className="text-xs text-ink-500">{t('payments.pressEnterToSearch')}</p>
       ) : null}
       {canSearch && query.isFetched && !searching && parties.length === 0 ? (
         <FormEmptyHint>{t('payments.noPartyResults')}</FormEmptyHint>
       ) : null}
-      {parties.length > 0 ? (
-        <p className="text-xs font-medium text-ink-600">
-          {t('payments.resultCount', { value: formatNumber(parties.length, locale) })}
-        </p>
+      {parties.length > 1 ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-xs font-medium text-ink-600">
+            {t('payments.resultCount', { value: formatNumber(parties.length, locale) })}
+            {value ? null : ` — ${t('payments.pickPartyResult')}`}
+          </p>
+          <Button type="button" variant="ghost" onClick={() => setPickerOpen(true)}>
+            <Users className="size-4" aria-hidden />
+            {pickedId ? t('payments.partyPicker.change') : t('payments.partyPicker.open')}
+          </Button>
+        </div>
+      ) : null}
+
+      {pickerOpen && parties.length > 1 ? (
+        <PaymentPartyPickerModal
+          parties={parties}
+          onPick={pick}
+          onClose={() => setPickerOpen(false)}
+        />
       ) : null}
 
       <div className="space-y-3">
-        {parties.map((party) => {
+        {shownParties.map((party) => {
           const personSelected = value?.userId === party.id && !value.caseFileId
 
           if (party.personType === personTypes.LEGAL) {
@@ -242,7 +335,9 @@ export function PaymentPartySearch({
                   icon={Building2}
                   title={party.companyName || party.fullName}
                   typeLabel={t('personTypes.LEGAL')}
-                />
+                >
+                  <PartyBadges phone={party.phone} />
+                </PartyHeader>
                 <div className="mt-3 grid gap-2 sm:grid-cols-3">
                   <Fact icon={Building2} label={t('payments.companyName')} value={party.companyName || party.fullName} />
                   <Fact
@@ -272,11 +367,7 @@ export function PaymentPartySearch({
               className="space-y-3 rounded-3xl border border-teal-100 bg-white p-4 shadow-[0_10px_30px_rgba(20,40,40,0.04)]"
             >
               <PartyHeader icon={UserRound} title={party.fullName} typeLabel={t('personTypes.NATURAL')}>
-                <p className="flex items-center gap-1.5 text-sm text-ink-600">
-                  <IdCard className="size-3.5 shrink-0 text-teal-600" aria-hidden />
-                  <span className="text-[11px] text-ink-500">{t('payments.nationalId')}</span>
-                  <CopyableDigits value={party.nationalId} />
-                </p>
+                <PartyBadges nationalId={party.nationalId} phone={party.phone} />
               </PartyHeader>
 
               <SelectableCard

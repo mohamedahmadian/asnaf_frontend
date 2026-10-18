@@ -1,4 +1,4 @@
-import { HandCoins, Landmark, Layers, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { HandCoins, Landmark, Layers, Pencil, Plus, Star, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -19,7 +19,12 @@ import { useConfirmDelete } from '../../hooks/useConfirmDelete'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { formatNumber } from '../../lib/datetime'
 import type { BankAccount, MunicipalFee, Paginated, PaymentGroup } from '../../types/app'
-import { bankAccountOptionLabel, formatFeeAmount } from '../municipal-fees/MunicipalFeeForm'
+import {
+  bankAccountOptionLabel,
+  defaultBankAccountId,
+  formatFeeAmount,
+} from '../municipal-fees/MunicipalFeeForm'
+import { BankAccountDefaultBadge } from '../bank-accounts/BankAccountsListPage'
 import { asItemList } from './payment-shared'
 
 type Editor = {
@@ -39,6 +44,7 @@ export function PaymentGroupsModal({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState('')
   const [editor, setEditor] = useState<Editor | null>(null)
   const [saving, setSaving] = useState(false)
+  const [togglingDefaultId, setTogglingDefaultId] = useState<string | null>(null)
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
@@ -144,6 +150,24 @@ export function PaymentGroupsModal({ onClose }: { onClose: () => void }) {
     }
   }
 
+  async function toggleDefault(group: PaymentGroup) {
+    setTogglingDefaultId(group.id)
+    try {
+      if (group.isDefault) {
+        await api.delete(`/payment-groups/${group.id}/default`)
+        toast.success(t('payments.groups.defaultCleared'))
+      } else {
+        await api.post(`/payment-groups/${group.id}/default`)
+        toast.success(t('payments.groups.defaultSet'))
+      }
+      await queryClient.invalidateQueries({ queryKey: ['payment-groups'] })
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, t('common.error')))
+    } finally {
+      setTogglingDefaultId(null)
+    }
+  }
+
   function toggleFee(id: string, checked: boolean) {
     setEditor((current) => {
       if (!current) return current
@@ -207,7 +231,12 @@ export function PaymentGroupsModal({ onClose }: { onClose: () => void }) {
                     }
                     options={accountOptions.map((account) => ({
                       value: account.id,
-                      label: bankAccountOptionLabel(account, locale, t('geo.inactive')),
+                      label: bankAccountOptionLabel(
+                        account,
+                        locale,
+                        t('geo.inactive'),
+                        t('bankAccounts.defaultBadge'),
+                      ),
                     }))}
                   />
                 </FormField>
@@ -250,7 +279,14 @@ export function PaymentGroupsModal({ onClose }: { onClose: () => void }) {
                 <div className="flex justify-end">
                   <Button
                     type="button"
-                    onClick={() => setEditor({ id: null, title: '', bankAccountId: '', feeIds: [] })}
+                    onClick={() =>
+                      setEditor({
+                        id: null,
+                        title: '',
+                        bankAccountId: defaultBankAccountId(accountsQuery.data),
+                        feeIds: [],
+                      })
+                    }
                   >
                     <Plus className="size-4" aria-hidden />
                     {t('payments.groups.add')}
@@ -284,13 +320,42 @@ export function PaymentGroupsModal({ onClose }: { onClose: () => void }) {
                       <tbody>
                         {filtered.map((group) => (
                           <tr key={group.id} className="border-t border-line">
-                            <td className="px-4 py-3">{group.title}</td>
+                            <td className="px-4 py-3">
+                              <span className="flex flex-wrap items-center gap-2">
+                                {group.title}
+                                {group.isDefault ? <BankAccountDefaultBadge /> : null}
+                              </span>
+                            </td>
                             <td className="px-4 py-3">
                               {bankAccountOptionLabel(group.bankAccount, locale, t('geo.inactive'))}
                             </td>
                             <td className="px-4 py-3">{formatNumber(group.fees.length, locale)}</td>
                             <td className={actionsColClassName}>
                               <div className="flex flex-nowrap items-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  icon
+                                  className={group.isDefault ? 'text-teal-600' : undefined}
+                                  aria-pressed={group.isDefault}
+                                  aria-label={
+                                    group.isDefault
+                                      ? t('payments.groups.clearDefault')
+                                      : t('payments.groups.makeDefault')
+                                  }
+                                  title={
+                                    group.isDefault
+                                      ? t('payments.groups.clearDefault')
+                                      : t('payments.groups.makeDefault')
+                                  }
+                                  disabled={togglingDefaultId !== null}
+                                  onClick={() => void toggleDefault(group)}
+                                >
+                                  <Star
+                                    className={`size-4 ${group.isDefault ? 'fill-current' : ''}`}
+                                    aria-hidden
+                                  />
+                                </Button>
                                 <Button
                                   type="button"
                                   variant="ghost"

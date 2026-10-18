@@ -65,7 +65,7 @@ import type {
   PaymentMethod,
   PaymentRecord,
 } from '../../types/app'
-import { bankAccountOptionLabel } from '../municipal-fees/MunicipalFeeForm'
+import { bankAccountOptionLabel, defaultBankAccountId } from '../municipal-fees/MunicipalFeeForm'
 import { paymentMethodIcons } from './PaymentBadges'
 import { PaymentGroupsModal } from './PaymentGroupsModal'
 import { PaymentPartySearch, type PartySelection } from './PaymentPartySearch'
@@ -192,7 +192,7 @@ export function PaymentForm({ prefill }: { prefill?: PaymentPrefill }) {
   const [discountAmount, setDiscountAmount] = useState('')
   const [discountTouched, setDiscountTouched] = useState(false)
   const [caseRequestId, setCaseRequestId] = useState(prefill?.request.id ?? '')
-  const [method, setMethod] = useState<PaymentMethod | ''>(prefill ? 'POS' : '')
+  const [method, setMethod] = useState<PaymentMethod | ''>('POS')
   const [onlineChannel, setOnlineChannel] = useState<OnlinePaymentChannel>('OPERATOR')
   const [trackingCode, setTrackingCode] = useState('')
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
@@ -242,13 +242,24 @@ export function PaymentForm({ prefill }: { prefill?: PaymentPrefill }) {
     () => (accountsQuery.data ?? []).filter((account) => account.isActive),
     [accountsQuery.data],
   )
-  const onlyAccountId = activeAccounts.length === 1 ? activeAccounts[0].id : ''
+  const presetAccountId =
+    defaultBankAccountId(activeAccounts) || (activeAccounts.length === 1 ? activeAccounts[0].id : '')
+
+  const defaultGroup = prefill ? undefined : groups.find((group) => group.isDefault)
+  const groupTouchedRef = useRef(false)
 
   useEffect(() => {
-    if (groupId === ALL_PAYMENT_GROUPS && !accountId && onlyAccountId) {
-      setAccountId(onlyAccountId)
+    if (groupTouchedRef.current || !defaultGroup) return
+    groupTouchedRef.current = true
+    setGroupId(defaultGroup.id)
+    setAccountId(defaultGroup.bankAccountId)
+  }, [defaultGroup])
+
+  useEffect(() => {
+    if (groupId === ALL_PAYMENT_GROUPS && !accountId && presetAccountId) {
+      setAccountId(presetAccountId)
     }
-  }, [groupId, accountId, onlyAccountId])
+  }, [groupId, accountId, presetAccountId])
   const sourceFees = useMemo(() => {
     if (prefill) return prefill.fees
     if (groupId === ALL_PAYMENT_GROUPS) {
@@ -323,6 +334,7 @@ export function PaymentForm({ prefill }: { prefill?: PaymentPrefill }) {
   }, [inModal, hasLines])
 
   function chooseGroup(next: string) {
+    groupTouchedRef.current = true
     setGroupId(next)
     if (next && next !== ALL_PAYMENT_GROUPS) {
       setAccountId(groups.find((group) => group.id === next)?.bankAccountId ?? '')
@@ -446,15 +458,15 @@ export function PaymentForm({ prefill }: { prefill?: PaymentPrefill }) {
     setParty(null)
     setResetKey((current) => current + 1)
     setDescription('')
-    setGroupId(ALL_PAYMENT_GROUPS)
-    setAccountId(onlyAccountId)
+    setGroupId(defaultGroup?.id ?? ALL_PAYMENT_GROUPS)
+    setAccountId(defaultGroup?.bankAccountId ?? presetAccountId)
     setLines([])
     setDiscountMode('manual')
     setDiscountId('')
     setDiscountAmount('')
     setDiscountTouched(false)
     setCaseRequestId('')
-    setMethod('')
+    setMethod('POS')
     setOnlineChannel('OPERATOR')
     setTrackingCode('')
     setReceiptFile(null)
@@ -579,6 +591,8 @@ export function PaymentForm({ prefill }: { prefill?: PaymentPrefill }) {
             />
           )}
 
+          {prefill || party ? (
+          <>
           {!prefill && party?.caseFileId && caseRequests.length > 0 ? (
             <FormField icon={ClipboardList} label={t('payments.caseRequest')} htmlFor="payment-case-request">
               <SearchSelect
@@ -607,7 +621,12 @@ export function PaymentForm({ prefill }: { prefill?: PaymentPrefill }) {
                 onChange={chooseGroup}
                 options={[
                   { value: ALL_PAYMENT_GROUPS, label: t('payments.allGroups') },
-                  ...groups.map((group) => ({ value: group.id, label: group.title })),
+                  ...groups.map((group) => ({
+                    value: group.id,
+                    label: group.isDefault
+                      ? `${group.title} (${t('payments.groups.defaultBadge')})`
+                      : group.title,
+                  })),
                 ]}
               />
             </FormField>
@@ -633,7 +652,12 @@ export function PaymentForm({ prefill }: { prefill?: PaymentPrefill }) {
                   onChange={setAccountId}
                   options={activeAccounts.map((account) => ({
                     value: account.id,
-                    label: bankAccountOptionLabel(account, locale, t('geo.inactive')),
+                    label: bankAccountOptionLabel(
+                      account,
+                      locale,
+                      t('geo.inactive'),
+                      t('bankAccounts.defaultBadge'),
+                    ),
                   }))}
                 />
               )}
@@ -907,6 +931,8 @@ export function PaymentForm({ prefill }: { prefill?: PaymentPrefill }) {
                 </Button>
               </div>
             </div>
+          ) : null}
+          </>
           ) : null}
         </AppForm>
       </FormCard>

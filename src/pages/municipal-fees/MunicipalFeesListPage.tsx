@@ -133,13 +133,6 @@ export function MunicipalFeesListPage() {
                 sortDir={sortDir}
                 onSort={onSort}
               />
-              <SortableTh
-                column="description"
-                label={t('municipalFees.description')}
-                sortBy={sortBy}
-                sortDir={sortDir}
-                onSort={onSort}
-              />
               <ActionsTh />
             </tr>
           </thead>
@@ -147,14 +140,18 @@ export function MunicipalFeesListPage() {
             {rows.map((fee) => (
               <tr key={fee.id} className="border-t border-line">
                 <td className="px-4 py-3">{fee.title}</td>
-                <td className="px-4 py-3">{formatFeeAmount(fee.amount, locale)}</td>
+                <td className="px-4 py-3">
+                  <span className="inline-flex whitespace-nowrap rounded-full border border-teal-200 bg-teal-50 px-2.5 py-0.5 text-sm font-semibold tabular-nums text-teal-800">
+                    {formatFeeAmount(fee.amount, locale)}
+                  </span>
+                </td>
                 <td className="px-4 py-3">
                   {bankAccountOptionLabel(fee.bankAccount, locale, t('geo.inactive'))}
                 </td>
-                <td className="px-4 py-3">{fee.description || '—'}</td>
                 <td className={actionsColClassName}>
                   <EntityRowActions
                     viewTo={`/base-info/municipal-fees/${fee.id}`}
+                    showView={false}
                     editTo={`/base-info/municipal-fees/${fee.id}/edit`}
                     onDelete={() =>
                       confirmDelete({

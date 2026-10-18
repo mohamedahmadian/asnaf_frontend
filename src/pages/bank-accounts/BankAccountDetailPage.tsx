@@ -1,4 +1,4 @@
-import { CreditCard, FileText, Hash, Landmark, Receipt, Wallet } from 'lucide-react'
+import { CreditCard, FileText, Hash, Landmark, Receipt, Star, Wallet } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -14,6 +14,7 @@ import { useConfirmDelete } from '../../hooks/useConfirmDelete'
 import { api } from '../../lib/api'
 import type { BankAccount } from '../../types/app'
 import { GeoStatus } from '../geo/GeoShared'
+import { BankAccountDefaultBadge } from './BankAccountsListPage'
 
 export function BankAccountDetailPage() {
   const { t } = useTranslation()
@@ -73,6 +74,13 @@ export function BankAccountDetailPage() {
               icon={Landmark}
               label={t('bankAccounts.isActive')}
               value={<GeoStatus active={account.isActive} />}
+            />
+            <FormFactTile
+              icon={Star}
+              label={t('bankAccounts.isDefault')}
+              value={account.isDefault ? <BankAccountDefaultBadge /> : '—'}
+              empty={!account.isDefault}
+              tone="mint"
             />
             <FormFactTile
               icon={FileText}

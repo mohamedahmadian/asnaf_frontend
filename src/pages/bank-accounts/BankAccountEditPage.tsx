@@ -49,6 +49,7 @@ export function BankAccountEditPage() {
           paymentId: account.paymentId ?? '',
           description: account.description ?? '',
           isActive: account.isActive,
+          isDefault: account.isDefault,
         }}
         onSubmit={async (payload) => {
           await api.patch(`/bank-accounts/${id}`, payload)

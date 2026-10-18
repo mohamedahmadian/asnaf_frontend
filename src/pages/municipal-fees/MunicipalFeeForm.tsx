@@ -1,6 +1,6 @@
 import { Banknote, FileText, HandCoins, Landmark, ToggleRight, Type } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { type FormEvent, useMemo, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AmountInput } from '../../components/ui/AmountInput'
@@ -32,12 +32,22 @@ export function formatFeeAmount(value: number, locale: string) {
 }
 
 export function bankAccountOptionLabel(
-  account: Pick<MunicipalFeeBankAccount, 'bankName' | 'accountNumber' | 'isActive'>,
+  account: Pick<MunicipalFeeBankAccount, 'bankName' | 'accountNumber' | 'isActive'> & {
+    isDefault?: boolean
+  },
   locale: string,
   inactiveLabel: string,
+  defaultLabel?: string,
 ) {
   const label = `${account.bankName} — ${localizeDigits(account.accountNumber, locale)}`
-  return account.isActive ? label : `${label} (${inactiveLabel})`
+  if (!account.isActive) return `${label} (${inactiveLabel})`
+  return account.isDefault && defaultLabel ? `${label} (${defaultLabel})` : label
+}
+
+export function defaultBankAccountId(
+  accounts: readonly { id: string; isActive: boolean; isDefault?: boolean }[] | undefined,
+) {
+  return accounts?.find((account) => account.isDefault && account.isActive)?.id ?? ''
 }
 
 function asAccountList(data: BankAccount[] | Paginated<BankAccount>) {
@@ -69,11 +79,24 @@ export function MunicipalFeeForm({
     },
   })
 
+  const defaultAccountId = defaultBankAccountId(accountsQuery.data)
+
+  useEffect(() => {
+    if (!initial && defaultAccountId) {
+      setBankAccountId((current) => current || defaultAccountId)
+    }
+  }, [initial, defaultAccountId])
+
   const accountOptions = useMemo(() => {
     const accounts = accountsQuery.data ?? []
     const options = accounts.map((account) => ({
       value: account.id,
-      label: bankAccountOptionLabel(account, locale, t('geo.inactive')),
+      label: bankAccountOptionLabel(
+        account,
+        locale,
+        t('geo.inactive'),
+        t('bankAccounts.defaultBadge'),
+      ),
     }))
     if (
       initial?.bankAccount &&

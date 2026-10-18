@@ -1168,6 +1168,7 @@ export type BankAccount = {
   paymentId: string | null;
   description: string | null;
   isActive: boolean;
+  isDefault: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -1281,6 +1282,7 @@ export type PaymentGroup = {
   id: string;
   title: string;
   bankAccountId: string;
+  isDefault: boolean;
   createdAt: string;
   updatedAt: string;
   bankAccount: {

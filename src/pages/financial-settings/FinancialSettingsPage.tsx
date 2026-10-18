@@ -34,13 +34,14 @@ import { confirmToast } from '../../components/ui/confirmToast'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { formatGroupedNumber } from '../../lib/datetime'
 import type { FinancialProcessType } from '../../types/app'
-import { bankAccountOptionLabel } from '../municipal-fees/MunicipalFeeForm'
+import { bankAccountOptionLabel, defaultBankAccountId } from '../municipal-fees/MunicipalFeeForm'
 
 type Account = {
   id: string
   bankName: string
   accountNumber: string
   isActive: boolean
+  isDefault: boolean
 }
 
 type Fee = {
@@ -89,8 +90,14 @@ function FinancialRequestPanel({
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const locale = i18n.language.split('-')[0] ?? 'fa'
-  const [bankAccountId, setBankAccountId] = useState(setting.bankAccountId ?? '')
-  const [feeIds, setFeeIds] = useState<string[]>(setting.feeIds)
+  const initialAccountId = setting.bankAccountId ?? defaultBankAccountId(accounts)
+  const initialFeeIds = setting.bankAccountId
+    ? setting.feeIds
+    : setting.feeIds.filter(
+        (id) => fees.find((fee) => fee.id === id)?.bankAccountId === initialAccountId,
+      )
+  const [bankAccountId, setBankAccountId] = useState(initialAccountId)
+  const [feeIds, setFeeIds] = useState<string[]>(initialFeeIds)
   const [saving, setSaving] = useState(false)
 
   const accountOptions = useMemo(
@@ -99,7 +106,12 @@ function FinancialRequestPanel({
         .filter((account) => account.isActive || account.id === setting.bankAccountId)
         .map((account) => ({
           value: account.id,
-          label: bankAccountOptionLabel(account, locale, t('geo.inactive')),
+          label: bankAccountOptionLabel(
+            account,
+            locale,
+            t('geo.inactive'),
+            t('bankAccounts.defaultBadge'),
+          ),
         })),
     [accounts, locale, setting.bankAccountId, t],
   )
@@ -138,8 +150,8 @@ function FinancialRequestPanel({
   }
 
   function reset() {
-    setBankAccountId(setting.bankAccountId ?? '')
-    setFeeIds(setting.feeIds)
+    setBankAccountId(initialAccountId)
+    setFeeIds(initialFeeIds)
   }
 
   async function submit(event: FormEvent) {
