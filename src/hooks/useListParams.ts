@@ -40,5 +40,10 @@ export function useListParams(keys?: { q?: string; page?: string }) {
     setParams({ [pageKey]: String(Math.max(1, nextPage)) })
   }
 
-  return { q, page, term, setTerm, applySearch, setPage, searchParams, setParams }
+  /** Drops the given filter keys; search term and sort stay in the URL. */
+  function clearParams(filterKeys: string[]) {
+    setParams(Object.fromEntries(filterKeys.map((key) => [key, undefined])), { resetPage: true })
+  }
+
+  return { q, page, term, setTerm, applySearch, setPage, searchParams, setParams, clearParams }
 }

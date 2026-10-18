@@ -159,7 +159,7 @@ export function CaseManagementReviewsPage() {
     queryFn: async () => (await api.get<ReviewStatsData>('/cases/management-reviews/stats')).data,
   })
   const approvalTitle = (headerStats.data?.titles ?? []).join('، ')
-  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams } = useListParams()
+  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams, clearParams } = useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const status = searchParams.get('status') ?? ''
   const view = reviewViewOf(searchParams.get('view') ?? '')
@@ -202,6 +202,7 @@ export function CaseManagementReviewsPage() {
         label={t('cases.managementReviewsSearch')}
         placeholder={t('cases.managementReviewsSearchPlaceholder')}
         filtersActive={Boolean(status)}
+        onClearFilters={() => clearParams(['status'])}
         extra={
           <FormField icon={BadgeCheck} label={t('cases.inquiryStatus')} htmlFor="management-review-status">
             <SearchSelect

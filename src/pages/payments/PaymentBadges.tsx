@@ -1,5 +1,6 @@
 import { CircleCheck, CircleX, Clock3, CreditCard, Globe, ReceiptText, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { formatGroupedNumber } from '../../lib/datetime'
 import type { PaymentMethod, PaymentStatus } from '../../types/app'
 
 const methodIcons = {
@@ -49,6 +50,28 @@ export function PaymentStatusBadge({
     <span className={`${pillClassName} ${className}`}>
       <Icon className="size-3.5" aria-hidden />
       {t(`payments.statuses.${status}`)}
+    </span>
+  )
+}
+
+const amountToneStyles = {
+  neutral: 'bg-cream-50 text-ink-700 ring-line',
+  discount: 'bg-amber-50 text-amber-700 ring-amber-200',
+  final: 'bg-teal-50 text-teal-800 ring-teal-200',
+} as const
+
+export function PaymentAmountBadge({
+  value,
+  tone = 'neutral',
+}: {
+  value: number
+  tone?: keyof typeof amountToneStyles
+}) {
+  const { i18n } = useTranslation()
+  const locale = i18n.language.split('-')[0] ?? 'fa'
+  return (
+    <span className={`${pillClassName} ${amountToneStyles[tone]} ${tone === 'final' ? 'font-semibold' : ''}`}>
+      {formatGroupedNumber(value, locale)}
     </span>
   )
 }

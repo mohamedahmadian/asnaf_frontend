@@ -14,6 +14,7 @@ import {
   MonitorSmartphone,
   Percent,
   Send,
+  UserRound,
   Wallet,
   X,
 } from 'lucide-react'
@@ -36,6 +37,7 @@ import {
 import {
   FormCard,
   FormEmptyHint,
+  FormFactTile,
   FormSectionTitle,
   formCardBodyClassName,
 } from '../../components/ui/FormLayout'
@@ -53,6 +55,7 @@ import {
 import { optimizeImageFile } from '../../lib/optimize-image'
 import type {
   BankAccount,
+  CaseFinance,
   Discount,
   GatewayRedirect,
   MunicipalFee,
@@ -159,30 +162,44 @@ type FeeLine = {
   isActive: boolean
 }
 
+/** پرداخت داخل مودال امور مالی یک درخواست؛ پرداخت‌کننده، حساب و هزینه‌های پرداخت‌نشده ثابت می‌آیند */
+export type PaymentPrefill = {
+  party: PartySelection
+  request: CaseFinance['request']
+  bankAccount: NonNullable<CaseFinance['finance']>['bankAccount']
+  fees: { id: string; title: string; amount: number; isActive: boolean; selected: boolean }[]
+  onDone: () => void
+  onClose: () => void
+}
+
 export function PaymentPage() {
+  return <PaymentForm />
+}
+
+export function PaymentForm({ prefill }: { prefill?: PaymentPrefill }) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const queryClient = useQueryClient()
   const [groupsOpen, setGroupsOpen] = useState(false)
-  const [party, setParty] = useState<PartySelection | null>(null)
+  const [party, setParty] = useState<PartySelection | null>(prefill?.party ?? null)
   const [resetKey, setResetKey] = useState(0)
   const [description, setDescription] = useState('')
   const [groupId, setGroupId] = useState<string>(ALL_PAYMENT_GROUPS)
-  const [accountId, setAccountId] = useState('')
+  const [accountId, setAccountId] = useState(prefill?.bankAccount.id ?? '')
   const [lines, setLines] = useState<FeeLine[]>([])
   const [discountMode, setDiscountMode] = useState<'manual' | 'catalog'>('manual')
   const [discountId, setDiscountId] = useState('')
   const [discountAmount, setDiscountAmount] = useState('')
   const [discountTouched, setDiscountTouched] = useState(false)
-  const [caseRequestId, setCaseRequestId] = useState('')
-  const [method, setMethod] = useState<PaymentMethod | ''>('')
+  const [caseRequestId, setCaseRequestId] = useState(prefill?.request.id ?? '')
+  const [method, setMethod] = useState<PaymentMethod | ''>(prefill ? 'POS' : '')
   const [onlineChannel, setOnlineChannel] = useState<OnlinePaymentChannel>('OPERATOR')
   const [trackingCode, setTrackingCode] = useState('')
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [receiptKey, setReceiptKey] = useState(0)
   const [createdLink, setCreatedLink] = useState<CreatedLink | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const openRequests = party?.caseFile?.openRequests ?? []
+  const caseRequests = party?.caseFile?.requests ?? []
   const payerPhone = party?.party.phone ?? null
 
   const groupsQuery = useQuery({
@@ -210,7 +227,7 @@ export function PaymentPage() {
   })
   const accountFeesQuery = useQuery({
     queryKey: ['municipal-fees', 'payment', accountId],
-    enabled: groupId === ALL_PAYMENT_GROUPS && Boolean(accountId),
+    enabled: !prefill && groupId === ALL_PAYMENT_GROUPS && Boolean(accountId),
     queryFn: async () => {
       const { data } = await api.get<MunicipalFee[] | Paginated<MunicipalFee>>('/municipal-fees', {
         params: { bankAccountId: accountId, isActive: true },
@@ -233,6 +250,7 @@ export function PaymentPage() {
     }
   }, [groupId, accountId, onlyAccountId])
   const sourceFees = useMemo(() => {
+    if (prefill) return prefill.fees
     if (groupId === ALL_PAYMENT_GROUPS) {
       return (accountFeesQuery.data ?? []).map((fee) => ({
         id: fee.id,
@@ -243,11 +261,12 @@ export function PaymentPage() {
     }
     if (!selectedGroup) return []
     return selectedGroup.fees
-  }, [groupId, accountFeesQuery.data, selectedGroup])
+  }, [prefill, groupId, accountFeesQuery.data, selectedGroup])
   const sourceKey = `${groupId}|${groupId === ALL_PAYMENT_GROUPS ? accountId : ''}|${sourceFees
     .map((fee) => `${fee.id}:${fee.amount}:${fee.isActive}`)
     .join(',')}`
   const feesReady =
+    Boolean(prefill) ||
     !groupId ||
     (groupId === ALL_PAYMENT_GROUPS
       ? !accountId || accountFeesQuery.isSuccess
@@ -262,7 +281,7 @@ export function PaymentPage() {
         feeId: fee.id,
         title: fee.title,
         amount: String(fee.amount),
-        included: true,
+        included: 'selected' in fee ? fee.selected === true : true,
         isActive: fee.isActive,
       })),
     )
@@ -286,6 +305,22 @@ export function PaymentPage() {
   const finalWords = finalAmount >= 0 ? integerToPersianWords(finalAmount) : ''
   const allIncluded = lines.length > 0 && lines.every((line) => line.included)
   const someIncluded = lines.some((line) => line.included)
+  const trackingVisible = (method === 'POS' || method === 'BANK_RECEIPT') && finalAmount > 0
+  const inModal = Boolean(prefill)
+  const modalReadyRef = useRef(false)
+  const hasLines = lines.length > 0
+
+  useEffect(() => {
+    if (!inModal || !hasLines || modalReadyRef.current) return
+    const frame = requestAnimationFrame(() => {
+      const submit = document.getElementById('payment-submit')
+      if (!submit) return
+      modalReadyRef.current = true
+      document.getElementById('payment-tracking-code')?.focus({ preventScroll: true })
+      submit.scrollIntoView({ block: 'end', behavior: 'smooth' })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [inModal, hasLines])
 
   function chooseGroup(next: string) {
     setGroupId(next)
@@ -329,8 +364,9 @@ export function PaymentPage() {
       toast.error(t('payments.methodRequired'))
       return
     }
-    if (method !== 'ONLINE' && !trackingCode.trim()) {
-      toast.error(t('payments.trackingCodeRequired'))
+    if (method !== 'ONLINE' && finalAmount > 0 && !trackingCode.trim()) {
+      toast.error(t(method === 'POS' ? 'payments.posTrackingCodeRequired' : 'payments.receiptTrackingCodeRequired'))
+      document.getElementById('payment-tracking-code')?.focus()
       return
     }
     if (method === 'ONLINE' && finalAmount < MIN_ONLINE_AMOUNT) {
@@ -350,7 +386,7 @@ export function PaymentPage() {
         caseRequestId: party.caseFileId && caseRequestId ? caseRequestId : null,
         method,
         onlineChannel: method === 'ONLINE' ? onlineChannel : undefined,
-        trackingCode: method === 'ONLINE' ? undefined : toLatinDigits(trackingCode.trim()),
+        trackingCode: method === 'ONLINE' ? undefined : toLatinDigits(trackingCode.trim()) || null,
         description: description.trim() || null,
         paymentGroupId: groupId === ALL_PAYMENT_GROUPS ? null : groupId,
         bankAccountId: accountId,
@@ -393,7 +429,12 @@ export function PaymentPage() {
         }
         toast.success(t('payments.paid'))
       }
-      resetForm()
+      if (prefill) {
+        void queryClient.invalidateQueries({ queryKey: ['case-finance'] })
+        if (method !== 'ONLINE') prefill.onDone()
+      } else {
+        resetForm()
+      }
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('common.error')))
     } finally {
@@ -440,18 +481,20 @@ export function PaymentPage() {
   const showFees = Boolean(groupId) && (groupId !== ALL_PAYMENT_GROUPS || Boolean(accountId))
 
   return (
-    <div className={formShellClassName}>
-      <PageHeader
-        icon={Banknote}
-        title={t('menus.payments')}
-        subtitle={t('payments.subtitle')}
-        action={
-          <Button type="button" variant="soft" onClick={() => setGroupsOpen(true)}>
-            <Layers className="size-4" aria-hidden />
-            {t('payments.groups.manage')}
-          </Button>
-        }
-      />
+    <div className={prefill ? undefined : formShellClassName}>
+      {prefill ? null : (
+        <PageHeader
+          icon={Banknote}
+          title={t('menus.payments')}
+          subtitle={t('payments.subtitle')}
+          action={
+            <Button type="button" variant="soft" onClick={() => setGroupsOpen(true)}>
+              <Layers className="size-4" aria-hidden />
+              {t('payments.groups.manage')}
+            </Button>
+          }
+        />
+      )}
       {createdLink ? (
         <div className="mb-4 rounded-3xl border border-teal-200 bg-teal-50 p-4 shadow-[0_8px_20px_rgba(46,189,182,0.12)]">
           <div className="flex items-start gap-3">
@@ -491,18 +534,52 @@ export function PaymentPage() {
           </div>
         </div>
       ) : null}
-      <FormCard icon={Banknote} title={t('menus.payments')}>
-        <AppForm autoFocusFirst onSubmit={() => void submit()} className={formCardBodyClassName}>
-          <PaymentPartySearch
-            resetKey={resetKey}
-            value={party}
-            onChange={(next) => {
-              setParty(next)
-              setCaseRequestId('')
-            }}
-          />
+      <FormCard
+        icon={Banknote}
+        title={prefill ? t('caseFinance.recordPayment') : t('menus.payments')}
+        action={
+          prefill ? (
+            <Button
+              type="button"
+              variant="ghost"
+              icon
+              aria-label={t('common.close')}
+              title={t('common.close')}
+              onClick={prefill.onClose}
+            >
+              <X className="size-4" aria-hidden />
+            </Button>
+          ) : undefined
+        }
+      >
+        <AppForm autoFocusFirst={!prefill} onSubmit={() => void submit()} className={formCardBodyClassName}>
+          {prefill ? (
+            <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
+              <FormFactTile icon={UserRound} label={t('payments.payer')} value={prefill.party.party.fullName} />
+              <FormFactTile
+                icon={ClipboardList}
+                tone="mint"
+                label={t('payments.caseRequest')}
+                value={`${localizeDigits(prefill.request.number, locale)} — ${t(`cases.requestTypes.${prefill.request.type}`)}`}
+              />
+              <FormFactTile
+                icon={Landmark}
+                label={t('payments.bankAccount')}
+                value={bankAccountOptionLabel(prefill.bankAccount, locale, t('geo.inactive'))}
+              />
+            </div>
+          ) : (
+            <PaymentPartySearch
+              resetKey={resetKey}
+              value={party}
+              onChange={(next) => {
+                setParty(next)
+                setCaseRequestId('')
+              }}
+            />
+          )}
 
-          {party?.caseFileId && openRequests.length > 0 ? (
+          {!prefill && party?.caseFileId && caseRequests.length > 0 ? (
             <FormField icon={ClipboardList} label={t('payments.caseRequest')} htmlFor="payment-case-request">
               <SearchSelect
                 id="payment-case-request"
@@ -511,15 +588,16 @@ export function PaymentPage() {
                 onChange={setCaseRequestId}
                 options={[
                   { value: '', label: t('payments.noCaseRequest') },
-                  ...openRequests.map((request) => ({
+                  ...caseRequests.map((request) => ({
                     value: request.id,
-                    label: `${localizeDigits(request.number, locale)} — ${t(`cases.requestTypes.${request.type}`)}`,
+                    label: `${localizeDigits(request.number, locale)} — ${t(`cases.requestTypes.${request.type}`)} (${t(`cases.requestStatus.${request.status}`)})`,
                   })),
                 ]}
               />
             </FormField>
           ) : null}
 
+          {prefill ? null : (
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField icon={Layers} label={t('payments.group')} htmlFor="payment-group">
               <SearchSelect
@@ -561,6 +639,7 @@ export function PaymentPage() {
               )}
             </FormField>
           </div>
+          )}
 
           {!showFees ? <FormEmptyHint>{t('payments.pickSource')}</FormEmptyHint> : null}
           {showFees && lines.length === 0 && feesReady ? (
@@ -714,7 +793,7 @@ export function PaymentPage() {
                 ))}
               </div>
 
-              {method === 'POS' || method === 'BANK_RECEIPT' ? (
+              {trackingVisible ? (
                 <FormField
                   icon={Hash}
                   label={t(method === 'POS' ? 'payments.posTrackingCode' : 'payments.receiptTrackingCode')}
@@ -722,7 +801,7 @@ export function PaymentPage() {
                 >
                   <input
                     id="payment-tracking-code"
-                    required
+                    aria-required
                     inputMode="numeric"
                     autoComplete="off"
                     maxLength={40}
@@ -818,6 +897,7 @@ export function PaymentPage() {
                   </FormField>
                 </div>
                 <Button
+                  id="payment-submit"
                   type="submit"
                   className="min-w-48 shrink-0"
                   disabled={submitting || discountValue > subtotal}

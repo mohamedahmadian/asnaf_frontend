@@ -373,7 +373,7 @@ function PlacesStatCard({
 export function CaseManagementPage({ placesInbox = false }: { placesInbox?: boolean } = {}) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
-  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams } = useListParams()
+  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams, clearParams } = useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const step = searchParams.get('step') ?? ''
   const status = searchParams.get('status') ?? ''
@@ -436,6 +436,7 @@ export function CaseManagementPage({ placesInbox = false }: { placesInbox?: bool
         label={t('cases.listSearch')}
         placeholder={t('cases.listSearchPlaceholder')}
         filtersActive={Boolean(step || status || caseKind || jobGroupId || jobId)}
+        onClearFilters={() => clearParams(['step', 'status', 'caseKind', 'jobGroupId', 'jobId'])}
         extra={
           <>
             <FormField icon={Layers} label={t('cases.filterCaseKind')} htmlFor="case-filter-kind">

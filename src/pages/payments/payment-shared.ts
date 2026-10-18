@@ -33,6 +33,28 @@ export function paymentCaseLabel(file: PaymentCaseFile | null | undefined, local
   return localized || title || '—'
 }
 
+export function paymentRequestPath(
+  file: PaymentCaseFile,
+  request: { id: string; type: string; status: string },
+  nationalId: string | null,
+) {
+  const base = `/cases/${file.id}`
+  if (request.type === 'ISSUANCE') {
+    if (!nationalId) return base
+    return `/cases/formation?nationalId=${encodeURIComponent(nationalId)}&caseId=${encodeURIComponent(file.id)}`
+  }
+  if (request.type === 'RENEWAL' || request.type === 'LOCATION_CHANGE') {
+    return `${base}/process?requestId=${encodeURIComponent(request.id)}`
+  }
+  if (request.type === 'STEWARDSHIP') {
+    return request.status !== 'OPEN' && file.cardNumber ? `${base}/stewardship/card` : `${base}/stewardship`
+  }
+  if (request.type === 'AUCTION') {
+    return `${base}/auction/${request.id}`
+  }
+  return base
+}
+
 export function asItemList<T>(data: T[] | { items: T[] }) {
   return Array.isArray(data) ? data : data.items
 }

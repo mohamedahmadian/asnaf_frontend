@@ -25,7 +25,7 @@ import { GeoYesNo } from './GeoShared'
 export function CitiesListPage() {
   const { t } = useTranslation()
   const name = useGeoName()
-  const { q, page, term, setTerm, setPage, setParams, searchParams } = useListParams()
+  const { q, page, term, setTerm, setPage, setParams, clearParams, searchParams } = useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const { confirmDelete } = useConfirmDelete()
   const countryId = searchParams.get('countryId') ?? ''
@@ -105,6 +105,7 @@ export function CitiesListPage() {
         label={t('cities.search')}
         placeholder={t('cities.searchPlaceholder')}
         filtersActive={Boolean(countryId || provinceId)}
+        onClearFilters={() => clearParams(['countryId', 'provinceId'])}
         extra={
           <FilterPair>
             <FormField icon={Filter} label={t('geo.country')} htmlFor="city-country">

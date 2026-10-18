@@ -27,7 +27,7 @@ function asAccountList(data: BankAccount[] | Paginated<BankAccount>) {
 export function MunicipalFeesListPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
-  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams } = useListParams()
+  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams, clearParams } = useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const { confirmDelete } = useConfirmDelete()
   const bankAccountId = searchParams.get('bankAccountId') ?? ''
@@ -77,6 +77,7 @@ export function MunicipalFeesListPage() {
         label={t('municipalFees.search')}
         placeholder={t('municipalFees.searchPlaceholder')}
         filtersActive={Boolean(bankAccountId)}
+        onClearFilters={() => clearParams(['bankAccountId'])}
         extra={
           <FormField
             icon={Landmark}

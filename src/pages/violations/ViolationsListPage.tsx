@@ -63,7 +63,7 @@ const statusBadgeClass: Record<ViolationStatus, string> = {
 export function ViolationsListPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
-  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams } = useListParams()
+  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams, clearParams } = useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const { confirmDelete } = useConfirmDelete()
   const status = searchParams.get('status') ?? ''
@@ -119,6 +119,7 @@ export function ViolationsListPage() {
         label={t('violations.search')}
         placeholder={t('violations.searchPlaceholder')}
         filtersActive={filtered}
+        onClearFilters={() => clearParams(['status', 'violationTypeId', 'from', 'to'])}
         extra={
           <>
             <FormField icon={ShieldAlert} label={t('violations.filterStatus')} htmlFor="violation-filter-status">

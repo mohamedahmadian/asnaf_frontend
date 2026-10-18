@@ -446,6 +446,12 @@ export function getPageMeta(pathname: string): {
   if (/^\/cases\/[^/]+\/license$/.test(pathname)) {
     return { titleKey: 'cases.licenseTitle', subtitleKey: 'cases.licenseTitle' }
   }
+  if (/^\/cases\/[^/]+\/finance$/.test(pathname)) {
+    return { titleKey: 'caseFinance.title', subtitleKey: 'caseFinance.subtitle' }
+  }
+  if (/^\/cases\/[^/]+\/finances$/.test(pathname)) {
+    return { titleKey: 'caseFinance.caseTitle', subtitleKey: 'caseFinance.caseSubtitle' }
+  }
   if (/^\/cases\/[^/]+\/revocation$/.test(pathname)) {
     return { titleKey: 'cases.revocationPageTitle', subtitleKey: 'cases.revocationPageSubtitle' }
   }

@@ -1,4 +1,4 @@
-import { CalendarDays, CircleDot, History, Landmark, Layers, ReceiptText, Trash2, Wallet } from 'lucide-react'
+import { Banknote, CalendarDays, CircleDot, History, Landmark, Layers, Trash2, Wallet } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
@@ -10,6 +10,7 @@ import {
   TableCard,
   actionsColClassName,
 } from '../../components/ui/ListControls'
+import { AmountInput } from '../../components/ui/AmountInput'
 import { FormField, PageHeader, listShellClassName } from '../../components/ui/Form'
 import { PersianDateField } from '../../components/ui/PersianDateField'
 import { DateText } from '../../components/ui/DateText'
@@ -17,7 +18,7 @@ import { SearchSelect } from '../../components/ui/SearchSelect'
 import { useListParams } from '../../hooks/useListParams'
 import { useListSort } from '../../hooks/useListSort'
 import { api } from '../../lib/api'
-import { formatGroupedNumber, formatNumber, localizeDigits } from '../../lib/datetime'
+import { formatNumber, localizeDigits, parseGroupedAmount } from '../../lib/datetime'
 import {
   paymentMethods,
   paymentStatuses,
@@ -27,18 +28,20 @@ import {
   type PaymentRecord,
 } from '../../types/app'
 import { bankAccountOptionLabel } from '../municipal-fees/MunicipalFeeForm'
-import { PaymentMethodBadge, PaymentStatusBadge } from './PaymentBadges'
+import { PaymentAmountBadge, PaymentMethodBadge, PaymentStatusBadge } from './PaymentBadges'
 import { asItemList, paymentCaseLabel } from './payment-shared'
 import { canDeletePayment, usePaymentDelete } from './usePaymentDelete'
 
 export function PaymentHistoryPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
-  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams } = useListParams()
+  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams, clearParams } = useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const deletePayment = usePaymentDelete()
   const from = searchParams.get('from') ?? ''
   const to = searchParams.get('to') ?? ''
+  const minAmount = searchParams.get('minAmount') ?? ''
+  const maxAmount = searchParams.get('maxAmount') ?? ''
   const paymentGroupId = searchParams.get('paymentGroupId') ?? ''
   const bankAccountId = searchParams.get('bankAccountId') ?? ''
   const method = searchParams.get('method') ?? ''
@@ -66,6 +69,8 @@ export function PaymentHistoryPage() {
       page,
       from,
       to,
+      minAmount,
+      maxAmount,
       paymentGroupId,
       bankAccountId,
       method,
@@ -81,6 +86,8 @@ export function PaymentHistoryPage() {
           page,
           from: from || undefined,
           to: to || undefined,
+          minAmount: minAmount || undefined,
+          maxAmount: maxAmount || undefined,
           paymentGroupId: paymentGroupId || undefined,
           bankAccountId: bankAccountId || undefined,
           method: method || undefined,
@@ -94,7 +101,14 @@ export function PaymentHistoryPage() {
   })
 
   const rows = query.data?.items ?? []
-  const filtersActive = Boolean(from || to || paymentGroupId || bankAccountId || method || status || deleted)
+  const filtersActive = Boolean(
+    from || to || minAmount || maxAmount || paymentGroupId || bankAccountId || method || status || deleted,
+  )
+
+  function setAmountParam(key: 'minAmount' | 'maxAmount', raw: string) {
+    const amount = parseGroupedAmount(raw)
+    setParams({ [key]: amount == null ? undefined : String(amount) }, { resetPage: true })
+  }
 
   return (
     <div className={listShellClassName}>
@@ -110,6 +124,19 @@ export function PaymentHistoryPage() {
         label={t('payments.search')}
         placeholder={t('payments.searchPlaceholder')}
         filtersActive={filtersActive}
+        onClearFilters={() =>
+          clearParams([
+            'from',
+            'to',
+            'minAmount',
+            'maxAmount',
+            'paymentGroupId',
+            'bankAccountId',
+            'method',
+            'status',
+            'deleted',
+          ])
+        }
         extra={
           <>
             <FormField icon={CalendarDays} label={t('payments.from')} htmlFor="payment-history-from">
@@ -124,6 +151,20 @@ export function PaymentHistoryPage() {
                 id="payment-history-to"
                 value={to}
                 onChange={(value) => setParams({ to: value || undefined }, { resetPage: true })}
+              />
+            </FormField>
+            <FormField icon={Banknote} label={t('payments.minAmount')} htmlFor="payment-history-min-amount">
+              <AmountInput
+                id="payment-history-min-amount"
+                value={minAmount}
+                onChange={(value) => setAmountParam('minAmount', value)}
+              />
+            </FormField>
+            <FormField icon={Banknote} label={t('payments.maxAmount')} htmlFor="payment-history-max-amount">
+              <AmountInput
+                id="payment-history-max-amount"
+                value={maxAmount}
+                onChange={(value) => setAmountParam('maxAmount', value)}
               />
             </FormField>
             <FormField icon={Wallet} label={t('payments.method')} htmlFor="payment-history-method">
@@ -212,8 +253,6 @@ export function PaymentHistoryPage() {
               <SortableTh column="subtotal" label={t('payments.totalAmount')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="discountAmount" label={t('payments.discountAmount')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="finalAmount" label={t('payments.finalAmount')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-              <SortableTh column="receiptCount" label={t('payments.receiptCount')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-              <SortableTh column="recordedBy" label={t('payments.recordedBy')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <ActionsTh />
             </tr>
           </thead>
@@ -252,23 +291,19 @@ export function PaymentHistoryPage() {
                   <PaymentStatusBadge status={item.status} deleted={Boolean(item.deletedAt)} />
                 </td>
                 <td className="px-4 py-3">{formatNumber(item.feeCount, locale)}</td>
-                <td className="px-4 py-3">{formatGroupedNumber(item.subtotal, locale)}</td>
-                <td className="px-4 py-3">{formatGroupedNumber(item.discountAmount, locale)}</td>
-                <td className="px-4 py-3 font-medium">{formatGroupedNumber(item.finalAmount, locale)}</td>
                 <td className="px-4 py-3">
-                  {item.receiptCount ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-700">
-                      <ReceiptText className="size-3.5" aria-hidden />
-                      {formatNumber(item.receiptCount, locale)}
-                    </span>
-                  ) : (
-                    <span className="text-ink-400">—</span>
-                  )}
+                  <PaymentAmountBadge value={item.subtotal} />
                 </td>
-                <td className="px-4 py-3">{item.recordedBy.fullName}</td>
+                <td className="px-4 py-3">
+                  <PaymentAmountBadge value={item.discountAmount} tone="discount" />
+                </td>
+                <td className="px-4 py-3">
+                  <PaymentAmountBadge value={item.finalAmount} tone="final" />
+                </td>
                 <td className={actionsColClassName}>
                   <EntityRowActions
                     viewTo={`/finance/payment-history/${item.id}`}
+                    showView={false}
                     canDelete={canDeletePayment(item)}
                     onDelete={() => deletePayment(item)}
                   />

@@ -26,7 +26,7 @@ export function ProvincesListPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const name = useGeoName()
-  const { q, page, term, setTerm, setPage, setParams, searchParams } = useListParams()
+  const { q, page, term, setTerm, setPage, setParams, clearParams, searchParams } = useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const { confirmDelete } = useConfirmDelete()
   const countryId = searchParams.get('countryId') ?? ''
@@ -90,6 +90,7 @@ export function ProvincesListPage() {
         label={t('provinces.search')}
         placeholder={t('provinces.searchPlaceholder')}
         filtersActive={Boolean(countryId)}
+        onClearFilters={() => clearParams(['countryId'])}
         extra={
           <FormField icon={Filter} label={t('geo.country')} htmlFor="province-country">
             <SearchSelect

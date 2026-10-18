@@ -8,11 +8,13 @@ export function AmountInput({
   value,
   onChange,
   required,
+  onBlur,
 }: {
   id?: string
   value: string
   onChange: (value: string) => void
   required?: boolean
+  onBlur?: () => void
 }) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
@@ -30,9 +32,17 @@ export function AmountInput({
         value={display}
         onChange={(event) => onChange(groupAmountInput(event.target.value, locale))}
         onFocus={(event) => event.currentTarget.select()}
+        onBlur={onBlur}
         required={required}
       />
-      {words ? <p className="text-xs text-ink-500">{t('common.amountEquivalent', { value: words })}</p> : null}
+      {words ? (
+        <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-ink-500">
+          {t('common.amountEquivalentLabel')}
+          <span className="rounded-full bg-teal-50 px-2.5 py-1 font-medium text-teal-800 ring-1 ring-teal-200">
+            {words}
+          </span>
+        </p>
+      ) : null}
     </>
   )
 }

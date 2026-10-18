@@ -4,6 +4,7 @@ import {
   ClipboardList,
   Copy,
   CreditCard,
+  Eye,
   FileText,
   Globe,
   Hash,
@@ -19,10 +20,10 @@ import {
   UserRound,
   Wallet,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { DateText } from '../../components/ui/DateText'
 import {
@@ -39,18 +40,14 @@ import type { GatewayRedirect, PaymentLinkSms, PaymentRecord } from '../../types
 import { bankAccountOptionLabel } from '../municipal-fees/MunicipalFeeForm'
 import { PaymentMethodBadge, PaymentStatusBadge } from './PaymentBadges'
 import { PaymentReceipts } from './PaymentReceipts'
-import { paymentCaseLabel, submitToGateway } from './payment-shared'
+import { paymentCaseLabel, paymentRequestPath, submitToGateway } from './payment-shared'
 import { canDeletePayment, usePaymentDelete } from './usePaymentDelete'
 
 export function PaymentDetailPage() {
-  const { t, i18n } = useTranslation()
-  const locale = i18n.language.split('-')[0] ?? 'fa'
+  const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
-  const deletePayment = usePaymentDelete()
-  const [busy, setBusy] = useState<'gateway' | 'link' | null>(null)
   const query = useQuery({
     queryKey: ['payment-history', 'detail', id],
     enabled: Boolean(id),
@@ -74,6 +71,45 @@ export function PaymentDetailPage() {
   if (!payment) {
     return <LoadingState />
   }
+
+  return (
+    <div className={formShellClassName}>
+      <PageHeader
+        icon={History}
+        title={t('payments.details')}
+        subtitle={<EntityNameSubtitle name={payment.payerName} icon={UserRound} />}
+      />
+      <PaymentDetailCard payment={payment} onDeleted={() => navigate('/finance/payment-history')} />
+    </div>
+  )
+}
+
+function TileViewButton({ to }: { to: string }) {
+  const { t } = useTranslation()
+  return (
+    <Link to={to} className="shrink-0">
+      <Button type="button" variant="ghost" className="!px-2.5 !py-1 !text-xs">
+        <Eye className="size-3.5" aria-hidden />
+        {t('common.view')}
+      </Button>
+    </Link>
+  )
+}
+
+export function PaymentDetailCard({
+  payment,
+  onDeleted,
+  action,
+}: {
+  payment: PaymentRecord
+  onDeleted: () => void
+  action?: ReactNode
+}) {
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language.split('-')[0] ?? 'fa'
+  const queryClient = useQueryClient()
+  const deletePayment = usePaymentDelete()
+  const [busy, setBusy] = useState<'gateway' | 'link' | null>(null)
 
   const discountLabel =
     payment.discountMode === 'CATALOG'
@@ -121,15 +157,10 @@ export function PaymentDetailPage() {
   }
 
   return (
-    <div className={formShellClassName}>
-      <PageHeader
-        icon={History}
-        title={t('payments.details')}
-        subtitle={<EntityNameSubtitle name={payment.payerName} icon={UserRound} />}
-      />
       <FormCard
         icon={Banknote}
         title={payment.payerName}
+        action={action}
         subtitle={t('payments.receiptNumberValue', { value: localizeDigits(payment.receiptNumber, locale) })}
         chips={
           <>
@@ -227,6 +258,7 @@ export function PaymentDetailPage() {
                   ? paymentCaseLabel(payment.caseFile, locale)
                   : t(payment.personType === 'LEGAL' ? 'payments.onCompanyName' : 'payments.onPersonName')
               }
+              action={payment.caseFile ? <TileViewButton to={`/cases/${payment.caseFile.id}`} /> : undefined}
             />
             {payment.caseFile ? (
               <FormFactTile
@@ -241,6 +273,13 @@ export function PaymentDetailPage() {
                 icon={ClipboardList}
                 label={t('payments.caseRequest')}
                 value={`${localizeDigits(payment.caseRequest.number, locale)} — ${t(`cases.requestTypes.${payment.caseRequest.type}`)}`}
+                action={
+                  payment.caseFile ? (
+                    <TileViewButton
+                      to={paymentRequestPath(payment.caseFile, payment.caseRequest, payment.nationalId)}
+                    />
+                  ) : undefined
+                }
               />
             ) : null}
             <FormFactTile
@@ -385,7 +424,7 @@ export function PaymentDetailPage() {
                   <Button
                     type="button"
                     variant="danger"
-                    onClick={() => deletePayment(payment, () => navigate('/finance/payment-history'))}
+                    onClick={() => deletePayment(payment, onDeleted)}
                   >
                     <Trash2 className="size-4" aria-hidden />
                     {t('payments.delete')}
@@ -410,6 +449,5 @@ export function PaymentDetailPage() {
           ) : null}
         </div>
       </FormCard>
-    </div>
   )
 }

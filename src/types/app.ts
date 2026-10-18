@@ -1206,7 +1206,7 @@ export type PaymentCaseFile = {
   businessUnitTitle: string | null;
   activityJobTitle: string | null;
   jobGroupTitle: string | null;
-  openRequests?: { id: string; number: string; type: string }[];
+  requests?: { id: string; number: string; type: string; status: string }[];
 };
 
 export type PaymentParty = {
@@ -1348,6 +1348,53 @@ export type PaymentRecord = {
   receipts?: PaymentReceipt[];
   gatewayTransactions?: PaymentGatewayAttempt[];
   sms?: PaymentLinkSms | null;
+};
+
+export type CaseRequestFeeStatus = "PAID" | "PENDING" | "UNPAID";
+
+export type CaseFinance = {
+  caseFile: PaymentCaseFile;
+  payer: Omit<PaymentParty, "cases">;
+  request: { id: string; number: string; type: string; status: string };
+  hasSettings: boolean;
+  settingsAccountChanged: boolean;
+  finance: {
+    bankAccount: {
+      id: string;
+      bankName: string;
+      accountNumber: string;
+      paymentId: string | null;
+      isActive: boolean;
+    };
+    fees: {
+      id: string;
+      municipalFeeId: string;
+      title: string;
+      amount: number;
+      isActive: boolean;
+      status: CaseRequestFeeStatus;
+      /** سهم تخفیف این هزینه از پرداخت مربوط */
+      discount: number;
+    }[];
+    availableFees: { id: string; title: string; amount: number }[];
+  } | null;
+  payments: PaymentRecord[];
+  totals: {
+    total: number;
+    paid: number;
+    discount: number;
+    pending: number;
+    remaining: number;
+  };
+};
+
+export type CaseFinanceHead = Pick<CaseFinance, "caseFile" | "payer">;
+export type CaseRequestFinance = Omit<CaseFinance, "caseFile" | "payer">;
+
+/** امور مالی کل پرونده به تفکیک درخواست */
+export type CaseFileFinance = CaseFinanceHead & {
+  items: CaseRequestFinance[];
+  totals: CaseFinance["totals"];
 };
 
 export type PaymentReceipt = {

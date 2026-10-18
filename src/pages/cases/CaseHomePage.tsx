@@ -29,6 +29,7 @@ import {
   Tag,
   Trash2,
   UserRound,
+  Wallet,
   X,
   type LucideIcon,
 } from 'lucide-react'
@@ -681,6 +682,17 @@ export function CaseHomePage() {
                   <Eye className="size-3.5" aria-hidden />
                   {t('cases.viewDossier')}
                 </Button>
+                {visitor ? null : (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className={requestActionClassName}
+                    onClick={() => navigate(`/cases/${item.id}/finances`)}
+                  >
+                    <Wallet className="size-3.5" aria-hidden />
+                    {t('caseFinance.caseButton')}
+                  </Button>
+                )}
                 {item.licenseNumber ? (
                   <Button
                     type="button"
@@ -718,6 +730,12 @@ export function CaseHomePage() {
                       <Eye className="size-4" aria-hidden />
                       {t('cases.viewDossier')}
                     </Button>
+                    {visitor ? null : (
+                      <Button type="button" variant="ghost" onClick={() => navigate(`/cases/${item.id}/finances`)}>
+                        <Wallet className="size-4" aria-hidden />
+                        {t('caseFinance.caseButton')}
+                      </Button>
+                    )}
                     {item.cardNumber ? (
                       <Button type="button" onClick={() => navigate(`/cases/${item.id}/stewardship/card`)}>
                         <IdCard className="size-4" aria-hidden />

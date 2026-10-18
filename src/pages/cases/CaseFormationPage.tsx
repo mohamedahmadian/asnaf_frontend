@@ -13,6 +13,7 @@ import {
   MapPin,
   ScanSearch,
   UserRound,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -773,9 +774,15 @@ export function CaseFormationPage() {
         action={
           <>
             {showHeaderDelete ? <DeleteCaseButton onClick={() => void askDelete()} /> : null}
-            <Button type="button" variant="ghost" onClick={() => toast.message(t('cases.feesHint'))}>
-              <Landmark className="size-4" aria-hidden />
-              {t('cases.fees')}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() =>
+                caseId ? navigate(`/cases/${caseId}/finance`) : toast.message(t('caseFinance.saveCaseFirst'))
+              }
+            >
+              <Wallet className="size-4" aria-hidden />
+              {t('caseFinance.button')}
             </Button>
           </>
         }

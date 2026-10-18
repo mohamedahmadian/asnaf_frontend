@@ -24,6 +24,7 @@ import { CaseAuctionFormPage } from './pages/cases/CaseAuctionFormPage'
 import { CaseDossierEditPage } from './pages/cases/CaseDossierEditPage'
 import { CaseDossierPage } from './pages/cases/CaseDossierPage'
 import { CaseFormationPage } from './pages/cases/CaseFormationPage'
+import { CaseFileFinancePage, CaseFinancePage } from './pages/cases/CaseFinancePage'
 import { CaseHomePage } from './pages/cases/CaseHomePage'
 import { CaseProcessPage } from './pages/cases/CaseProcessPage'
 import { CaseLocationDetailPage } from './pages/cases/CaseLocationDetailPage'
@@ -329,6 +330,8 @@ export default function App() {
                   <Route path="/cases/:id/dossier" element={<CaseDossierPage />} />
                   <Route path="/cases/:id/process" element={<CaseProcessPage />} />
                   <Route path="/cases/:id/revocation" element={<CaseRevocationPage />} />
+                  <Route path="/cases/:id/finance" element={<CaseFinancePage />} />
+                  <Route path="/cases/:id/finances" element={<CaseFileFinancePage />} />
                   <Route path="/cases/:id" element={<CaseHomePage />} />
                   <Route path="/cases" element={<CaseManagementPage />} />
                   <Route path="/inspection/violation-types" element={<ViolationTypesListPage />} />

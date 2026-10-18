@@ -170,7 +170,7 @@ export function CaseInquiriesListPage({
   const { t, i18n } = useTranslation()
   const { user } = useAuth()
   const locale = i18n.language.split('-')[0] ?? 'fa'
-  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams } = useListParams()
+  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams, clearParams } = useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const status = searchParams.get('status') ?? ''
   const inquiryView = queryScope === 'inquiries' ? inquiryViewOf(searchParams.get('inquiryView') ?? '') : 'referred'
@@ -230,6 +230,7 @@ export function CaseInquiriesListPage({
         label={t('cases.inquiriesSearch')}
         placeholder={t('cases.inquiriesSearchPlaceholder')}
         filtersActive={Boolean(status)}
+        onClearFilters={() => clearParams(['status'])}
         extra={
           <FormField icon={ScanSearch} label={t('cases.inquiryStatus')} htmlFor="inquiry-status-filter">
             <SearchSelect

@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  FilterX,
   Pencil,
   Search,
   SlidersHorizontal,
@@ -174,6 +175,7 @@ export function SearchBar({
   endExtra,
   beside,
   filtersActive = false,
+  onClearFilters,
   extraClassName = 'sm:grid-cols-2',
   inputId = 'list-search',
   autoFocus = true,
@@ -190,6 +192,8 @@ export function SearchBar({
   endExtra?: ReactNode
   beside?: ReactNode
   filtersActive?: boolean
+  /** Shown next to the filter button while `filtersActive`; resets every filter in `extra`. */
+  onClearFilters?: () => void
   extraClassName?: string
   inputId?: string
   /** Defaults to true so menu list pages are ready to type after load. */
@@ -255,10 +259,26 @@ export function SearchBar({
       />
     </Button>
   ) : null
+  const clearFiltersButton =
+    extra && filtersActive && onClearFilters ? (
+      <Button
+        type="button"
+        variant="ghost"
+        title={t('common.clearFilters')}
+        onClick={() => {
+          onClearFilters()
+          document.getElementById(inputId)?.focus()
+        }}
+      >
+        <FilterX className="size-4" aria-hidden />
+        {t('common.clearFilters')}
+      </Button>
+    ) : null
   const endSlot =
     endExtra || filterButton ? (
       <div className="flex flex-wrap items-center gap-2 sm:ms-auto">
         {endExtra}
+        {clearFiltersButton}
         {filterButton}
       </div>
     ) : null
@@ -299,11 +319,11 @@ export function SearchBar({
 /** Shrink-wrap the actions column: content-sized, one row, visual left (RTL last column). */
 export const actionsColClassName = 'w-px min-w-max whitespace-nowrap px-4 py-3'
 
-export function ActionsTh({ className = '' }: { className?: string }) {
+export function ActionsTh({ className = '', children }: { className?: string; children?: ReactNode }) {
   const { t } = useTranslation()
   return (
     <th className={`${actionsColClassName} text-start font-medium ${className}`}>
-      {t('common.actions')}
+      {children ?? t('common.actions')}
     </th>
   )
 }

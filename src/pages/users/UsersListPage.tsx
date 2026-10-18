@@ -29,7 +29,7 @@ export function UsersListPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const geoName = useGeoName()
-  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams } =
+  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams, clearParams } =
     useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const { confirmDelete } = useConfirmDelete()
@@ -88,6 +88,7 @@ export function UsersListPage() {
         label={t('users.search')}
         placeholder={t('users.searchPlaceholder')}
         filtersActive={filtersActive}
+        onClearFilters={() => clearParams(['status', 'personType', 'roleId'])}
         extra={
           <>
             <SearchSelect

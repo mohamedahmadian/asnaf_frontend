@@ -46,7 +46,7 @@ function daysTone(days: number) {
 export function ExpiringCasesPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.split('-')[0] ?? 'fa'
-  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams } = useListParams()
+  const { q, page, term, setTerm, applySearch, setPage, searchParams, setParams, clearParams } = useListParams()
   const { sortBy, sortDir, sortParams, onSort } = useListSort(searchParams, setParams)
   const rangeParam = searchParams.get('range') ?? ''
   const range: ExpiringRange = isRange(rangeParam) ? rangeParam : 'this-week'
@@ -110,7 +110,8 @@ export function ExpiringCasesPage() {
         onSubmit={() => applySearch()}
         label={t('cases.expiring.search')}
         placeholder={t('cases.expiring.searchPlaceholder')}
-        filtersActive={filtered}
+        filtersActive={Boolean(status || caseKind || jobGroupId || jobId)}
+        onClearFilters={() => clearParams(['status', 'caseKind', 'jobGroupId', 'jobId'])}
         extra={
           <>
             <FormField icon={Layers} label={t('cases.filterCaseKind')} htmlFor="expiring-filter-kind">
