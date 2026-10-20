@@ -12,6 +12,8 @@ export type AuctionRequest = {
   editable: boolean
   canIssue: boolean
   phase: number
+  intakeSubmittedAt?: string | null
+  awaitingIntake?: boolean
   title: string | null
   startsAt: string
   endsAt: string
@@ -41,10 +43,13 @@ export const AUCTION_WIZARD_STEPS = ['request', 'management', 'issue'] as const
 
 export type AuctionWizardStep = (typeof AUCTION_WIZARD_STEPS)[number]
 
-export function auctionWizardReached(item: Pick<AuctionRequest, 'status' | 'phase'> | null | undefined) {
+export function auctionWizardReached(
+  item: Pick<AuctionRequest, 'status' | 'phase'> & { awaitingIntake?: boolean } | null | undefined,
+) {
   if (!item) return 0
   if (item.status === 'REJECTED' || item.status === 'CANCELLED') return 1
   if (item.status === 'ISSUED' || item.status === 'COMPLETED') return 2
+  if (item.awaitingIntake || item.phase < 1) return 0
   return Math.min(Math.max(item.phase, 1), 2)
 }
 

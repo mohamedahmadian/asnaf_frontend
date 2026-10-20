@@ -14,6 +14,7 @@ import { DateEquivalents } from './DateText'
 import { fieldClassName } from './Form'
 import 'react-multi-date-picker/styles/colors/teal.css'
 import 'react-multi-date-picker/styles/layouts/mobile.css'
+import './persian-date-field.css'
 
 const DatePicker =
   (DatePickerImport as unknown as { default?: typeof DatePickerImport }).default ??

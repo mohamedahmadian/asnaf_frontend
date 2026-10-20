@@ -20,6 +20,7 @@ import { useConfirmDelete } from '../../hooks/useConfirmDelete'
 import { useListParams } from '../../hooks/useListParams'
 import { useListSort } from '../../hooks/useListSort'
 import { api } from '../../lib/api'
+import { PersonAvatar } from '../../components/ui/PersonAvatar'
 import { localizeDigits } from '../../lib/datetime'
 import { violationCreatePath, violationEditPath } from '../../lib/paths/violations'
 import type { Paginated, Violation, ViolationStatus, ViolationType } from '../../types/app'
@@ -218,10 +219,15 @@ export function ViolationsListPage() {
             {rows.map((item) => (
               <tr key={item.id} className="border-t border-line">
                 <td className="px-4 py-3">
-                  <div>{localizeDigits(item.nationalId, locale)}</div>
-                  {item.person ? (
-                    <div className="text-xs text-ink-500">{item.person.fullName}</div>
-                  ) : null}
+                  <div className="flex items-center gap-3">
+                    <PersonAvatar photoId={item.person?.photoId} />
+                    <div className="min-w-0">
+                      <div>{localizeDigits(item.nationalId, locale)}</div>
+                      {item.person ? (
+                        <div className="text-xs text-ink-500">{item.person.fullName}</div>
+                      ) : null}
+                    </div>
+                  </div>
                 </td>
                 <td className="px-4 py-3">{item.violationType.title}</td>
                 <td className="px-4 py-3 text-center">

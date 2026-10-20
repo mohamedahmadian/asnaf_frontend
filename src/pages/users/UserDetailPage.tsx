@@ -34,7 +34,6 @@ import { OpenUserPanelButton } from '../../components/auth/OpenUserPanelButton'
 import { SendUserSmsModal } from '../../components/sms/SendUserSmsModal'
 import { ChangeUserPasswordModal } from '../../components/users/ChangeUserPasswordModal'
 import {
-  Button,
   DetailActions,
   EntityNameSubtitle,
   LoadingState,
@@ -114,17 +113,7 @@ export function UserDetailPage() {
         icon={UserRound}
         title={user.fullName}
         action={
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button type="button" variant="soft" onClick={() => setPasswordOpen(true)}>
-              <KeyRound className="size-4" aria-hidden />
-              {t('auth.changePassword')}
-            </Button>
-            <Button type="button" variant="soft" onClick={() => setSmsOpen(true)}>
-              <Send className="size-4" aria-hidden />
-              {t('sms.send')}
-            </Button>
-            <OpenUserPanelButton userId={user.id} status={user.status} />
-          </div>
+          <OpenUserPanelButton userId={user.id} status={user.status} roles={user.roles} />
         }
       >
         <nav className="flex flex-wrap gap-2 border-b border-line bg-cream-50/60 px-4 py-3 sm:px-5">
@@ -287,32 +276,39 @@ export function UserDetailPage() {
               <FormSectionTitle icon={MapPin}>{t('users.tabs.location')}</FormSectionTitle>
               <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
                 <FormFactTile
+                  icon={CalendarDays}
+                  label={t('users.birthDate')}
+                  value={user.birthDate ? <DateText value={user.birthDate} /> : empty}
+                  empty={!user.birthDate}
+                  tone="teal"
+                />
+                <FormFactTile
                   icon={Flag}
                   label={t('geo.country')}
                   value={user.country ? geoName(user.country) : empty}
                   empty={!user.country}
-                  tone="teal"
+                  tone="mint"
                 />
                 <FormFactTile
                   icon={MapPin}
                   label={t('geo.province')}
                   value={user.province ? geoName(user.province) : empty}
                   empty={!user.province}
-                  tone="mint"
+                  tone="ink"
                 />
                 <FormFactTile
                   icon={Building2}
                   label={t('geo.city')}
                   value={user.city ? geoName(user.city) : empty}
                   empty={!user.city}
-                  tone="ink"
+                  tone="teal"
                 />
                 <FormFactTile
                   icon={MapPinned}
                   label={t('users.address')}
                   value={user.address || empty}
                   empty={!user.address}
-                  tone="teal"
+                  tone="mint"
                   className="sm:col-span-2"
                 />
               </div>

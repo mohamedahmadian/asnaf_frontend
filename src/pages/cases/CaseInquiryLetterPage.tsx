@@ -6,6 +6,7 @@ import { Button, PageHeader, caseShellClassName } from '../../components/ui/Form
 import { LoadingState } from '../../components/ui/LoadingState'
 import { api } from '../../lib/api'
 import { LetterIssueBar, useEditableLetter, useInquiryLetterMarkup, useLetterPaper } from './LetterIssueBar'
+import { letterActionClassName } from './InquiryLetterModal'
 import { downloadInquiryLetter, inquiryLetterFilename, printInquiryLetter } from './inquiry-api'
 import type { CaseInquiryLetter } from './inquiry-types'
 
@@ -56,12 +57,12 @@ export function CaseInquiryLetterPage() {
           }
           action={
             <div className="flex flex-wrap gap-2">
-              <Button type="button" onClick={() => void print()} disabled={!letter}>
-                <Printer className="size-4" aria-hidden />
+              <Button type="button" className={letterActionClassName} onClick={() => void print()} disabled={!letter}>
+                <Printer className="size-3.5" aria-hidden />
                 {t('cases.inquiryPrint')}
               </Button>
-              <Button type="button" variant="ghost" onClick={() => void download()} disabled={!letter}>
-                <Download className="size-4" aria-hidden />
+              <Button type="button" variant="ghost" className={letterActionClassName} onClick={() => void download()} disabled={!letter}>
+                <Download className="size-3.5" aria-hidden />
                 {t('cases.inquiryDownload')}
               </Button>
             </div>

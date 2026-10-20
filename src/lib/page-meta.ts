@@ -401,6 +401,18 @@ export function getPageMeta(pathname: string): {
   if (pathname.startsWith('/cases/management-reviews')) {
     return { titleKey: 'menus.caseManagementReviews', subtitleKey: 'cases.managementReviewsSubtitle' }
   }
+  if (/^\/management\/case-expiry\/[^/]+\/edit$/.test(pathname)) {
+    return { titleKey: 'cases.expiry.edit', subtitleKey: 'cases.expiry.subtitle' }
+  }
+  if (pathname.startsWith('/management/case-expiry')) {
+    return { titleKey: 'menus.caseExpiry', subtitleKey: 'cases.expiry.subtitle' }
+  }
+  if (/^\/management\/schedules\/[^/]+$/.test(pathname)) {
+    return { titleKey: 'schedules.details', subtitleKey: 'schedules.subtitle' }
+  }
+  if (pathname.startsWith('/management/schedules')) {
+    return { titleKey: 'menus.schedules', subtitleKey: 'schedules.subtitle' }
+  }
   if (pathname.startsWith('/reports/expiring-cases')) {
     return { titleKey: 'menus.expiringCases', subtitleKey: 'cases.expiring.subtitle' }
   }
@@ -463,6 +475,9 @@ export function getPageMeta(pathname: string): {
   }
   if (pathname.startsWith('/sms/settings')) {
     return { titleKey: 'menus.smsSettings', subtitleKey: 'sms.settingsSubtitle' }
+  }
+  if (pathname.startsWith('/sms/history')) {
+    return { titleKey: 'menus.smsHistory', subtitleKey: 'sms.historySubtitle' }
   }
   if (pathname.startsWith('/sms/send')) {
     return { titleKey: 'menus.smsSend', subtitleKey: 'sms.sendSubtitle' }

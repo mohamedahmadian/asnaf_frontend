@@ -17,13 +17,13 @@ import { api } from '../../lib/api'
 import { formatNumber, localizeDigits } from '../../lib/datetime'
 import type { Job, JobGroup, Paginated } from '../../types/app'
 
-const RANGES = ['this-week', 'two-weeks', 'three-weeks', 'this-month'] as const
+const RANGES = ['this-week', 'two-weeks', 'three-weeks', 'this-month', 'expired'] as const
 type ExpiringRange = (typeof RANGES)[number]
 
 type ExpiringRow = {
   id: string
   kind: 'LICENSE' | 'STEWARDSHIP'
-  status: 'ACTIVE' | 'SUSPENDED' | 'REVOKED'
+  status: 'ACTIVE' | 'SUSPENDED' | 'EXPIRED' | 'REVOKED'
   licenseNumber: string | null
   fullName: string
   nationalId: string | null
@@ -38,6 +38,7 @@ function isRange(value: string): value is ExpiringRange {
 }
 
 function daysTone(days: number) {
+  if (days < 0) return 'bg-red-50 text-red-600 ring-red-200'
   if (days <= 7) return 'bg-rose-50 text-rose-800 ring-rose-200'
   if (days <= 14) return 'bg-amber-50 text-amber-900 ring-amber-200'
   return 'bg-mint-50 text-teal-900 ring-mint-200'
@@ -89,6 +90,7 @@ export function ExpiringCasesPage() {
   const rows = query.data?.items ?? []
   const filtered = Boolean(q || status || caseKind || jobGroupId || jobId)
   const total = query.data?.total
+  const expired = range === 'expired'
 
   return (
     <div className={caseShellClassName}>
@@ -141,6 +143,7 @@ export function ExpiringCasesPage() {
                   { value: '', label: t('cases.allCaseStatuses') },
                   { value: 'ACTIVE', label: t('cases.caseStatuses.ACTIVE') },
                   { value: 'SUSPENDED', label: t('cases.caseStatuses.SUSPENDED') },
+                  { value: 'EXPIRED', label: t('cases.caseStatuses.EXPIRED') },
                   { value: 'REVOKED', label: t('cases.caseStatuses.REVOKED') },
                 ]}
               />
@@ -199,7 +202,13 @@ export function ExpiringCasesPage() {
       </div>
       <TableCard
         loading={query.isLoading}
-        empty={filtered ? t('cases.expiring.noResults') : t('cases.expiring.empty')}
+        empty={
+          filtered
+            ? t('cases.expiring.noResults')
+            : expired
+              ? t('cases.expiring.emptyExpired')
+              : t('cases.expiring.empty')
+        }
         hasRows={rows.length > 0}
       >
         <table className="w-full text-sm">
@@ -237,7 +246,7 @@ export function ExpiringCasesPage() {
               />
               <SortableTh
                 column="daysRemaining"
-                label={t('cases.expiring.daysRemaining')}
+                label={expired ? t('cases.expiring.daysOverdueLabel') : t('cases.expiring.daysRemaining')}
                 sortBy={sortBy}
                 sortDir={sortDir}
                 onSort={onSort}
@@ -282,9 +291,15 @@ export function ExpiringCasesPage() {
                   <span
                     className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${daysTone(item.daysRemaining)}`}
                   >
-                    {t('cases.expiring.daysValue', {
-                      count: formatNumber(item.daysRemaining, locale),
-                    })}
+                    {item.daysRemaining < 0
+                      ? t('cases.expiring.daysOverdue', {
+                          count: formatNumber(-item.daysRemaining, locale),
+                        })
+                      : item.daysRemaining === 0
+                        ? t('cases.expiring.lastDay')
+                        : t('cases.expiring.daysValue', {
+                            count: formatNumber(item.daysRemaining, locale),
+                          })}
                   </span>
                 </td>
               </tr>

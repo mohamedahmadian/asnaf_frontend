@@ -53,7 +53,7 @@ import { FORMATION_STEPS, STEWARDSHIP_STEPS } from '../cases/formation-types'
 
 type GeoCity = { nameFa: string; nameEn: string }
 
-type CaseFileStatus = 'ACTIVE' | 'SUSPENDED' | 'REVOKED'
+type CaseFileStatus = 'ACTIVE' | 'SUSPENDED' | 'EXPIRED' | 'REVOKED'
 
 type HostLicense = {
   licenseNumber: string | null
@@ -199,7 +199,7 @@ export function UserDossierPage() {
                 <Send className="size-4" aria-hidden />
                 {t('sms.send')}
               </Button>
-              <OpenUserPanelButton userId={user.id} status={user.status} />
+              <OpenUserPanelButton userId={user.id} status={user.status} roles={user.roles} />
             </div>
           </div>
         </FormCard>
@@ -737,6 +737,10 @@ const CASE_STATUS_CHIP: Record<CaseFileStatus, { className: string; icon: typeof
   SUSPENDED: {
     className: 'case-suspension-blink bg-amber-50 text-amber-900 ring-amber-200',
     icon: CirclePause,
+  },
+  EXPIRED: {
+    className: 'bg-red-50 text-red-700 ring-red-200',
+    icon: CalendarClock,
   },
   REVOKED: {
     className: 'bg-red-50 text-red-800 ring-red-200',

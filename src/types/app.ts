@@ -178,6 +178,7 @@ export type AuthUser = {
   managesAccommodation?: boolean;
   honoraryServices?: HonoraryServiceSummary[];
   modules: NavModule[];
+  photoId?: string | null;
   impersonating?: boolean;
   impersonatedBy?: { id: string; fullName: string } | null;
   orgUnitId?: string | null;
@@ -1200,7 +1201,7 @@ export type FinancialProcessType =
 export type PaymentCaseFile = {
   id: string;
   kind: "LICENSE" | "STEWARDSHIP";
-  status: "ACTIVE" | "SUSPENDED" | "REVOKED";
+  status: "ACTIVE" | "SUSPENDED" | "EXPIRED" | "REVOKED";
   trackingCode: string | null;
   licenseNumber: string | null;
   cardNumber: string | null;
@@ -1219,6 +1220,7 @@ export type PaymentParty = {
   companyName: string | null;
   companyNationalId: string | null;
   companyRegistrationNo: string | null;
+  photoId?: string | null;
   cases: PaymentCaseFile[];
 };
 
@@ -1304,6 +1306,7 @@ export type PaymentRecord = {
   payerName: string;
   currentPayerName: string | null;
   payerPhone: string | null;
+  payerPhotoId?: string | null;
   description: string | null;
   paymentGroupId: string | null;
   paymentGroupTitle: string | null;
@@ -1492,6 +1495,7 @@ export type ViolationAttachment = {
 export type ViolationPerson = {
   id: string;
   fullName: string;
+  photoId?: string | null;
 };
 
 export type ViolationCaseFile = {

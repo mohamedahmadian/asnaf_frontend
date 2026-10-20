@@ -60,7 +60,7 @@ type DossierDocument = {
 
 export type CaseDossier = {
   id: string
-  status: 'ACTIVE' | 'SUSPENDED' | 'REVOKED'
+  status: 'ACTIVE' | 'SUSPENDED' | 'EXPIRED' | 'REVOKED'
   formationStep: number
   trackingCode: string | null
   canEditCase: boolean

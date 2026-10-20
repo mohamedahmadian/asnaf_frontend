@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button, FormField, fieldClassName } from '../../components/ui/Form'
 import { confirmToast } from '../../components/ui/confirmToast'
-import { DateText } from '../../components/ui/DateText'
 import { FileDropField } from '../../components/ui/FileDropField'
 import { FormCard, FormEmptyHint, FormFactTile, formCardBodyClassName } from '../../components/ui/FormLayout'
 import { FormTabs } from '../../components/ui/FormTabs'
@@ -13,7 +12,7 @@ import { LoadingState } from '../../components/ui/LoadingState'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { ISSUANCE_FORMATION_STEP } from './formation-types'
 import { InquiryProgressChart, usePendingTab } from './CaseInquiriesStep'
-import { InquiryElapsedBadge } from './InquiryDateBadges'
+import { InquiryDecidedAtValue } from './InquiryDateBadges'
 import { openInquiryFile, submitInquiryDecision } from './inquiry-api'
 import type { CaseInquiryChannel, CaseInquiryFile, CaseInquiryStatus } from './inquiry-types'
 
@@ -60,6 +59,7 @@ export function CaseManagementReviewStep({
   onAdvanced,
   onRewound,
   onChanged,
+  onAutoAdvance,
 }: {
   caseId: string
   items: CaseManagementApproverRow[]
@@ -74,6 +74,7 @@ export function CaseManagementReviewStep({
   onAdvanced: (formationStep: number) => void
   onRewound: () => void
   onChanged?: () => void
+  onAutoAdvance?: () => void
 }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
@@ -81,7 +82,6 @@ export function CaseManagementReviewStep({
   const pending = items.some((item) => item.status === 'PENDING')
   const { activeId, selectTab } = usePendingTab(items, loading)
   const autoAdvanceStarted = useRef(false)
-  const sawPending = useRef(false)
   const doneCount = items.filter((item) => item.status !== 'PENDING').length
 
   const advance = useMutation({
@@ -100,19 +100,16 @@ export function CaseManagementReviewStep({
   })
 
   useEffect(() => {
-    if (!loading && pending) sawPending.current = true
-  }, [loading, pending])
-
-  useEffect(() => {
     if (!autoAdvance || loading) return
     if (pending || items.length === 0) {
       autoAdvanceStarted.current = false
       return
     }
-    if (!sawPending.current || autoAdvanceStarted.current || advance.isPending) return
+    if (autoAdvanceStarted.current || advance.isPending) return
     autoAdvanceStarted.current = true
-    advance.mutate()
-  }, [advance, autoAdvance, items.length, loading, pending])
+    if (onAutoAdvance) onAutoAdvance()
+    else advance.mutate()
+  }, [advance, autoAdvance, items.length, loading, onAutoAdvance, pending])
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ['cases', 'formation-management-approvers', caseId] })
@@ -277,6 +274,14 @@ function ReviewCard({
           {item.channel ? ` · ${t(`cases.inquiryChannels.${item.channel}`)}` : ''}
         </span>
       </div>
+      <FormFactTile
+        icon={Clock}
+        label={t('cases.inquiryDecidedAt')}
+        tone="mint"
+        value={
+          <InquiryDecidedAtValue from={item.createdAt} at={item.decidedAt} locale={locale} />
+        }
+      />
       {item.status === 'PENDING' && locked ? (
         <ReviewFiles files={item.files} />
       ) : item.status === 'PENDING' ? (
@@ -352,19 +357,6 @@ function ReviewCard({
       ) : (
         <div className="space-y-3">
           <div className="grid gap-2 sm:grid-cols-2">
-            {item.decidedAt ? (
-              <FormFactTile
-                icon={Clock}
-                label={t('cases.inquiryDecidedAt')}
-                tone="mint"
-                value={
-                  <span className="flex flex-wrap items-center gap-2">
-                    <DateText value={item.decidedAt} withTime />
-                    <InquiryElapsedBadge from={item.createdAt} to={item.decidedAt} locale={locale} />
-                  </span>
-                }
-              />
-            ) : null}
             {item.decidedBy ? (
               <FormFactTile icon={UserRound} label={t('cases.inquiryDecidedBy')} value={item.decidedBy.fullName} tone="teal" />
             ) : null}

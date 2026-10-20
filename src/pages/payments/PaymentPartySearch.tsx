@@ -21,7 +21,7 @@ import { CheckboxField } from '../../components/ui/CheckboxField'
 import { CopyableDigits } from '../../components/ui/CopyableDigits'
 import { FormEmptyHint } from '../../components/ui/FormLayout'
 import { Button, FormField, fieldClassName } from '../../components/ui/Form'
-import { api } from '../../lib/api'
+import { api, getImageUrl } from '../../lib/api'
 import { formatNumber, localizeDigits } from '../../lib/datetime'
 import { personTypes, type PaymentCaseFile, type PaymentParty } from '../../types/app'
 import { PaymentPartyPickerModal } from './PaymentPartyPickerModal'
@@ -137,20 +137,34 @@ function PartyBadges({ nationalId, phone }: { nationalId?: string | null; phone?
 
 function PartyHeader({
   icon: Icon,
+  photoId,
   title,
   typeLabel,
   children,
 }: {
   icon: LucideIcon
+  photoId?: string | null
   title: string
   typeLabel: string
   children?: ReactNode
 }) {
+  const [failedPhotoId, setFailedPhotoId] = useState<string | null>(null)
+  const photoUrl = photoId && photoId !== failedPhotoId ? getImageUrl(photoId) : null
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-teal-500 bg-[linear-gradient(to_inline-end,var(--color-teal-500),var(--color-mint-500))] text-white shadow-[0_8px_16px_rgba(46,189,182,0.28)]">
-        <Icon className="size-5" aria-hidden />
-      </span>
+      {photoUrl ? (
+        <img
+          src={photoUrl}
+          alt={title}
+          draggable={false}
+          className="size-16 shrink-0 rounded-2xl object-cover ring-2 ring-teal-200 shadow-[0_8px_16px_rgba(46,189,182,0.22)]"
+          onError={() => setFailedPhotoId(photoId ?? null)}
+        />
+      ) : (
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-teal-500 bg-[linear-gradient(to_inline-end,var(--color-teal-500),var(--color-mint-500))] text-white shadow-[0_8px_16px_rgba(46,189,182,0.28)]">
+          <Icon className="size-5" aria-hidden />
+        </span>
+      )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-base font-semibold text-ink-900">{title}</p>
         {children}
@@ -251,43 +265,45 @@ export function PaymentPartySearch({
 
   return (
     <div className="space-y-3">
-      <FormField icon={Search} label={t('payments.searchParty')} htmlFor="payment-party-search">
-        <div className="relative">
-          <Search
-            className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-teal-600"
-            aria-hidden
-          />
-          <input
-            id="payment-party-search"
-            type="search"
-            className={`${fieldClassName} !ps-10 !pe-20 [&::-webkit-search-cancel-button]:hidden`}
-            placeholder={t('payments.searchPartyPlaceholder')}
-            value={term}
-            autoComplete="off"
-            onChange={(event) => setTerm(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter') return
-              event.preventDefault()
-              event.stopPropagation()
-              setQueryText(term.trim())
-            }}
-          />
-          <span className="absolute end-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
-            {searching ? <LoaderCircle className="size-4 animate-spin text-teal-600" aria-hidden /> : null}
-            {term ? (
-              <button
-                type="button"
-                className="flex size-7 cursor-pointer items-center justify-center rounded-xl text-ink-500 transition hover:bg-teal-50 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
-                aria-label={t('payments.clearSearch')}
-                title={t('payments.clearSearch')}
-                onClick={clear}
-              >
-                <X className="size-4" aria-hidden />
-              </button>
-            ) : null}
-          </span>
-        </div>
-      </FormField>
+      <div className="w-full sm:w-1/2">
+        <FormField icon={Search} label={t('payments.searchParty')} htmlFor="payment-party-search">
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-teal-600"
+              aria-hidden
+            />
+            <input
+              id="payment-party-search"
+              type="search"
+              className={`${fieldClassName} !ps-10 !pe-20 [&::-webkit-search-cancel-button]:hidden`}
+              placeholder={t('payments.searchPartyPlaceholder')}
+              value={term}
+              autoComplete="off"
+              onChange={(event) => setTerm(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter') return
+                event.preventDefault()
+                event.stopPropagation()
+                setQueryText(term.trim())
+              }}
+            />
+            <span className="absolute end-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+              {searching ? <LoaderCircle className="size-4 animate-spin text-teal-600" aria-hidden /> : null}
+              {term ? (
+                <button
+                  type="button"
+                  className="flex size-7 cursor-pointer items-center justify-center rounded-xl text-ink-500 transition hover:bg-teal-50 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+                  aria-label={t('payments.clearSearch')}
+                  title={t('payments.clearSearch')}
+                  onClick={clear}
+                >
+                  <X className="size-4" aria-hidden />
+                </button>
+              ) : null}
+            </span>
+          </div>
+        </FormField>
+      </div>
 
       {term.trim().length > 0 && term.trim().length < 2 ? (
         <p className="text-xs text-ink-500">{t('payments.searchPartyHint')}</p>
@@ -333,6 +349,7 @@ export function PaymentPartySearch({
               >
                 <PartyHeader
                   icon={Building2}
+                  photoId={party.photoId}
                   title={party.companyName || party.fullName}
                   typeLabel={t('personTypes.LEGAL')}
                 >
@@ -366,7 +383,12 @@ export function PaymentPartySearch({
               key={party.id}
               className="space-y-3 rounded-3xl border border-teal-100 bg-white p-4 shadow-[0_10px_30px_rgba(20,40,40,0.04)]"
             >
-              <PartyHeader icon={UserRound} title={party.fullName} typeLabel={t('personTypes.NATURAL')}>
+              <PartyHeader
+                icon={UserRound}
+                photoId={party.photoId}
+                title={party.fullName}
+                typeLabel={t('personTypes.NATURAL')}
+              >
                 <PartyBadges nationalId={party.nationalId} phone={party.phone} />
               </PartyHeader>
 

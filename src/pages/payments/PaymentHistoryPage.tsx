@@ -13,6 +13,7 @@ import {
 import { AmountInput } from '../../components/ui/AmountInput'
 import { FormField, PageHeader, listShellClassName } from '../../components/ui/Form'
 import { PersianDateField } from '../../components/ui/PersianDateField'
+import { PersonAvatar } from '../../components/ui/PersonAvatar'
 import { DateText } from '../../components/ui/DateText'
 import { SearchSelect } from '../../components/ui/SearchSelect'
 import { useListParams } from '../../hooks/useListParams'
@@ -242,9 +243,9 @@ export function PaymentHistoryPage() {
         <table className="w-full text-sm">
           <thead className="bg-cream-50 text-ink-700">
             <tr>
+              <SortableTh column="payerName" label={t('payments.payer')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="receiptNumber" label={t('payments.receiptNumber')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="paidAt" label={t('payments.paidAt')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-              <SortableTh column="payerName" label={t('payments.payer')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="nationalId" label={t('payments.identityNo')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="caseFile" label={t('payments.caseFile')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortableTh column="method" label={t('payments.method')} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
@@ -259,19 +260,24 @@ export function PaymentHistoryPage() {
           <tbody>
             {rows.map((item) => (
               <tr key={item.id} className={`border-t border-line ${item.deletedAt ? 'opacity-60' : ''}`}>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <PersonAvatar photoId={item.payerPhotoId} />
+                    <div className="min-w-0">
+                      <span className="block">{item.payerName}</span>
+                      {item.currentPayerName ? (
+                        <span className="block text-xs text-ink-500">
+                          {t('payments.currentName', { value: item.currentPayerName })}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </td>
                 <td className="px-4 py-3 font-medium" dir="ltr">
                   {localizeDigits(item.receiptNumber, locale)}
                 </td>
                 <td className="px-4 py-3">
                   {item.paidAt ? <DateText value={item.paidAt} withTime /> : <span className="text-ink-400">—</span>}
-                </td>
-                <td className="px-4 py-3">
-                  <span className="block">{item.payerName}</span>
-                  {item.currentPayerName ? (
-                    <span className="block text-xs text-ink-500">
-                      {t('payments.currentName', { value: item.currentPayerName })}
-                    </span>
-                  ) : null}
                 </td>
                 <td className="px-4 py-3 digit-field">
                   {localizeDigits(

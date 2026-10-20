@@ -1,5 +1,71 @@
-import { api } from '../../lib/api'
+import { toPng } from 'html-to-image'
+import face400 from '@fontsource/vazirmatn/400.css?raw'
+import face700 from '@fontsource/vazirmatn/700.css?raw'
+import face800 from '@fontsource/vazirmatn/800.css?raw'
+import arabic400 from '@fontsource/vazirmatn/files/vazirmatn-arabic-400-normal.woff2?url'
+import latin400 from '@fontsource/vazirmatn/files/vazirmatn-latin-400-normal.woff2?url'
+import latinExt400 from '@fontsource/vazirmatn/files/vazirmatn-latin-ext-400-normal.woff2?url'
+import arabic700 from '@fontsource/vazirmatn/files/vazirmatn-arabic-700-normal.woff2?url'
+import latin700 from '@fontsource/vazirmatn/files/vazirmatn-latin-700-normal.woff2?url'
+import latinExt700 from '@fontsource/vazirmatn/files/vazirmatn-latin-ext-700-normal.woff2?url'
+import arabic800 from '@fontsource/vazirmatn/files/vazirmatn-arabic-800-normal.woff2?url'
+import latin800 from '@fontsource/vazirmatn/files/vazirmatn-latin-800-normal.woff2?url'
+import latinExt800 from '@fontsource/vazirmatn/files/vazirmatn-latin-ext-800-normal.woff2?url'
 import { formatGregorianDate, formatJalaliDate, localizeDigits } from '../../lib/datetime'
+import { activityLicenseSheetCss } from './activity-license-styles'
+
+const LICENSE_FONT = 'Vazirmatn, Vazir, Tahoma, sans-serif'
+const FONT_SAMPLE = 'سلام وزیر ABC 0123'
+
+const FONT_FILES: Record<string, string> = {
+  'vazirmatn-arabic-400-normal.woff2': arabic400,
+  'vazirmatn-latin-400-normal.woff2': latin400,
+  'vazirmatn-latin-ext-400-normal.woff2': latinExt400,
+  'vazirmatn-arabic-700-normal.woff2': arabic700,
+  'vazirmatn-latin-700-normal.woff2': latin700,
+  'vazirmatn-latin-ext-700-normal.woff2': latinExt700,
+  'vazirmatn-arabic-800-normal.woff2': arabic800,
+  'vazirmatn-latin-800-normal.woff2': latin800,
+  'vazirmatn-latin-ext-800-normal.woff2': latinExt800,
+}
+
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
+}
+
+let cachedFontFaceCss: Promise<string> | null = null
+
+function licenseFontFaceCss() {
+  if (cachedFontFaceCss) return cachedFontFaceCss
+  cachedFontFaceCss = (async () => {
+    const origin = window.location.href
+    const embedded = await Promise.all(
+      Object.entries(FONT_FILES).map(async ([name, file]) => {
+        const res = await fetch(new URL(file, origin).href)
+        if (!res.ok) throw new Error(`font ${name}`)
+        return [name, await blobToDataUrl(await res.blob())] as const
+      }),
+    )
+    const dataUrls = Object.fromEntries(embedded)
+    const faces = `${face400}\n${face700}\n${face800}`
+      .replace(/font-display:\s*swap/g, 'font-display: block')
+      .replace(/,\s*url\(\.\/files\/[^)]+\.woff\) format\('woff'\)/g, '')
+      .replace(/url\(\.\/files\/([^)]+)\)/g, (full, name: string) => {
+        const file = dataUrls[name]
+        return file ? `url("${file}")` : full
+      })
+    return `${faces}\n${faces.replace(/font-family:\s*'Vazirmatn'/g, "font-family: 'Vazir'")}`
+  })()
+  cachedFontFaceCss.catch(() => {
+    cachedFontFaceCss = null
+  })
+  return cachedFontFaceCss
+}
 
 export type ActivityLicense = {
   licenseNumber: string
@@ -12,6 +78,7 @@ export type ActivityLicense = {
   lastNameEn: string | null
   gender: 'MALE' | 'FEMALE' | null
   birthDate: string | null
+  nationalityIso2?: string | null
   nationalityFa: string | null
   nationalityEn: string | null
   passportNumber: string | null
@@ -20,6 +87,9 @@ export type ActivityLicense = {
   activityTitle: string | null
   activityTitleEn: string | null
   photoId: string | null
+  signerName: string | null
+  signerTitle: string | null
+  signatureId: string | null
   address: string | null
   addressEn: string | null
   plaque: string | null
@@ -32,11 +102,16 @@ export type ActivityLicense = {
   complexNameEn: string | null
 }
 
-export type LicenseRow = {
+export type LicenseField = {
   fa: string
   en: string
   faValue: string
   enValue: string
+}
+
+export type LicenseRow = {
+  id: string
+  fields: LicenseField[]
 }
 
 export type LicenseView = {
@@ -44,17 +119,18 @@ export type LicenseView = {
   orgEn: string
   title: string
   titleEn: string
-  site: string
   rows: LicenseRow[]
   photoUrl: string | null
+  signerName: string | null
+  signerTitle: string | null
+  signatureUrl: string | null
 }
 
-type LicenseCopy = {
+export type LicenseCopy = {
   org: string
   orgEn: string
   title: string
   titleEn: string
-  site: string
   number: string
   numberEn: string
   issued: string
@@ -134,95 +210,60 @@ function enDate(value: string | null) {
   return value ? formatGregorianDate(value, 'en') : '—'
 }
 
+function field(fa: string, en: string, faValue: string, enValue: string): LicenseField {
+  return { fa, en, faValue, enValue }
+}
+
+function row(id: string, ...fields: LicenseField[]): LicenseRow {
+  return { id, fields }
+}
+
 export function buildLicenseView(
   license: ActivityLicense,
   copy: LicenseCopy,
   photoUrl: string | null,
+  signatureUrl: string | null = null,
 ): LicenseView {
   const fullName = `${license.firstName} ${license.lastName}`.replace(/\s+/g, ' ').trim()
   const genderFa = license.gender === 'MALE' ? copy.male : license.gender === 'FEMALE' ? copy.female : null
   const genderEn = license.gender === 'MALE' ? copy.maleEn : license.gender === 'FEMALE' ? copy.femaleEn : null
+  const rows = [
+    row('number', field(copy.number, copy.numberEn, faDigits(license.licenseNumber), license.licenseNumber)),
+    row('trade', field(copy.trade, copy.tradeEn, text(license.tradeName), text(license.tradeName))),
+    row(
+      'dates',
+      field(copy.issued, copy.issuedEn, faDate(license.issuedAt), enDate(license.issuedAt)),
+      field(copy.expires, copy.expiresEn, faDate(license.expiresAt), enDate(license.expiresAt)),
+    ),
+    row('name', field(copy.name, copy.nameEn, text(fullName), text(license.lastNameEn))),
+    row(
+      'identity',
+      field(copy.gender, copy.genderEn, text(genderFa), text(genderEn)),
+      field(copy.birth, copy.birthEn, faDate(license.birthDate), enDate(license.birthDate)),
+      field(
+        copy.nationality,
+        copy.nationalityEn,
+        text(license.nationalityFa),
+        text(license.nationalityEn || license.nationalityFa),
+      ),
+    ),
+    row('address', field(copy.address, copy.addressEn, addressLine(license, copy, 'fa'), addressLine(license, copy, 'en'))),
+    row('phone', field(copy.phone, copy.phoneEn, faDigits(license.phone), text(license.phone))),
+    row(
+      'activity',
+      field(copy.activity, copy.activityEn, text(license.activityTitle), text(license.activityTitleEn || license.activityTitle)),
+    ),
+  ]
   return {
     org: copy.org,
     orgEn: copy.orgEn,
     title: copy.title,
     titleEn: copy.titleEn,
-    site: copy.site,
     photoUrl,
-    rows: [
-      {
-        fa: copy.number,
-        en: copy.numberEn,
-        faValue: faDigits(license.licenseNumber),
-        enValue: license.licenseNumber,
-      },
-      {
-        fa: copy.issued,
-        en: copy.issuedEn,
-        faValue: faDate(license.issuedAt),
-        enValue: enDate(license.issuedAt),
-      },
-      {
-        fa: copy.expires,
-        en: copy.expiresEn,
-        faValue: faDate(license.expiresAt),
-        enValue: enDate(license.expiresAt),
-      },
-      {
-        fa: copy.name,
-        en: copy.nameEn,
-        faValue: text(fullName),
-        enValue: text(license.lastNameEn),
-      },
-      {
-        fa: copy.gender,
-        en: copy.genderEn,
-        faValue: text(genderFa),
-        enValue: text(genderEn),
-      },
-      {
-        fa: copy.birth,
-        en: copy.birthEn,
-        faValue: faDate(license.birthDate),
-        enValue: enDate(license.birthDate),
-      },
-      {
-        fa: copy.nationality,
-        en: copy.nationalityEn,
-        faValue: text(license.nationalityFa),
-        enValue: text(license.nationalityEn || license.nationalityFa),
-      },
-      {
-        fa: copy.passport,
-        en: copy.passportEn,
-        faValue: faDigits(license.passportNumber),
-        enValue: text(license.passportNumber),
-      },
-      {
-        fa: copy.address,
-        en: copy.addressEn,
-        faValue: addressLine(license, copy, 'fa'),
-        enValue: addressLine(license, copy, 'en'),
-      },
-      {
-        fa: copy.phone,
-        en: copy.phoneEn,
-        faValue: faDigits(license.phone),
-        enValue: text(license.phone),
-      },
-      {
-        fa: copy.activity,
-        en: copy.activityEn,
-        faValue: text(license.activityTitle),
-        enValue: text(license.activityTitleEn || license.activityTitle),
-      },
-      {
-        fa: copy.trade,
-        en: copy.tradeEn,
-        faValue: text(license.tradeName),
-        enValue: text(license.tradeName),
-      },
-    ],
+    signerName: license.signerName?.trim() || null,
+    signerTitle: license.signerTitle?.trim() || null,
+    signatureUrl,
+    rows,
   }
 }
 
@@ -234,76 +275,161 @@ function escapeHtml(value: string) {
     .replace(/"/g, '&quot;')
 }
 
-export function activityLicenseHtml(view: LicenseView) {
+function fieldHtml(item: LicenseField, stacked: boolean) {
+  if (!stacked) {
+    return `<div><div class="license-sheet__label">${escapeHtml(item.fa)}</div><div class="license-sheet__value">${escapeHtml(item.faValue)}</div></div>
+        <div class="license-sheet__en"><div class="license-sheet__label">${escapeHtml(item.en)}</div><div class="license-sheet__value">${escapeHtml(item.enValue)}</div></div>`
+  }
+  return `<div class="license-sheet__cell">
+        <div class="license-sheet__label">${escapeHtml(item.fa)}</div>
+        <div class="license-sheet__value">${escapeHtml(item.faValue)}</div>
+        <div class="license-sheet__en-line">${escapeHtml(item.en)}: ${escapeHtml(item.enValue)}</div>
+      </div>`
+}
+
+function activityLicenseArticle(view: LicenseView) {
   const rows = view.rows
-    .map(
-      (row) => `<div class="row">
-        <div class="cell"><div class="label">${escapeHtml(row.fa)}</div><div class="value">${escapeHtml(row.faValue)}</div></div>
-        <div class="cell en"><div class="label">${escapeHtml(row.en)}</div><div class="value">${escapeHtml(row.enValue)}</div></div>
-      </div>`,
-    )
+    .map((item) => {
+      const grouped = item.fields.length > 1
+      const cols = grouped ? ` style="grid-template-columns:repeat(${item.fields.length},minmax(0,1fr))"` : ''
+      const body = grouped
+        ? item.fields.map((entry) => fieldHtml(entry, true)).join('')
+        : fieldHtml(item.fields[0], false)
+      return `<div class="license-sheet__row${grouped ? ' license-sheet__row--group' : ''}"${cols}>${body}</div>`
+    })
     .join('')
-  const photo = view.photoUrl ? `<img src="${escapeHtml(view.photoUrl)}" alt="" />` : ''
+  const photo = view.photoUrl
+    ? `<div class="license-sheet__photo"><img src="${escapeHtml(view.photoUrl)}" alt="" /></div>`
+    : ''
+  const showStamp = Boolean(view.signatureUrl || view.signerName || view.signerTitle)
+  const stamp = showStamp
+    ? `<div class="license-sheet__stamp">${
+        view.signatureUrl ? `<img src="${escapeHtml(view.signatureUrl)}" alt="" />` : ''
+      }${view.signerName ? `<div class="license-sheet__signer">${escapeHtml(view.signerName)}</div>` : ''}${
+        view.signerTitle ? `<div class="license-sheet__role">${escapeHtml(view.signerTitle)}</div>` : ''
+      }</div>`
+    : ''
+  return `<article class="license-sheet license-sheet--page" dir="rtl" lang="fa">
+  <aside class="license-sheet__band">
+    ${photo}
+    <div class="license-sheet__brand">
+      <svg class="license-sheet__mark" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="28" r="10" fill="#f0c14d"/><path d="M8 46c8-8 14-8 22 0s14 8 22 0 14-8 12 0" fill="none" stroke="#7ec8e3" stroke-width="3"/><path d="M8 54c8-8 14-8 22 0s14 8 22 0 14-8 12 0" fill="none" stroke="#fff" stroke-width="3"/></svg>
+      <div class="license-sheet__org">${escapeHtml(view.org)}</div>
+      <div class="license-sheet__org-en">${escapeHtml(view.orgEn)}</div>
+      <div class="license-sheet__title">${escapeHtml(view.title)}</div>
+      <div class="license-sheet__title-en">${escapeHtml(view.titleEn)}</div>
+    </div>
+  </aside>
+  <div class="license-sheet__body">${rows}<div class="license-sheet__foot">${stamp}</div></div>
+</article>`
+}
+
+async function activityLicenseFragment(view: LicenseView) {
+  const fontCss = await licenseFontFaceCss()
+  return `<style>${fontCss}${activityLicenseSheetCss}.license-sheet{font-family:${LICENSE_FONT}}</style>${activityLicenseArticle(view)}`
+}
+
+export async function activityLicenseHtml(view: LicenseView) {
+  const fragment = await activityLicenseFragment(view)
   return `<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(view.title)}</title>
 <style>
-  body{margin:0;background:#eef3f8;font-family:Vazirmatn,Tahoma,sans-serif;color:#14222b}
-  .sheet{display:flex;max-width:920px;margin:24px auto;background:#fff;border:1px solid #d5deea;min-height:640px}
-  .band{width:168px;flex:none;background:#14356e;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:28px 16px;text-align:center}
-  .mark{width:72px;height:72px}
-  .org{font-size:15px;font-weight:700;line-height:1.7}
-  .org-en{font-size:11px;letter-spacing:.04em;opacity:.85}
-  .title{font-size:18px;font-weight:800;line-height:1.6}
-  .title-en{font-size:12px;opacity:.9}
-  .body{flex:1;padding:22px 26px 18px;display:flex;flex-direction:column}
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:18px;border-bottom:1px solid #e6edf4;padding:8px 0}
-  .label{font-size:11px;color:#5d7284}
-  .value{font-size:14px;font-weight:700;line-height:1.7}
-  .en{direction:ltr;text-align:left}
-  .foot{display:flex;align-items:flex-end;justify-content:space-between;margin-top:auto;padding-top:16px}
-  .photo{width:92px;height:112px;border-radius:8px;background:#eef3f8;border:1px solid #d5deea;overflow:hidden}
-  .photo img{width:100%;height:100%;object-fit:cover}
-  .site{font-size:12px;color:#14356e;font-weight:700;direction:ltr}
-  @media print{body{background:#fff}.sheet,.band{-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{margin:0;border:0;max-width:none}}
-</style></head><body>
-<article class="sheet">
-  <aside class="band">
-    <svg class="mark" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="28" r="10" fill="#f0c14d"/><path d="M8 46c8-8 14-8 22 0s14 8 22 0 14-8 12 0" fill="none" stroke="#7ec8e3" stroke-width="3"/><path d="M8 54c8-8 14-8 22 0s14 8 22 0 14-8 12 0" fill="none" stroke="#fff" stroke-width="3"/></svg>
-    <div class="org">${escapeHtml(view.org)}</div>
-    <div class="org-en">${escapeHtml(view.orgEn)}</div>
-    <div class="title">${escapeHtml(view.title)}</div>
-    <div class="title-en">${escapeHtml(view.titleEn)}</div>
-  </aside>
-  <div class="body">${rows}<div class="foot"><div class="photo">${photo}</div><div class="site">${escapeHtml(view.site)}</div></div></div>
-</article></body></html>`
+  html,body{margin:0;background:#eef3f8;font-family:${LICENSE_FONT};color:#14222b}
+  @page{size:A4 landscape;margin:0}
+  @media print{
+    html,body{box-sizing:border-box;width:100%;height:100%;margin:0;padding:0;background:#fff;overflow:hidden}
+    body{display:flex;min-height:100vh}
+    .license-sheet{flex:1 1 auto;width:100%;height:100%;min-height:100vh}
+    .license-sheet,.license-sheet__band{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style></head><body>${fragment}</body></html>`
 }
 
-export async function licensePhotoDataUrl(photoId: string | null) {
-  if (!photoId) return null
-  const { data } = await api.get<Blob>(`/images/${photoId}`, { responseType: 'blob' })
-  return await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(data)
-  })
+export function licenseCopy(t: (key: string) => string): LicenseCopy {
+  return {
+    org: t('cases.licenseDoc.org'),
+    orgEn: t('cases.licenseDoc.orgEn'),
+    title: t('cases.licenseDoc.title'),
+    titleEn: t('cases.licenseDoc.titleEn'),
+    number: t('cases.licenseDoc.number'),
+    numberEn: t('cases.licenseDoc.numberEn'),
+    issued: t('cases.licenseDoc.issued'),
+    issuedEn: t('cases.licenseDoc.issuedEn'),
+    expires: t('cases.licenseDoc.expires'),
+    expiresEn: t('cases.licenseDoc.expiresEn'),
+    name: t('cases.licenseDoc.name'),
+    nameEn: t('cases.licenseDoc.nameEn'),
+    gender: t('cases.licenseDoc.gender'),
+    genderEn: t('cases.licenseDoc.genderEn'),
+    male: t('cases.licenseDoc.male'),
+    maleEn: t('cases.licenseDoc.maleEn'),
+    female: t('cases.licenseDoc.female'),
+    femaleEn: t('cases.licenseDoc.femaleEn'),
+    birth: t('cases.licenseDoc.birth'),
+    birthEn: t('cases.licenseDoc.birthEn'),
+    nationality: t('cases.licenseDoc.nationality'),
+    nationalityEn: t('cases.licenseDoc.nationalityEn'),
+    passport: t('cases.licenseDoc.passport'),
+    passportEn: t('cases.licenseDoc.passportEn'),
+    address: t('cases.licenseDoc.address'),
+    addressEn: t('cases.licenseDoc.addressEn'),
+    phone: t('cases.licenseDoc.phone'),
+    phoneEn: t('cases.licenseDoc.phoneEn'),
+    activity: t('cases.licenseDoc.activity'),
+    activityEn: t('cases.licenseDoc.activityEn'),
+    trade: t('cases.licenseDoc.trade'),
+    tradeEn: t('cases.licenseDoc.tradeEn'),
+    plaque: t('cases.licenseDoc.plaque'),
+    floor: t('cases.licenseDoc.floor'),
+    unit: t('cases.licenseDoc.unit'),
+    postal: t('cases.licenseDoc.postal'),
+  }
 }
 
-export function downloadActivityLicense(filename: string, html: string) {
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(url)
+export async function downloadActivityLicense(filename: string, view: LicenseView) {
+  const host = document.createElement('div')
+  host.setAttribute('aria-hidden', 'true')
+  host.style.position = 'fixed'
+  host.style.insetInlineStart = '-10000px'
+  host.style.top = '0'
+  host.style.width = '297mm'
+  host.style.height = '210mm'
+  host.style.background = '#fff'
+  host.innerHTML = await activityLicenseFragment(view)
+  document.body.appendChild(host)
+  try {
+    const sheet = host.querySelector('.license-sheet')
+    if (!(sheet instanceof HTMLElement)) return
+    await Promise.all([
+      ...[...host.querySelectorAll('img')].map((img) => img.decode().catch(() => undefined)),
+      document.fonts.load('400 16px Vazirmatn', FONT_SAMPLE),
+      document.fonts.load('700 16px Vazirmatn', FONT_SAMPLE),
+      document.fonts.load('800 16px Vazirmatn', FONT_SAMPLE),
+      document.fonts.ready,
+    ])
+    const dataUrl = await toPng(sheet, {
+      pixelRatio: 2,
+      backgroundColor: '#ffffff',
+      cacheBust: true,
+    })
+    const link = document.createElement('a')
+    link.href = dataUrl
+    link.download = filename.endsWith('.png') ? filename : `${filename}.png`
+    link.click()
+  } finally {
+    host.remove()
+  }
 }
 
-export function printActivityLicense(html: string) {
+export async function printActivityLicense(html: string) {
   const frame = document.createElement('iframe')
   frame.setAttribute('aria-hidden', 'true')
   frame.style.position = 'fixed'
-  frame.style.width = '0'
-  frame.style.height = '0'
+  frame.style.insetInlineStart = '0'
+  frame.style.top = '0'
+  frame.style.opacity = '0'
+  frame.style.pointerEvents = 'none'
+  frame.style.width = '1123px'
+  frame.style.height = '794px'
   frame.style.border = '0'
   document.body.appendChild(frame)
   const win = frame.contentWindow
@@ -323,9 +449,14 @@ export function printActivityLicense(html: string) {
   doc.open()
   doc.write(html)
   doc.close()
-  if (doc.readyState === 'complete') window.setTimeout(run, 50)
-  else win.addEventListener('load', run, { once: true })
-  window.setTimeout(run, 400)
+  await Promise.all([
+    ...[...doc.images].map((img) => img.decode().catch(() => undefined)),
+    doc.fonts.load(`400 16px Vazirmatn`, FONT_SAMPLE),
+    doc.fonts.load(`700 16px Vazirmatn`, FONT_SAMPLE),
+    doc.fonts.load(`800 16px Vazirmatn`, FONT_SAMPLE),
+    doc.fonts.ready,
+  ]).catch(() => undefined)
+  run()
   window.setTimeout(() => {
     if (frame.isConnected) frame.remove()
   }, 60_000)

@@ -1,4 +1,4 @@
-import { BadgeCheck, Ban, FileSignature, FileText, Gavel, IdCard, Landmark, MapPinned, RefreshCw, ScanSearch, Settings, Shield, SlidersHorizontal, UserRound, type LucideIcon } from 'lucide-react'
+import { BadgeCheck, Ban, FileSignature, FileText, Gavel, IdCard, Landmark, MapPinned, RefreshCw, ScanSearch, Settings, Shield, SlidersHorizontal, Stamp, UserRound, type LucideIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
@@ -7,6 +7,7 @@ import { FormCard } from '../../components/ui/FormLayout'
 import { FormTabs, type FormTabItem } from '../../components/ui/FormTabs'
 import { CaseContractDurationField } from './CaseContractDurationField'
 import { CaseGeneralSettingsPanel } from './CaseGeneralSettingsPanel'
+import { CaseActivityLicensePanel } from './CaseActivityLicensePanel'
 import { CaseLetterheadPanel } from './CaseLetterheadPanel'
 import { CaseIdentityDocumentsPanel } from './CaseIdentityDocumentsPanel'
 import { CasePlacesOfficePanel } from './CasePlacesOfficePanel'
@@ -25,6 +26,7 @@ const SETTINGS_TAB_IDS = [
   'revocation',
   'places',
   'letterhead',
+  'activity-license',
   'general',
 ] as const
 
@@ -102,6 +104,7 @@ export function CaseSettingsPage() {
     { id: 'revocation', label: t('cases.settingsRevocationTab'), icon: Ban },
     { id: 'places', label: t('cases.settingsPlacesTab'), icon: Landmark },
     { id: 'letterhead', label: t('cases.settingsLetterheadTab'), icon: FileSignature },
+    { id: 'activity-license', label: t('cases.settingsActivityLicenseTab'), icon: Stamp },
     { id: 'general', label: t('cases.settingsGeneralTab'), icon: SlidersHorizontal },
   ]
   const [tab, setTab] = useState(
@@ -158,6 +161,7 @@ export function CaseSettingsPage() {
           {tab === 'revocation' ? <CaseRevocationSettingsPanel /> : null}
           {tab === 'places' ? <CasePlacesOfficePanel /> : null}
           {tab === 'letterhead' ? <CaseLetterheadPanel /> : null}
+          {tab === 'activity-license' ? <CaseActivityLicensePanel /> : null}
           {tab === 'general' ? <CaseGeneralSettingsPanel /> : null}
         </div>
       </FormCard>

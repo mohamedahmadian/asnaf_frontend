@@ -80,6 +80,7 @@ type FormationCase = {
   formationStep: number
   trackingCode: string | null
   licenseIssuedAt: string | null
+  intakeSubmittedAt?: string | null
   activity: CaseActivity | null
   location: CaseLocation | null
 }
@@ -118,6 +119,9 @@ export function CaseFormationPage() {
   const pendingFocusId = useRef<string | null>(null)
   const [step, setStep] = useState(0)
   const [reached, setReached] = useState(0)
+  const [awaitingIntake, setAwaitingIntake] = useState(false)
+  const [approvingIntake, setApprovingIntake] = useState(false)
+  const fieldsLocked = formLocked || (awaitingIntake && !admin)
   const [unitTitle, setUnitTitle] = useState('')
   const [activityGroupId, setActivityGroupId] = useState('')
   const [activityJobId, setActivityJobId] = useState('')
@@ -340,6 +344,7 @@ export function CaseFormationPage() {
     applyActivity(file.activity)
     assignLocation(locationFormFrom(file.location))
     setLookup('found')
+    setAwaitingIntake(Boolean(file.intakeSubmittedAt) && file.formationStep < FORMATION_STEPS.indexOf('inquiries'))
     setReached(resume)
     setStep(
       focusPlaces
@@ -368,6 +373,7 @@ export function CaseFormationPage() {
     applyActivity(null)
     assignLocation(emptyLocationForm())
     setLookup('found')
+    setAwaitingIntake(false)
     setReached(0)
     setStep(0)
     setOpenCasePrompt(null)
@@ -501,7 +507,7 @@ export function CaseFormationPage() {
   }
 
   function goToStep(index: number) {
-    if (formLocked) {
+    if (fieldsLocked) {
       if (index > reached) return
       setStep(index)
       return
@@ -521,7 +527,7 @@ export function CaseFormationPage() {
   }
 
   useEffect(() => {
-    if (formLocked) return
+    if (fieldsLocked) return
     if (step < PLACES_FORMATION_STEP) return
     if (activityDocumentsReady === false) {
       toast.error(t('cases.activityDocumentsBeforePlaces'))
@@ -532,9 +538,10 @@ export function CaseFormationPage() {
       toast.error(t('cases.inquiriesBeforePlaces'))
       setStep(FORMATION_STEPS.indexOf('inquiries'))
     }
-  }, [activityDocumentsReady, inquiriesReady, formLocked, step, t])
+  }, [activityDocumentsReady, fieldsLocked, inquiriesReady, step, t])
 
   function submitIdentity() {
+    if (fieldsLocked) return
     if (!person) return
     if (!person.firstName.trim()) {
       rejectRequired('case-first-name', t('cases.firstNameRequired'))
@@ -548,6 +555,7 @@ export function CaseFormationPage() {
   }
 
   async function completeActivity() {
+    if (fieldsLocked) return
     if (!unitTitle.trim()) {
       rejectRequired('case-unit-title', t('cases.unitTitleRequired'))
       return
@@ -580,35 +588,36 @@ export function CaseFormationPage() {
     }
   }
 
-  async function completeLocation() {
+  async function completeLocation(quiet = false) {
+    if (fieldsLocked) return false
     if (!location.cityId) {
       rejectRequired('case-premise-city', t('cases.locationCityRequired'))
-      return
+      return false
     }
     if (!location.establishment) {
       rejectRequired('case-establishment', t('cases.locationEstablishmentRequired'))
-      return
+      return false
     }
     const commercialComplex = location.establishment === 'COMMERCIAL_COMPLEX'
     if (commercialComplex && !location.complexId) {
       rejectRequired('case-complex', t('cases.locationComplexRequired'))
-      return
+      return false
     }
     if (!location.address.trim()) {
       rejectRequired('case-premise-address', t('cases.locationAddressRequired'))
-      return
+      return false
     }
     if (location.area.trim() === '' || Number.isNaN(Number(location.area))) {
       rejectRequired('case-area', t('cases.locationAreaRequired'))
-      return
+      return false
     }
     if (!location.ownership) {
       rejectRequired('case-ownership', t('cases.locationOwnershipRequired'))
-      return
+      return false
     }
     if (!caseId) {
       toast.message(t('cases.saveBeforeDocuments'))
-      return
+      return false
     }
     try {
       const { data } = await api.post<{ formationStep: number; location: CaseLocation }>(
@@ -640,13 +649,40 @@ export function CaseFormationPage() {
         },
       )
       setLocation(locationFormFrom(data.location))
-      toast.success(t('cases.locationSaved'))
+      if (!quiet) toast.success(t('cases.locationSaved'))
       const next = data.formationStep ?? 3
       setPerson((current) => (current ? { ...current, formationStep: next } : current))
       setReached((current) => Math.max(current, next))
-      setStep(3)
+      if (!quiet) setStep(next)
+      if (next >= FORMATION_STEPS.indexOf('inquiries')) setAwaitingIntake(false)
+      return true
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('cases.saveFailed')))
+      return false
+    }
+  }
+
+  async function approveIntake() {
+    if (!admin || !caseId || approvingIntake) return
+    if (location.cityId) {
+      const saved = await completeLocation(true)
+      if (!saved) return
+    }
+    setApprovingIntake(true)
+    try {
+      const { data } = await api.post<{ formationStep: number }>('/cases/formation/approve-intake', {
+        caseId,
+        step: FORMATION_STEPS.indexOf('inquiries'),
+      })
+      setAwaitingIntake(false)
+      setPerson((current) => (current ? { ...current, formationStep: data.formationStep } : current))
+      setReached((current) => Math.max(current, data.formationStep))
+      setStep(data.formationStep)
+      toast.success(t('cases.intakeApproved'))
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, t('cases.saveFailed')))
+    } finally {
+      setApprovingIntake(false)
     }
   }
 
@@ -841,12 +877,24 @@ export function CaseFormationPage() {
         })}
       </ol>
 
+      {awaitingIntake ? (
+        <section className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3">
+          <p className="min-w-0 flex-1 text-sm leading-7 text-ink-700">{t('cases.awaitingIntakeHint')}</p>
+          {admin ? (
+            <Button type="button" onClick={() => void approveIntake()} disabled={approvingIntake}>
+              <Check className="size-4" aria-hidden />
+              {t('cases.approveIntake')}
+            </Button>
+          ) : null}
+        </section>
+      ) : null}
+
       {step === 0 ? (
       <FormCard
         icon={UserRound}
         title={t('cases.steps.identity')}
         action={
-          person && !formLocked ? (
+          person && !fieldsLocked ? (
             <Button type="button" disabled={save.isPending} onClick={submitIdentity}>
               <Check className="size-4" aria-hidden />
               {t('cases.saveIdentity')}
@@ -859,7 +907,7 @@ export function CaseFormationPage() {
               <AppForm
                 onSubmit={(event) => {
                   event.preventDefault()
-                  if (!formLocked) void lookupPerson()
+                  if (!fieldsLocked) void lookupPerson()
                 }}
                 className="flex flex-wrap items-end gap-3"
               >
@@ -870,14 +918,14 @@ export function CaseFormationPage() {
                       className={`${inputClassName()} digit-field`}
                       inputMode="numeric"
                       value={nationalId}
-                      readOnly={formLocked}
+                      readOnly={fieldsLocked}
                       onChange={(event) => {
-                        if (!formLocked) setNationalId(event.target.value)
+                        if (!fieldsLocked) setNationalId(event.target.value)
                       }}
                     />
                   </FormField>
                 </div>
-                {formLocked ? null : (
+                {fieldsLocked ? null : (
                 <Button type="submit" className="w-fit">
                   <ScanSearch className="size-4" aria-hidden />
                   {t('cases.lookup')}
@@ -920,7 +968,7 @@ export function CaseFormationPage() {
                     countries={countries.data ?? []}
                     jobs={(jobs.data ?? []).filter((item) => item.isActive)}
                     locale={locale}
-                    locked={formLocked}
+                    locked={fieldsLocked}
                     onChange={(key, value) =>
                       setPerson((current) => (current ? { ...current, [key]: value } : current))
                     }
@@ -933,7 +981,7 @@ export function CaseFormationPage() {
                     uploadingId={uploadingId}
                     removingId={removingId}
                     disabled={!person.id}
-                    readOnly={formLocked}
+                    readOnly={fieldsLocked}
                     layout="tabs"
                     showOtherDocuments
                     otherReservedIds={(documentTypes.data ?? []).map((item) => item.id)}
@@ -953,7 +1001,7 @@ export function CaseFormationPage() {
           icon={Briefcase}
           title={t('cases.steps.activity')}
           action={
-            formLocked ? undefined : (
+            fieldsLocked ? undefined : (
             <Button type="button" onClick={completeActivity}>
               <Check className="size-4" aria-hidden />
               {t('cases.saveActivity')}
@@ -976,7 +1024,7 @@ export function CaseFormationPage() {
               onPreviousOccupationChange={setPreviousOccupation}
               onPosCountChange={setPosCount}
               onSubmit={completeActivity}
-              locked={formLocked}
+              locked={fieldsLocked}
             />
             {activityJobId ? (
               <section className="space-y-3 border-t border-teal-100 pt-4">
@@ -1002,7 +1050,7 @@ export function CaseFormationPage() {
                     uploadingId={uploadingId}
                     removingId={removingId}
                     disabled={!caseId}
-                    readOnly={formLocked}
+                    readOnly={fieldsLocked}
                     layout="tabs"
                     emphasizeRequired
                     showOtherDocuments
@@ -1033,7 +1081,7 @@ export function CaseFormationPage() {
           title={t('cases.steps.location')}
           subtitle={t('cases.locationCardSubtitle')}
           action={
-            formLocked ? undefined : (
+            fieldsLocked ? undefined : (
             <Button type="button" onClick={() => void completeLocation()}>
               <Check className="size-4" aria-hidden />
               {t('cases.saveLocation')}
@@ -1051,14 +1099,14 @@ export function CaseFormationPage() {
               )}
               locale={locale}
               onChange={(patch) => {
-                if (formLocked) return
+                if (fieldsLocked) return
                 if ('registrationPlaceId' in patch) registrationPlaceTouched.current = true
                 setLocation((current) => ({ ...current, ...patch }))
               }}
               onSubmit={() => {
-                if (!formLocked) void completeLocation()
+                if (!fieldsLocked) void completeLocation()
               }}
-              locked={formLocked}
+              locked={fieldsLocked}
             />
           </div>
         </FormCard>

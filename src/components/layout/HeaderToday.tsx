@@ -75,20 +75,27 @@ export function HeaderToday() {
   const jalali = formatJalaliDate(iso, locale)
   const hijri = formatHijriDate(iso, locale)
   const gregorian = formatGregorianDate(iso, locale)
-  const [expanded, setExpanded] = useState(false)
+  const [pinned, setPinned] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const expanded = pinned || hovered
   const rootRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     if (!expanded) return
 
+    function close() {
+      setPinned(false)
+      setHovered(false)
+    }
+
     function onPointerDown(event: MouseEvent) {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setExpanded(false)
+        close()
       }
     }
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setExpanded(false)
+      if (event.key === 'Escape') close()
     }
 
     document.addEventListener('mousedown', onPointerDown)
@@ -106,7 +113,15 @@ export function HeaderToday() {
       aria-expanded={expanded}
       {...(expanded ? { 'data-enter-ignore': '' } : {})}
       aria-label={t('nav.todayCalendars')}
-      onClick={() => setExpanded((value) => !value)}
+      onClick={() => setPinned((value) => !value)}
+      onPointerEnter={(event) => {
+        if (event.pointerType === 'mouse') setHovered(true)
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType !== 'mouse') return
+        setHovered(false)
+        setPinned(false)
+      }}
       className="flex cursor-pointer shrink-0 items-center gap-2 overflow-hidden rounded-2xl border border-line bg-white py-1.5 pe-2 ps-1.5 text-start shadow-sm transition hover:border-teal-300 hover:shadow-[0_6px_12px_rgba(46,189,182,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400/80 sm:gap-2.5 sm:py-2 sm:pe-3 sm:ps-2"
     >
       <time dateTime={iso} className="flex min-w-0 items-center gap-2 sm:gap-2.5">

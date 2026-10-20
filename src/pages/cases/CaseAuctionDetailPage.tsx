@@ -1,4 +1,4 @@
-import { BadgeCheck, CalendarDays, Gavel, Heading, Package, Percent } from 'lucide-react'
+import { BadgeCheck, CalendarDays, Check, Gavel, Heading, Package, Percent } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -48,7 +48,8 @@ function wizardStepIndex(value: string | null) {
 
 export function CaseAuctionDetailPage() {
   const { id = '', requestId = '' } = useParams()
-  const { placesViewer, managementReviewer, issuerViewer, canIssue, managementRoleIds } = useCaseCapabilities()
+  const { admin, placesViewer, managementReviewer, issuerViewer, canIssue, managementRoleIds } = useCaseCapabilities()
+  const [approvingIntake, setApprovingIntake] = useState(false)
   const visitor = placesViewer || managementReviewer || issuerViewer
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
@@ -110,12 +111,13 @@ export function CaseAuctionDetailPage() {
   const draftEditable = Boolean(
     item && item.status === 'OPEN' && item.approvals.every((row) => row.status === 'PENDING'),
   )
-  const showPrivilegedEdit = Boolean(!visitor && item?.editable && !draftEditable)
+  const showPrivilegedEdit = Boolean(!visitor && item?.editable && !draftEditable && !item.awaitingIntake)
+  const awaitingIntake = Boolean(item?.awaitingIntake)
 
   useEffect(() => {
-    if (visitor || !item?.editable || showPrivilegedEdit || step !== 0) return
+    if (visitor || !item?.editable || showPrivilegedEdit || item.awaitingIntake || step !== 0) return
     navigate(`/cases/${id}/auction/${requestId}/edit`, { replace: true })
-  }, [id, item?.editable, navigate, visitor, requestId, showPrivilegedEdit, step])
+  }, [id, item?.awaitingIntake, item?.editable, navigate, visitor, requestId, showPrivilegedEdit, step])
 
   useEffect(() => {
     if (!canIssue || reviews.isLoading) return
@@ -130,7 +132,7 @@ export function CaseAuctionDetailPage() {
   function openStep(index: number) {
     keepManagement.current = index === 1 && approvalsComplete
     if (index > reached) return
-    if (!visitor && index === 0 && item?.editable && !showPrivilegedEdit) {
+    if (!visitor && index === 0 && item?.editable && !showPrivilegedEdit && !item.awaitingIntake) {
       navigate(`/cases/${id}/auction/${requestId}/edit`)
       return
     }
@@ -142,6 +144,21 @@ export function CaseAuctionDetailPage() {
   function refreshAuction() {
     void queryClient.invalidateQueries({ queryKey: ['cases', 'auction', id, requestId] })
     void queryClient.invalidateQueries({ queryKey: ['cases', 'home', id] })
+  }
+
+  async function approveIntake() {
+    if (!admin || !id || approvingIntake) return
+    setApprovingIntake(true)
+    try {
+      await api.post('/cases/formation/approve-intake', { caseId: id, step: 1 })
+      toast.success(t('cases.intakeApproved'))
+      refreshAuction()
+      void queryClient.invalidateQueries({ queryKey: ['cases', 'formation-management-approvers', id, requestId] })
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, t('cases.saveFailed')))
+    } finally {
+      setApprovingIntake(false)
+    }
   }
 
   async function issue() {
@@ -235,6 +252,17 @@ export function CaseAuctionDetailPage() {
         backTo={backTo}
       />
       {item ? <AuctionWizardNav view={step} reached={reached} finished={finished} onStep={openStep} /> : null}
+      {awaitingIntake ? (
+        <section className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3">
+          <p className="min-w-0 flex-1 text-sm leading-7 text-ink-700">{t('cases.awaitingRequestIntakeHint')}</p>
+          {admin ? (
+            <Button type="button" onClick={() => void approveIntake()} disabled={approvingIntake}>
+              <Check className="size-4" aria-hidden />
+              {t('cases.auction.approveIntake')}
+            </Button>
+          ) : null}
+        </section>
+      ) : null}
       {query.isLoading ? <LoadingState /> : null}
       {item && step === 0 ? (
         <FormCard icon={Gavel} title={t('cases.auction.wizardSteps.request')}>

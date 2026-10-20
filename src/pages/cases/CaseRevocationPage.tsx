@@ -41,6 +41,7 @@ import { PersianDateField } from '../../components/ui/PersianDateField'
 import { DateText } from '../../components/ui/DateText'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { formatGroupedNumber, parseGroupedAmount, todayIsoDate } from '../../lib/datetime'
+import { letterActionClassName } from './InquiryLetterModal'
 import {
   downloadInquiryLetter,
   inquiryLetterFilename,
@@ -54,7 +55,7 @@ type RevocationState = {
   id: string
   amount: number
   revocationDate: string | null
-  status: 'ACTIVE' | 'SUSPENDED' | 'REVOKED'
+  status: 'ACTIVE' | 'SUSPENDED' | 'EXPIRED' | 'REVOKED'
   case: {
     id: string
     businessUnitTitle: string | null
@@ -221,19 +222,21 @@ export function CaseRevocationPage() {
                       <Button
                         type="button"
                         variant="primary"
+                        className={letterActionClassName}
                         disabled={letterBusy != null}
                         onClick={() => void useLetter(letter.id, 'print')}
                       >
-                        <Printer className="size-4" aria-hidden />
+                        <Printer className="size-3.5" aria-hidden />
                         {t('cases.revocationPrintLetter')}
                       </Button>
                       <Button
                         type="button"
                         variant="ghost"
+                        className={letterActionClassName}
                         disabled={letterBusy != null}
                         onClick={() => void useLetter(letter.id, 'download')}
                       >
-                        <Download className="size-4" aria-hidden />
+                        <Download className="size-3.5" aria-hidden />
                         {t('cases.revocationDownloadLetter')}
                       </Button>
                     </div>

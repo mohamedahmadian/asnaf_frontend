@@ -10,7 +10,8 @@ import { presentInquiryLetter, printInquiryLetter } from './inquiry-api'
 import { LetterIssueBar, useEditableLetter, useInquiryLetterMarkup, useLetterPaper } from './LetterIssueBar'
 import type { CaseInquiryLetter } from './inquiry-types'
 
-const printButtonClassName = 'min-w-40 px-8 disabled:opacity-60'
+export const letterActionClassName =
+  '!h-auto !min-h-0 !gap-1 !rounded-lg !px-2 !py-1 !text-[11px] !leading-4 [&_svg]:!size-3 disabled:opacity-60'
 
 export function InquiryLetterModal({
   inquiryId,
@@ -116,7 +117,7 @@ export function InquiryLetterModal({
         <div className="flex justify-center border-t border-teal-100 px-4 py-4">
           <Button
             type="button"
-            className={printButtonClassName}
+            className={letterActionClassName}
             disabled={!filled}
             onClick={() => {
               void issue.persist().then((saved) => {
@@ -124,7 +125,7 @@ export function InquiryLetterModal({
               })
             }}
           >
-            <Printer className="size-4" aria-hidden />
+            <Printer className="size-3" aria-hidden />
             {t('cases.inquiryPrint')}
           </Button>
         </div>

@@ -42,6 +42,8 @@ import {
 import { FormTabs } from "../../components/ui/FormTabs";
 import { CaseInquiryDossier } from "./CaseInquiryDossier";
 import { InquiryFiles } from "./CaseInquiriesStep";
+import { InquiryDecidedAtValue } from "./InquiryDateBadges";
+import { letterActionClassName } from "./InquiryLetterModal";
 import { LoadingState } from "../../components/ui/LoadingState";
 import { api, getApiErrorMessage } from "../../lib/api";
 import {
@@ -380,7 +382,13 @@ export function CaseInquiryDetailPage({
                   <FormFactTile
                     icon={CalendarCheck}
                     label={t("cases.inquiryDecidedAt")}
-                    value={<DateText value={item.decidedAt} withTime />}
+                    value={
+                      <InquiryDecidedAtValue
+                        from={item.referredAt || item.createdAt}
+                        at={item.decidedAt}
+                        locale={locale}
+                      />
+                    }
                   />
                   {item.decidedBy ? (
                     <FormFactTile
@@ -447,20 +455,20 @@ export function CaseInquiryDetailPage({
             <div className="flex flex-wrap justify-end gap-3">
               <Button
                 type="button"
-                className="min-w-40"
+                className={letterActionClassName}
                 disabled={letterBusy !== null}
                 onClick={() => void runLetter("print")}
               >
-                <Printer className="size-4" aria-hidden />
+                <Printer className="size-3.5" aria-hidden />
                 {t("cases.inquiryPrintLetter")}
               </Button>
               <Button
                 type="button"
-                className="min-w-40"
+                className={letterActionClassName}
                 disabled={letterBusy !== null}
                 onClick={() => void runLetter("download")}
               >
-                <Download className="size-4" aria-hidden />
+                <Download className="size-3.5" aria-hidden />
                 {t("cases.inquiryDownloadLetter")}
               </Button>
             </div>

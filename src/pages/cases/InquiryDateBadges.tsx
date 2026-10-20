@@ -34,3 +34,20 @@ export function InquiryElapsedBadge({
     </span>
   )
 }
+
+export function InquiryDecidedAtValue({
+  from,
+  at,
+  locale,
+}: {
+  from?: string | null
+  at?: string | null
+  locale: string
+}) {
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      {at ? <DateText value={at} withTime /> : null}
+      <InquiryElapsedBadge from={from} to={at} locale={locale} />
+    </span>
+  )
+}

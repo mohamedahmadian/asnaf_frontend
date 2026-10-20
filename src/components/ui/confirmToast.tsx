@@ -97,7 +97,7 @@ function ConfirmToastCard({
   return (
     <div
       data-confirm-toast=""
-      className="w-max max-w-full overflow-hidden rounded-[18px] border border-line bg-white shadow-[0_14px_36px_rgba(44,42,38,0.12)]"
+      className="w-max max-w-[calc(100vw-2rem)] overflow-hidden rounded-[18px] border border-line bg-white shadow-[0_14px_36px_rgba(44,42,38,0.12)]"
     >
       <div
         className={`h-1 ${
@@ -138,14 +138,14 @@ function ConfirmToastCard({
             {prompt.hint ? <p className="mt-1.5 text-xs text-ink-500">{prompt.hint}</p> : null}
           </div>
         ) : null}
-        <div className="mt-4 flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={() => toast.dismiss(id)}>
-            <X className="size-4" aria-hidden />
-            {cancelLabel}
-          </Button>
+        <div className="mt-4 flex w-full flex-row items-center justify-between gap-2" dir="ltr">
           <Button type="button" variant={confirmVariant} onClick={submit}>
-            <Check className="size-4" aria-hidden />
+            <Check className="size-3.5" aria-hidden />
             {confirmLabel}
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => toast.dismiss(id)}>
+            <X className="size-3.5" aria-hidden />
+            {cancelLabel}
           </Button>
         </div>
       </div>

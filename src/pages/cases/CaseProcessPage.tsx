@@ -81,6 +81,7 @@ type ProcessState = {
   status: 'OPEN' | 'ISSUED' | 'COMPLETED' | 'REJECTED' | 'CANCELLED'
   canEdit: boolean
   formationStep: number
+  intakeSubmittedAt?: string | null
   licenseNumber: string | null
   licenseIssuedAt: string | null
   trackingCode: string | null
@@ -150,6 +151,7 @@ export function CaseProcessPage() {
   const queryClient = useQueryClient()
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [approvingIntake, setApprovingIntake] = useState(false)
   const [location, setLocation] = useState<LocationForm | null>(null)
   const [currentLocationOpen, setCurrentLocationOpen] = useState(false)
   const [viewStep, setViewStep] = useState<number | null>(null)
@@ -274,11 +276,12 @@ export function CaseProcessPage() {
     if (index >= 0) setViewStep(index)
   }, [focusIssuance, issuerViewer, item])
   const reached = item?.formationStep ?? 0
+  const awaitingIntake = Boolean(item?.intakeSubmittedAt) && reached < 2 && openFlow
   const review = Boolean(item && !openFlow)
-  const progress = review ? 6 : hideDocuments && reached === 1 ? 2 : reached
+  const progress = review ? 6 : awaitingIntake ? (hideDocuments ? 0 : 1) : hideDocuments && reached === 1 ? 2 : reached
   const serverStep = Math.min(viewStep ?? (review ? 0 : reached), reached)
-  const step = hideDocuments && serverStep === 1 ? 2 : serverStep
-  const locked = closed || (step >= 5 ? !canIssue : !canForm)
+  const step = hideDocuments && serverStep === 1 && !awaitingIntake ? 2 : serverStep
+  const locked = closed || (awaitingIntake && !admin) || (step >= 5 ? !canIssue : !canForm)
   const documentsMissing = useMemo(() => {
     if (!requestId || requirements.isLoading || !stored.isSuccess) return false
     const uploaded = new Set((stored.data ?? []).filter((row) => row.current).map((row) => row.documentId))
@@ -437,7 +440,8 @@ export function CaseProcessPage() {
       (item?.type !== 'RENEWAL' && item?.type !== 'LOCATION_CHANGE') ||
       item.status !== 'OPEN' ||
       !hideDocuments ||
-      item.formationStep !== 1
+      item.formationStep !== 1 ||
+      Boolean(item.intakeSubmittedAt)
     )
       return
     let cancelled = false
@@ -457,7 +461,7 @@ export function CaseProcessPage() {
     return () => {
       cancelled = true
     }
-  }, [canForm, hideDocuments, id, item?.formationStep, item?.status, item?.type, queryClient, t])
+  }, [canForm, hideDocuments, id, item?.formationStep, item?.intakeSubmittedAt, item?.status, item?.type, queryClient, t])
 
   async function continueProcess() {
     if (!item || item.status !== 'OPEN') return
@@ -540,9 +544,26 @@ export function CaseProcessPage() {
         {t('common.save')}
       </Button>
     ) : null
+  async function approveIntake() {
+    if (!admin || !id || approvingIntake) return
+    setApprovingIntake(true)
+    try {
+      await api.post('/cases/formation/approve-intake', { caseId: id, step: 2 })
+      toast.success(t('cases.intakeApproved'))
+      setViewStep(null)
+      await process.refetch()
+      await queryClient.invalidateQueries({ queryKey: ['cases', 'formation-inquiries', id] })
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, t('cases.saveFailed')))
+    } finally {
+      setApprovingIntake(false)
+    }
+  }
+
   const mayContinue =
     openFlow &&
     wizard &&
+    !awaitingIntake &&
     ((canForm && step < 2) || (admin && step >= 2 && step < 5) || (canIssue && step >= 5))
   const wizardContinue = mayContinue ? (
     <Button
@@ -668,6 +689,17 @@ export function CaseProcessPage() {
             )
           })}
         </ol>
+      ) : null}
+      {awaitingIntake ? (
+        <section className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3">
+          <p className="min-w-0 flex-1 text-sm leading-7 text-ink-700">{t('cases.awaitingRequestIntakeHint')}</p>
+          {admin ? (
+            <Button type="button" onClick={() => void approveIntake()} disabled={approvingIntake}>
+              <Check className="size-4" aria-hidden />
+              {t('cases.approveIntake')}
+            </Button>
+          ) : null}
+        </section>
       ) : null}
       {locked ? (
         <FormEmptyHint>
@@ -931,10 +963,11 @@ export function CaseProcessPage() {
           loading={reviews.isLoading}
           locked={closed}
           ownRoleIds={managementRoleIds}
-          autoAdvance={false}
+          autoAdvance={admin && item.type === 'RENEWAL' && reached === 4 && step === 4 && openFlow}
           showAdvance={false}
           headerAction={wizard && mayContinue ? wizardContinue : undefined}
           onAdvanced={() => undefined}
+          onAutoAdvance={() => void continueProcess()}
           onRewound={() => {
             setViewStep(null)
             void process.refetch()

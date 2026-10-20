@@ -86,88 +86,124 @@ export function CityForm({
       subtitle={initial ? undefined : t('cities.createSubtitle')}
     >
     <AppForm onSubmit={submit} className={formCardBodyClassName}>
-      <FormField icon={Flag} label={t('geo.country')} htmlFor="countryId">
-        <SearchSelect
-          id="countryId"
-          value={countryId}
-          required
-          placeholder={t('geo.selectCountry')}
-          onChange={(next) => {
-            onCountryChange(next)
-            setProvinceId('')
-          }}
-          options={[
-            { value: '', label: t('geo.selectCountry') },
-            ...countries.map((country) => ({
-              value: country.id,
-              label: name(country),
-            })),
-          ]}
-        />
-      </FormField>
-      <FormField icon={MapPinned} label={t('geo.province')} htmlFor="provinceId">
-        <SearchSelect
-          id="provinceId"
-          value={provinceId}
-          required
-          disabled={!countryId}
-          placeholder={t('geo.selectProvince')}
-          onChange={setProvinceId}
-          options={[
-            { value: '', label: t('geo.selectProvince') },
-            ...provinces.map((province) => ({
-              value: province.id,
-              label: name(province),
-            })),
-          ]}
-        />
-      </FormField>
-      <FormField icon={Type} label={t('geo.nameFa')} htmlFor="nameFa">
-        <input
-          id="nameFa"
-          className={fieldClassName}
-          value={nameFa}
-          onChange={(e) => setNameFa(e.target.value)}
-          required
-          minLength={2}
-        />
-      </FormField>
-      <FormField icon={Languages} label={t('geo.nameEn')} htmlFor="nameEn">
-        <input
-          id="nameEn"
-          className={fieldClassName}
-          value={nameEn}
-          onChange={(e) => {
-            setNameEn(e.target.value)
-            if (!codeTouched) {
-              setCode(slugifyCode(e.target.value))
-            }
-          }}
-          required
-          minLength={2}
-        />
-      </FormField>
-      <FormField icon={MapPin} label={t('geo.code')} htmlFor="code">
-        <input
-          id="code"
-          className={fieldClassName}
-          value={code}
-          onChange={(e) => {
-            setCodeTouched(true)
-            setCode(e.target.value)
-          }}
-          required
-        />
-      </FormField>
-      <FormField icon={Navigation} label={t('geo.neshanAddress')} htmlFor="neshanAddress">
-        <input
-          id="neshanAddress"
-          className={fieldClassName}
-          value={neshanAddress}
-          onChange={(e) => setNeshanAddress(e.target.value)}
-        />
-      </FormField>
       <div className="grid gap-4 sm:grid-cols-2">
+        <FormField icon={Flag} label={t('geo.country')} htmlFor="countryId">
+          <SearchSelect
+            id="countryId"
+            value={countryId}
+            required
+            placeholder={t('geo.selectCountry')}
+            onChange={(next) => {
+              onCountryChange(next)
+              setProvinceId('')
+            }}
+            options={[
+              { value: '', label: t('geo.selectCountry') },
+              ...countries.map((country) => ({
+                value: country.id,
+                label: name(country),
+              })),
+            ]}
+          />
+        </FormField>
+        <FormField icon={MapPinned} label={t('geo.province')} htmlFor="provinceId">
+          <SearchSelect
+            id="provinceId"
+            value={provinceId}
+            required
+            disabled={!countryId}
+            placeholder={t('geo.selectProvince')}
+            onChange={setProvinceId}
+            options={[
+              { value: '', label: t('geo.selectProvince') },
+              ...provinces.map((province) => ({
+                value: province.id,
+                label: name(province),
+              })),
+            ]}
+          />
+        </FormField>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField icon={Type} label={t('geo.nameFa')} htmlFor="nameFa">
+          <input
+            id="nameFa"
+            className={fieldClassName}
+            value={nameFa}
+            onChange={(e) => setNameFa(e.target.value)}
+            required
+            minLength={2}
+          />
+        </FormField>
+        <FormField icon={Languages} label={t('geo.nameEn')} htmlFor="nameEn">
+          <input
+            id="nameEn"
+            className={fieldClassName}
+            value={nameEn}
+            onChange={(e) => {
+              setNameEn(e.target.value)
+              if (!codeTouched) {
+                setCode(slugifyCode(e.target.value))
+              }
+            }}
+            required
+            minLength={2}
+          />
+        </FormField>
+      </div>
+      <div className={`grid gap-4 sm:grid-cols-2 ${initial ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+        <FormField icon={MapPin} label={t('geo.code')} htmlFor="code">
+          <input
+            id="code"
+            className={fieldClassName}
+            value={code}
+            onChange={(e) => {
+              setCodeTouched(true)
+              setCode(e.target.value)
+            }}
+            required
+          />
+        </FormField>
+        <FormField icon={Hash} label={t('geo.sortOrder')} htmlFor="sortOrder">
+          <input
+            id="sortOrder"
+            type="number"
+            min={0}
+            className={fieldClassName}
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+          />
+        </FormField>
+        <FormField icon={Landmark} label={t('geo.isProvinceCapital')} htmlFor="isProvinceCapital">
+          <ToggleField
+            id="isProvinceCapital"
+            checked={isProvinceCapital}
+            onChange={setIsProvinceCapital}
+            onLabel={t('common.yes')}
+            offLabel={t('common.no')}
+          />
+        </FormField>
+        {initial ? (
+          <FormField icon={ToggleRight} label={t('geo.isActive')} htmlFor="isActive">
+            <ToggleField
+              id="isActive"
+              checked={isActive}
+              onChange={setIsActive}
+              onLabel={t('geo.active')}
+              offLabel={t('geo.inactive')}
+            />
+          </FormField>
+        ) : null}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <FormField icon={Navigation} label={t('geo.neshanAddress')} htmlFor="neshanAddress">
+          <input
+            id="neshanAddress"
+            className={fieldClassName}
+            value={neshanAddress}
+            onChange={(e) => setNeshanAddress(e.target.value)}
+          />
+        </FormField>
         <FormField icon={Compass} label={t('geo.latitude')} htmlFor="latitude">
           <input
             id="latitude"
@@ -189,36 +225,6 @@ export function CityForm({
           />
         </FormField>
       </div>
-      <FormField icon={Hash} label={t('geo.sortOrder')} htmlFor="sortOrder">
-        <input
-          id="sortOrder"
-          type="number"
-          min={0}
-          className={fieldClassName}
-          value={sortOrder}
-          onChange={(e) => setSortOrder(e.target.value)}
-        />
-      </FormField>
-      <FormField icon={Landmark} label={t('geo.isProvinceCapital')} htmlFor="isProvinceCapital">
-        <ToggleField
-          id="isProvinceCapital"
-          checked={isProvinceCapital}
-          onChange={setIsProvinceCapital}
-          onLabel={t('common.yes')}
-          offLabel={t('common.no')}
-        />
-      </FormField>
-      {initial ? (
-        <FormField icon={ToggleRight} label={t('geo.isActive')} htmlFor="isActive">
-          <ToggleField
-            id="isActive"
-            checked={isActive}
-            onChange={setIsActive}
-            onLabel={t('geo.active')}
-            offLabel={t('geo.inactive')}
-          />
-        </FormField>
-      ) : null}
       <FormActions
         submitLabel={t('cities.save')}
         cancelLabel={t('cities.cancel')}

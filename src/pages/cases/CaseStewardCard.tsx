@@ -1,12 +1,15 @@
 import {
   BadgeCheck,
+  Ban,
   Briefcase,
   Building2,
+  CalendarClock,
   CalendarDays,
   Eye,
   Fingerprint,
   FolderKanban,
   IdCard,
+  MessageSquareText,
   UserRound,
   type LucideIcon,
 } from 'lucide-react'
@@ -24,12 +27,15 @@ import { localizeDigits } from '../../lib/datetime'
 
 type CardState = {
   id: string
-  status: 'ACTIVE' | 'SUSPENDED' | 'REVOKED'
+  status: 'ACTIVE' | 'SUSPENDED' | 'EXPIRED' | 'REVOKED'
   cardNumber: string | null
   cardIssuedAt: string | null
   cardExpiresAt: string | null
   revokeReason: string | null
   revokeSource: 'HOST' | 'STEWARD' | 'LICENSE' | null
+  revokeRequestedAt: string | null
+  revokedAt: string | null
+  revokedBy: { firstName: string; lastName: string; fullName: string } | null
   person: { fullName: string; firstName: string; lastName: string; nationalId: string | null }
   host: {
     id: string
@@ -85,6 +91,7 @@ export function CaseStewardCard({ caseId }: { caseId: string }) {
       {item ? (
         <div className="space-y-4">
           <FormCard
+            className={item.status === 'REVOKED' ? '!border-2 !border-red-200' : undefined}
             icon={IdCard}
             title={holderName || t('cases.stewardship.cardTitle')}
             titleExtra={
@@ -156,11 +163,44 @@ export function CaseStewardCard({ caseId }: { caseId: string }) {
                 value={item.host?.jobTitle || '—'}
                 empty={!item.host?.jobTitle}
               />
-              {item.status === 'REVOKED' ? (
-                <FormFactTile icon={BadgeCheck} label={t('cases.stewardship.revoked')} value={item.revokeReason || '—'} />
-              ) : null}
             </div>
           </FormCard>
+          {item.status === 'REVOKED' ? (
+            <FormCard className="!border-2 !border-red-200" icon={Ban} title={t('cases.stewardship.revokeInfoTitle')}>
+              <div className="grid gap-2 p-5 sm:grid-cols-2 sm:gap-3 sm:p-6">
+                <FormFactTile
+                  icon={UserRound}
+                  label={t('cases.revokedBy')}
+                  value={
+                    item.revokedBy
+                      ? `${item.revokedBy.firstName} ${item.revokedBy.lastName}`.replace(/\s+/g, ' ').trim() ||
+                        item.revokedBy.fullName
+                      : '—'
+                  }
+                  tone="teal"
+                />
+                <FormFactTile
+                  icon={CalendarClock}
+                  label={t('cases.revokeRequestedAt')}
+                  value={item.revokeRequestedAt ? <DateText value={item.revokeRequestedAt} withTime /> : '—'}
+                />
+                <FormFactTile
+                  icon={CalendarDays}
+                  label={t('cases.revokedAt')}
+                  value={item.revokedAt ? <DateText value={item.revokedAt} /> : '—'}
+                  empty={!item.revokedAt}
+                  tone="mint"
+                />
+                <FormFactTile
+                  icon={MessageSquareText}
+                  label={t('cases.stewardship.requestText')}
+                  value={item.revokeReason || '—'}
+                  empty={!item.revokeReason}
+                  className="sm:col-span-2"
+                />
+              </div>
+            </FormCard>
+          ) : null}
         </div>
       ) : null}
     </div>

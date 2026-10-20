@@ -33,16 +33,17 @@ import { FormTabs } from "../../components/ui/FormTabs";
 import { LoadingState } from "../../components/ui/LoadingState";
 import { api, getApiErrorMessage } from "../../lib/api";
 import { formatNumber } from "../../lib/datetime";
-import { inquiryElapsedLabel } from "./inquiry-elapsed";
+import { InquiryDecidedAtValue } from "./InquiryDateBadges";
 import { PLACES_FORMATION_STEP } from "./formation-types";
 import {
   downloadInquiryLetter,
+  downloadInquiryLetters,
   inquiryLetterFilename,
   openInquiryFile,
   printInquiryLetters,
   submitInquiryDecision,
 } from "./inquiry-api";
-import { InquiryLetterModal } from "./InquiryLetterModal";
+import { InquiryLetterModal, letterActionClassName } from "./InquiryLetterModal";
 
 export { InquiryLetterModal };
 import type { CaseInquiryLetter, CaseInquiryRow } from "./inquiry-types";
@@ -134,6 +135,7 @@ export function CaseInquiriesStep({
   const { activeId, selectTab } = usePendingTab(items, loading);
   const [printId, setPrintId] = useState<string | null>(null);
   const [printingAll, setPrintingAll] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
   const autoAdvanceStarted = useRef(false);
 
   const advance = useMutation({
@@ -181,22 +183,48 @@ export function CaseInquiriesStep({
     });
   }
 
+  async function loadLetters() {
+    const letters: CaseInquiryLetter[] = [];
+    for (const item of items) {
+      letters.push(
+        (await api.get<CaseInquiryLetter>(`/cases/inquiries/${item.id}/letter`)).data,
+      );
+    }
+    return letters;
+  }
+
   async function printAll() {
-    if (printingAll || items.length === 0) return;
+    if (printingAll || downloadingAll || items.length === 0) return;
     setPrintingAll(true);
     try {
-      const letters: CaseInquiryLetter[] = [];
-      for (const item of items) {
-        letters.push(
-          (await api.get<CaseInquiryLetter>(`/cases/inquiries/${item.id}/letter`)).data,
-        );
-      }
-      await printInquiryLetters(letters, locale);
+      await printInquiryLetters(await loadLetters(), locale);
     } catch (error) {
       toast.error(getApiErrorMessage(error, t("cases.saveFailed")));
     } finally {
       setPrintingAll(false);
     }
+  }
+
+  async function downloadAll() {
+    if (printingAll || downloadingAll || items.length === 0) return;
+    setDownloadingAll(true);
+    try {
+      await downloadInquiryLetters(await loadLetters(), locale);
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, t("cases.saveFailed")));
+    } finally {
+      setDownloadingAll(false);
+    }
+  }
+
+  function askDownloadAll() {
+    if (printingAll || downloadingAll || items.length === 0) return;
+    confirmToast({
+      title: t("cases.inquiriesDownloadAllConfirm"),
+      confirmLabel: t("cases.inquiriesDownloadAll"),
+      cancelLabel: t("common.cancel"),
+      onConfirm: () => void downloadAll(),
+    });
   }
 
   const doneCount = items.filter((item) => item.status !== "PENDING").length;
@@ -260,15 +288,25 @@ export function CaseInquiriesStep({
             <div className="min-w-0 flex-1 overflow-x-auto [&_[role=tablist]]:border-b-0">
               <FormTabs tabs={tabs} value={activeId ?? ""} onChange={selectTab} />
             </div>
-            <div className="mb-2 pe-4 sm:pe-6">
+            <div className="mb-2 flex flex-wrap items-center gap-2 pe-4 sm:pe-6">
               <Button
                 type="button"
                 variant="ghost"
-                className="whitespace-nowrap"
-                disabled={loading || printingAll}
+                className={`whitespace-nowrap ${letterActionClassName}`}
+                disabled={loading || printingAll || downloadingAll}
+                onClick={askDownloadAll}
+              >
+                <Download className="size-3.5" aria-hidden />
+                {t("cases.inquiriesDownloadAll")}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className={`whitespace-nowrap ${letterActionClassName}`}
+                disabled={loading || printingAll || downloadingAll}
                 onClick={() => void printAll()}
               >
-                <Printer className="size-4" aria-hidden />
+                <Printer className="size-3.5" aria-hidden />
                 {t("cases.inquiriesPrintAll")}
               </Button>
             </div>
@@ -546,20 +584,20 @@ export function InquiryCard({
         <Button
           type="button"
           variant="ghost"
-          className="min-w-32 disabled:opacity-60"
+          className={letterActionClassName}
           disabled={downloading}
           onClick={() => void download()}
         >
-          <Download className="size-4" aria-hidden />
+          <Download className="size-3.5" aria-hidden />
           {t("cases.inquiryDownload")}
         </Button>
         <Button
           type="button"
           variant="ghost"
-          className="min-w-32"
+          className={letterActionClassName}
           onClick={onPrint}
         >
-          <Printer className="size-4" aria-hidden />
+          <Printer className="size-3.5" aria-hidden />
           {t("cases.inquiryPrint")}
         </Button>
       </div>
@@ -690,44 +728,14 @@ export function InquiryCard({
             </Button>
           </div>
         </div>
-      ) : item.status === "APPROVED" ? (
+      ) : (
         <ApprovedInquirySummary
           item={item}
-          locale={locale}
           saving={saving}
           filesPath={filesPath}
           onRemove={onRemove}
           onReopen={locked || !allowReopen ? undefined : askReopen}
         />
-      ) : (
-        <div className="space-y-2">
-          {item.note ? (
-            <p className="text-sm whitespace-pre-wrap text-ink-800">
-              {item.note}
-            </p>
-          ) : null}
-          {item.decidedBy ? (
-            <p className="text-xs text-ink-500">{item.decidedBy.fullName}</p>
-          ) : null}
-          <InquiryFiles
-            files={item.files}
-            filesPath={filesPath}
-            onRemove={onRemove}
-          />
-          {locked || !allowReopen ? null : (
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={saving}
-                onClick={askReopen}
-              >
-                <RotateCcw className="size-4" aria-hidden />
-                {t("cases.inquiryReopen")}
-              </Button>
-            </div>
-          )}
-        </div>
       )}
     </article>
   );
@@ -735,49 +743,22 @@ export function InquiryCard({
 
 function ApprovedInquirySummary({
   item,
-  locale,
   saving,
   filesPath,
   onRemove,
   onReopen,
 }: {
   item: CaseInquiryRow;
-  locale: string;
   saving: boolean;
   filesPath: string;
   onRemove?: (fileId: string) => Promise<void>;
   onReopen?: () => void;
 }) {
   const { t } = useTranslation();
-  const elapsed =
-    item.decidedAt != null
-      ? inquiryElapsedLabel(
-          item.referredAt || item.createdAt,
-          item.decidedAt,
-          t,
-          locale,
-        )
-      : null;
 
   return (
     <div className="space-y-3">
       <div className="grid gap-2 sm:grid-cols-2">
-        <FormFactTile
-          icon={CalendarCheck}
-          label={t("cases.inquiryDecidedAt")}
-          tone="mint"
-          value={
-            <span className="flex flex-wrap items-center gap-2">
-              <DateText value={item.decidedAt} withTime />
-              {elapsed ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800 ring-1 ring-emerald-200">
-                  <Clock className="size-3" aria-hidden />
-                  {elapsed}
-                </span>
-              ) : null}
-            </span>
-          }
-        />
         {item.decidedBy ? (
           <FormFactTile
             icon={UserRound}

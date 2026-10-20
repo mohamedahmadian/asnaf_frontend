@@ -90,44 +90,87 @@ export function ProvinceForm({
           }))}
         />
       </FormField>
-      <FormField icon={Type} label={t('geo.nameFa')} htmlFor="nameFa">
-        <input
-          id="nameFa"
-          className={fieldClassName}
-          value={nameFa}
-          onChange={(e) => setNameFa(e.target.value)}
-          required
-          minLength={2}
-        />
-      </FormField>
-      <FormField icon={Languages} label={t('geo.nameEn')} htmlFor="nameEn">
-        <input
-          id="nameEn"
-          className={fieldClassName}
-          value={nameEn}
-          onChange={(e) => setNameEn(e.target.value)}
-          required
-          minLength={2}
-        />
-      </FormField>
-      <FormField icon={MapPinned} label={t('geo.code')} htmlFor="code">
-        <input
-          id="code"
-          className={fieldClassName}
-          value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-          required
-        />
-      </FormField>
-      <FormField icon={Navigation} label={t('geo.neshanAddress')} htmlFor="neshanAddress">
-        <input
-          id="neshanAddress"
-          className={fieldClassName}
-          value={neshanAddress}
-          onChange={(e) => setNeshanAddress(e.target.value)}
-        />
-      </FormField>
       <div className="grid gap-4 sm:grid-cols-2">
+        <FormField icon={Type} label={t('geo.nameFa')} htmlFor="nameFa">
+          <input
+            id="nameFa"
+            className={fieldClassName}
+            value={nameFa}
+            onChange={(e) => setNameFa(e.target.value)}
+            required
+            minLength={2}
+          />
+        </FormField>
+        <FormField icon={Languages} label={t('geo.nameEn')} htmlFor="nameEn">
+          <input
+            id="nameEn"
+            className={fieldClassName}
+            value={nameEn}
+            onChange={(e) => setNameEn(e.target.value)}
+            required
+            minLength={2}
+          />
+        </FormField>
+      </div>
+      <div className={`grid gap-4 sm:grid-cols-2 ${initial ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
+        <FormField icon={MapPinned} label={t('geo.code')} htmlFor="code">
+          <input
+            id="code"
+            className={fieldClassName}
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            required
+          />
+        </FormField>
+        <FormField icon={Hash} label={t('geo.sortOrder')} htmlFor="sortOrder">
+          <input
+            id="sortOrder"
+            type="number"
+            min={0}
+            className={fieldClassName}
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+          />
+        </FormField>
+        <FormField icon={TrainFront} label={t('geo.hasRailway')} htmlFor="hasRailway">
+          <ToggleField
+            id="hasRailway"
+            checked={hasRailway}
+            onChange={setHasRailway}
+            onLabel={t('geo.has')}
+            offLabel={t('geo.hasNot')}
+          />
+        </FormField>
+        <FormField icon={Plane} label={t('geo.hasAirport')} htmlFor="hasAirport">
+          <ToggleField
+            id="hasAirport"
+            checked={hasAirport}
+            onChange={setHasAirport}
+            onLabel={t('geo.has')}
+            offLabel={t('geo.hasNot')}
+          />
+        </FormField>
+        {initial ? (
+          <FormField icon={ToggleRight} label={t('geo.isActive')} htmlFor="isActive">
+            <ToggleField
+              id="isActive"
+              checked={isActive}
+              onChange={setIsActive}
+              onLabel={t('geo.active')}
+              offLabel={t('geo.inactive')}
+            />
+          </FormField>
+        ) : null}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <FormField icon={Navigation} label={t('geo.neshanAddress')} htmlFor="neshanAddress">
+          <input
+            id="neshanAddress"
+            className={fieldClassName}
+            value={neshanAddress}
+            onChange={(e) => setNeshanAddress(e.target.value)}
+          />
+        </FormField>
         <FormField icon={Compass} label={t('geo.latitude')} htmlFor="latitude">
           <input
             id="latitude"
@@ -149,45 +192,6 @@ export function ProvinceForm({
           />
         </FormField>
       </div>
-      <FormField icon={Hash} label={t('geo.sortOrder')} htmlFor="sortOrder">
-        <input
-          id="sortOrder"
-          type="number"
-          min={0}
-          className={fieldClassName}
-          value={sortOrder}
-          onChange={(e) => setSortOrder(e.target.value)}
-        />
-      </FormField>
-      <FormField icon={TrainFront} label={t('geo.hasRailway')} htmlFor="hasRailway">
-        <ToggleField
-          id="hasRailway"
-          checked={hasRailway}
-          onChange={setHasRailway}
-          onLabel={t('geo.has')}
-          offLabel={t('geo.hasNot')}
-        />
-      </FormField>
-      <FormField icon={Plane} label={t('geo.hasAirport')} htmlFor="hasAirport">
-        <ToggleField
-          id="hasAirport"
-          checked={hasAirport}
-          onChange={setHasAirport}
-          onLabel={t('geo.has')}
-          offLabel={t('geo.hasNot')}
-        />
-      </FormField>
-      {initial ? (
-        <FormField icon={ToggleRight} label={t('geo.isActive')} htmlFor="isActive">
-          <ToggleField
-            id="isActive"
-            checked={isActive}
-            onChange={setIsActive}
-            onLabel={t('geo.active')}
-            offLabel={t('geo.inactive')}
-          />
-        </FormField>
-      ) : null}
       <FormActions
         submitLabel={t('provinces.save')}
         cancelLabel={t('provinces.cancel')}

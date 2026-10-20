@@ -11,12 +11,13 @@ import { CaseStewardRevokeDialog } from './CaseSuspensions'
 
 export type StewardRow = {
   id: string
-  status: 'ACTIVE' | 'SUSPENDED' | 'REVOKED'
+  status: 'ACTIVE' | 'SUSPENDED' | 'EXPIRED' | 'REVOKED'
   fullName: string
   nationalId: string | null
   requestNumber: string | null
   requestStatus: string | null
   cardNumber: string | null
+  requestCreatedAt: string | null
   cardIssuedAt: string | null
   cardExpiresAt: string | null
   revokeSource: 'HOST' | 'STEWARD' | 'LICENSE' | null
@@ -71,6 +72,7 @@ export function CaseStewardsSection({
                   <th className="px-4 py-3 text-start font-medium">{t('users.fullName')}</th>
                   <th className="px-4 py-3 text-start font-medium">{t('users.nationalId')}</th>
                   <th className="px-4 py-3 text-start font-medium">{t('cases.stewardship.cardNumber')}</th>
+                  <th className="px-4 py-3 text-start font-medium">{t('cases.stewardship.requestAt')}</th>
                   <th className="px-4 py-3 text-start font-medium">{t('cases.stewardship.cardIssuedOn')}</th>
                   <th className="px-4 py-3 text-start font-medium">{t('cases.stewardship.cardExpiresOn')}</th>
                   <th className="px-4 py-3 text-start font-medium">{t('cases.listStep')}</th>
@@ -111,6 +113,9 @@ export function CaseStewardsSection({
                           : row.requestNumber
                             ? localizeDigits(row.requestNumber, locale)
                             : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {row.requestCreatedAt ? <DateText value={row.requestCreatedAt} /> : '—'}
                       </td>
                       <td className="px-4 py-3">
                         {row.cardIssuedAt ? <DateText value={row.cardIssuedAt} /> : '—'}

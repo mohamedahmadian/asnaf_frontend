@@ -22,6 +22,7 @@ import {
   Mic,
   Paperclip,
   Phone,
+  Play,
   RefreshCw,
   RotateCcw,
   ShieldAlert,
@@ -32,6 +33,7 @@ import {
   Wallet,
   X,
   type LucideIcon,
+  type LucideProps,
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
@@ -60,7 +62,8 @@ import { violationsPath } from '../../lib/paths/violations'
 import type { Violation, ViolationAttachment } from '../../types/app'
 import { isAudioAttachment, openViolationFile } from '../violations/files'
 import { RegisterViolationModal } from '../violations/RegisterViolationModal'
-import { FORMATION_STEPS } from './formation-types'
+import { AUCTION_WIZARD_STEPS } from './auction'
+import { FORMATION_STEPS, STEWARDSHIP_STEPS } from './formation-types'
 import { useManagementReviewer } from './management-reviewer'
 import { usePlacesViewer } from './places-viewer'
 import {
@@ -86,11 +89,35 @@ type CaseRequestRow = {
   expiresAt: string | null
   auctionStartsAt: string | null
   auctionEndsAt: string | null
+  intakeSubmittedAt?: string | null
   placesStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | null
 }
 
 function requestDone(status: CaseRequestRow['status']) {
   return status === 'ISSUED' || status === 'COMPLETED'
+}
+
+const RENEWAL_STEPS = ['terms', 'documents', 'inquiries', 'places', 'management', 'issue'] as const
+const LOCATION_STEPS = ['location', 'documents', 'inquiries', 'places', 'management', 'request'] as const
+
+function requestCurrentStepLabel(
+  request: Pick<CaseRequestRow, 'type' | 'formationStep'>,
+  translate: (key: string) => string,
+) {
+  const step = Math.max(request.formationStep, 0)
+  if (request.type === 'ISSUANCE') {
+    return translate(`cases.steps.${FORMATION_STEPS[step] ?? FORMATION_STEPS[0]}`)
+  }
+  if (request.type === 'STEWARDSHIP') {
+    return translate(`cases.steps.${STEWARDSHIP_STEPS[step] ?? STEWARDSHIP_STEPS[0]}`)
+  }
+  if (request.type === 'RENEWAL') {
+    return translate(`cases.renewalSteps.${RENEWAL_STEPS[step] ?? RENEWAL_STEPS[0]}`)
+  }
+  if (request.type === 'LOCATION_CHANGE') {
+    return translate(`cases.locationSteps.${LOCATION_STEPS[step] ?? LOCATION_STEPS[0]}`)
+  }
+  return translate(`cases.auction.wizardSteps.${AUCTION_WIZARD_STEPS[step] ?? AUCTION_WIZARD_STEPS[0]}`)
 }
 
 type CaseHome = {
@@ -118,7 +145,7 @@ type CaseHome = {
   licenseIssuedAt: string | null
   licenseExpiresAt: string | null
   violationCount: number
-  status: 'ACTIVE' | 'SUSPENDED' | 'REVOKED'
+  status: 'ACTIVE' | 'SUSPENDED' | 'EXPIRED' | 'REVOKED'
   revokeReason: string | null
   revokedAt: string | null
   revokedBy: { id: string; fullName: string } | null
@@ -222,6 +249,26 @@ function suspensionDayCount(startsAt: string, endsAt: string) {
   const total = Math.max(1, Math.round((end - start) / 86_400_000) + 1)
   const elapsed = Math.min(total, Math.max(0, Math.round((today - start) / 86_400_000) + 1))
   return { total, ratio: elapsed / total }
+}
+
+function ExpiredNotice({ onRenew }: { onRenew?: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-900">
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600">
+          <CalendarClock className="size-4" aria-hidden />
+        </span>
+        <p className="min-w-0 leading-6">{t('cases.expiredNotice')}</p>
+      </div>
+      {onRenew ? (
+        <Button type="button" variant="soft" className="ms-auto shrink-0" onClick={onRenew}>
+          <RefreshCw className="size-4" aria-hidden />
+          {t('cases.requestTypes.RENEWAL')}
+        </Button>
+      ) : null}
+    </div>
+  )
 }
 
 function RevokedNotice({
@@ -529,9 +576,11 @@ export function CaseHomePage() {
             className={
               item.status === 'REVOKED'
                 ? '!border-2 !border-red-500'
-                : item.status === 'SUSPENDED'
-                  ? '!border-2 !border-amber-400'
-                  : undefined
+                : item.status === 'EXPIRED'
+                  ? '!border-2 !border-red-400'
+                  : item.status === 'SUSPENDED'
+                    ? '!border-2 !border-amber-400'
+                    : undefined
             }
             onClick={() => navigate(`/cases/${item.id}/dossier`)}
             icon={Briefcase}
@@ -566,12 +615,22 @@ export function CaseHomePage() {
               ) : undefined
             }
             chips={
-              item.job?.group || item.job || item.status === 'SUSPENDED' || item.status === 'REVOKED' ? (
+              item.job?.group ||
+              item.job ||
+              item.status === 'SUSPENDED' ||
+              item.status === 'EXPIRED' ||
+              item.status === 'REVOKED' ? (
                 <>
                   {item.status === 'REVOKED' ? (
                     <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-800 shadow-[0_4px_10px_rgba(220,38,38,0.08)] ring-1 ring-red-200">
                       <Ban className="size-3.5 shrink-0" aria-hidden />
                       {t('cases.revoked')}
+                    </span>
+                  ) : null}
+                  {item.status === 'EXPIRED' ? (
+                    <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 shadow-[0_4px_10px_rgba(220,38,38,0.08)] ring-1 ring-red-200">
+                      <CalendarClock className="size-3.5 shrink-0" aria-hidden />
+                      {t('cases.caseStatuses.EXPIRED')}
                     </span>
                   ) : null}
                   {item.status === 'SUSPENDED' ? (
@@ -615,6 +674,7 @@ export function CaseHomePage() {
                     issuedAt={item.licenseIssuedAt}
                     expiresAt={item.licenseExpiresAt}
                     label={t('cases.daysRemaining')}
+                    overdueLabel={t('cases.daysOverdue')}
                     locale={locale}
                   />
                 )}
@@ -628,6 +688,9 @@ export function CaseHomePage() {
                   suspension={item.suspensions.find((row) => row.active) ?? null}
                   onLift={visitor ? undefined : () => setLiftOpen(true)}
                 />
+              ) : null}
+              {item.status === 'EXPIRED' ? (
+                <ExpiredNotice onRenew={visitor ? undefined : () => void startRequest('RENEWAL')} />
               ) : null}
               {item.status === 'REVOKED' ? (
                 <RevokedNotice
@@ -653,6 +716,13 @@ export function CaseHomePage() {
                     label={t('cases.licenseExpires')}
                     value={item.licenseExpiresAt ? <DateText value={item.licenseExpiresAt} /> : '—'}
                     empty={!item.licenseExpiresAt}
+                    tone={
+                      item.status === 'EXPIRED' ||
+                      (licenseSpan(item.licenseIssuedAt, item.licenseExpiresAt)?.remaining ?? 1) === 0 ||
+                      (licenseSpan(item.licenseIssuedAt, item.licenseExpiresAt)?.overdue ?? 0) > 0
+                        ? 'red'
+                        : 'teal'
+                    }
                     className={item.licenseNumber && item.status !== 'REVOKED' ? 'pe-24' : ''}
                   />
                   {item.licenseNumber && item.status !== 'REVOKED' && !visitor ? (
@@ -783,6 +853,19 @@ export function CaseHomePage() {
                         toast.error(t('cases.revokedNoRequest'))
                         return
                       }
+                      if (
+                        item.status === 'EXPIRED' &&
+                        (key === 'changeLocation' ||
+                          key === 'issueAuction' ||
+                          key === 'renewWithLocation')
+                      ) {
+                        toast.error(t('cases.expiredOnlyRenewal'))
+                        return
+                      }
+                      if (item.status === 'EXPIRED' && key === 'issueStewardship') {
+                        toast.error(t('cases.expiredNoSteward'))
+                        return
+                      }
                       if (key === 'suspend') {
                         if (item.status === 'REVOKED') {
                           toast.error(t('cases.revokeAlready'))
@@ -886,11 +969,21 @@ export function CaseHomePage() {
                     <tbody>
                       {item.requests.map((request) => {
                         const issued = requestDone(request.status)
-                        const stepKey = FORMATION_STEPS[request.formationStep] ?? FORMATION_STEPS[0]
-                        const status =
-                          request.status === 'OPEN' && request.type === 'ISSUANCE'
-                            ? t(`cases.steps.${stepKey}`)
-                            : t(`cases.requestStatus.${request.status}`)
+                        const inProgress = request.status === 'OPEN'
+                        const awaitingIntake =
+                          inProgress &&
+                          Boolean(request.intakeSubmittedAt) &&
+                          (request.type === 'ISSUANCE'
+                            ? request.formationStep < 3
+                            : request.type === 'AUCTION'
+                              ? request.formationStep < 1
+                              : request.formationStep < 2)
+                        const status = t(`cases.requestStatus.${request.status}`)
+                        const stepLabel = inProgress
+                          ? awaitingIntake
+                            ? t('cases.awaitingIntakeReview')
+                            : requestCurrentStepLabel(request, t)
+                          : null
                         const stewardshipDone = request.type === 'STEWARDSHIP' && request.status !== 'OPEN' && Boolean(item.cardNumber)
                         const requestTo = placesPath(
                           stewardshipDone
@@ -927,7 +1020,10 @@ export function CaseHomePage() {
                               <RequestDateCell request={request} part="end" />
                             </td>
                             <td className="px-4 py-3">
-                              <RequestBadge tone={issued ? 'mint' : 'teal'}>{status}</RequestBadge>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <RequestBadge tone={issued ? 'mint' : 'teal'}>{status}</RequestBadge>
+                                {stepLabel ? <RequestBadge tone="mint">{stepLabel}</RequestBadge> : null}
+                              </div>
                             </td>
                             <td className={actionsColClassName}>
                               {request.type === 'AUCTION' ? (
@@ -937,11 +1033,15 @@ export function CaseHomePage() {
                                       ? `/cases/${item.id}/auction/${request.id}?step=management`
                                       : `/cases/${item.id}/auction/${request.id}`
                                   }
-                                  viewLabel={visitor || request.status !== 'OPEN' ? t('cases.viewRequest') : t('cases.continueRequest')}
-                                  viewClassName={requestActionClassName}
-                                  viewIcon={Eye}
-                                  editTo={visitor || request.status !== 'OPEN' ? undefined : `/cases/${item.id}/auction/${request.id}/edit`}
-                                  rowOpensView={request.status !== 'OPEN'}
+                                  viewLabel={visitor || !inProgress ? t('cases.viewRequest') : t('cases.continueRequest')}
+                                  viewClassName={requestViewClassName(!visitor && inProgress)}
+                                  viewIcon={visitor || !inProgress ? Eye : ContinuePlayIcon}
+                                  editTo={
+                                    visitor || !inProgress || awaitingIntake
+                                      ? undefined
+                                      : `/cases/${item.id}/auction/${request.id}/edit`
+                                  }
+                                  rowOpensView={!inProgress || awaitingIntake}
                                   onDelete={
                                     canDeleteRequest(request.status)
                                       ? () => askDeleteRequest(request.id, request.number)
@@ -954,15 +1054,14 @@ export function CaseHomePage() {
                                   viewLabel={
                                     stewardshipDone
                                       ? t('cases.stewardship.viewCard')
-                                      : visitor ||
-                                          issued ||
-                                          ((request.type === 'RENEWAL' || request.type === 'LOCATION_CHANGE') &&
-                                            request.status !== 'OPEN')
+                                      : visitor || !inProgress
                                         ? t('cases.viewRequest')
                                         : t('cases.continueRequest')
                                   }
-                                  viewClassName={requestActionClassName}
-                                  viewIcon={stewardshipDone ? IdCard : Eye}
+                                  viewClassName={requestViewClassName(!visitor && inProgress && !stewardshipDone)}
+                                  viewIcon={
+                                    stewardshipDone ? IdCard : visitor || !inProgress ? Eye : ContinuePlayIcon
+                                  }
                                   rowOpensView
                                   rowTo={stewardshipDone ? `/cases/${item.id}/stewardship` : undefined}
                                   extra={
@@ -1297,6 +1396,16 @@ function CaseMetaBadge({ icon: Icon, label, value }: { icon: LucideIcon; label: 
 const END_DATE_URGENT_DAYS = 30
 
 const requestActionClassName = '!h-8 !gap-1 !rounded-xl !px-2.5 !py-1 !text-xs [&_svg]:size-3.5'
+const continueRequestClassName =
+  `${requestActionClassName} case-continue-request-blink !border-emerald-500 !bg-emerald-600 !text-white hover:!bg-emerald-700`
+
+function ContinuePlayIcon({ className, ...props }: LucideProps) {
+  return <Play className={`-scale-x-100 ${className ?? ''}`} {...props} />
+}
+
+function requestViewClassName(inProgress: boolean) {
+  return inProgress ? continueRequestClassName : requestActionClassName
+}
 
 function activityDays(item: CaseHome) {
   const issued = item.requests
@@ -1329,11 +1438,13 @@ function licenseSpan(issuedAt: string | null, expiresAt: string | null) {
   const end = isoUtcDay(expiresAt)
   const today = isoUtcDay(todayIso())
   if (end == null || today == null) return null
-  const remaining = Math.max(0, Math.round((end - today) / 86_400_000))
+  const diff = Math.round((end - today) / 86_400_000)
+  const remaining = Math.max(0, diff)
+  const overdue = Math.max(0, -diff)
   const start = issuedAt ? isoUtcDay(issuedAt) : null
   const total = start == null ? null : Math.round((end - start) / 86_400_000)
   const ratio = total == null || total <= 0 ? (remaining > 0 ? 1 : 0) : Math.min(1, remaining / total)
-  return { remaining, ratio }
+  return { remaining, overdue, ratio }
 }
 
 function ViolationCountBadge({
@@ -1718,11 +1829,13 @@ function RemainingDaysBadge({
   issuedAt,
   expiresAt,
   label,
+  overdueLabel,
   locale,
 }: {
   issuedAt: string | null
   expiresAt: string | null
   label: string
+  overdueLabel: string
   locale: string
 }) {
   const span = licenseSpan(issuedAt, expiresAt)
@@ -1732,16 +1845,32 @@ function RemainingDaysBadge({
   const circ = 2 * Math.PI * radius
   const ratio = span?.ratio ?? 0
   const dash = circ * ratio
-  const daysLabel = span ? formatNumber(span.remaining, locale) : '—'
+  const overdue = (span?.overdue ?? 0) > 0
+  const lastDay = span?.remaining === 0 && !overdue
+  const daysLabel = span ? formatNumber(overdue ? span.overdue : span.remaining, locale) : '—'
+  const caption = overdue ? overdueLabel : label
   return (
     <div
-      className="flex items-center gap-2 rounded-2xl bg-white/80 px-2.5 py-1.5 ring-1 ring-mint-100"
+      className={`flex items-center gap-2 rounded-2xl px-2.5 py-1.5 ${
+        overdue
+          ? 'bg-red-50 ring-1 ring-red-200'
+          : lastDay
+            ? 'case-days-expired-blink border-2 border-red-500 bg-white/80'
+            : 'bg-white/80 ring-1 ring-mint-100'
+      }`}
       role="img"
-      aria-label={span ? `${label}: ${daysLabel}` : label}
+      aria-label={span ? `${caption}: ${daysLabel}` : caption}
     >
       <div className="relative size-[3.25rem] shrink-0">
         <svg viewBox={`0 0 ${size} ${size}`} className="size-[3.25rem] -rotate-90" aria-hidden>
-          <circle cx={size / 2} cy={size / 2} r={radius} fill="none" className="stroke-mint-100" strokeWidth={stroke} />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            className={overdue ? 'stroke-red-200' : 'stroke-mint-100'}
+            strokeWidth={stroke}
+          />
           {dash > 0 ? (
             <circle
               cx={size / 2}
@@ -1755,11 +1884,16 @@ function RemainingDaysBadge({
             />
           ) : null}
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold leading-none text-ink-900" aria-hidden>
+        <span
+          className={`absolute inset-0 flex items-center justify-center text-xs font-semibold leading-none ${
+            overdue ? 'text-red-600' : 'text-ink-900'
+          }`}
+          aria-hidden
+        >
           {daysLabel}
         </span>
       </div>
-      <p className="max-w-20 text-[11px] font-medium leading-4 text-ink-500">{label}</p>
+      <p className={`max-w-20 text-[11px] font-medium leading-4 ${overdue ? 'text-red-500' : 'text-ink-500'}`}>{caption}</p>
     </div>
   )
 }

@@ -10,15 +10,24 @@ import { AppLogo } from '../brand/AppLogo'
 const CASE_SHORTCUTS = [
   {
     code: 'cases.management',
+    moduleCode: 'cases',
     path: '/cases',
     icon: 'files',
     nameKey: 'menus.caseManagement',
   },
   {
     code: 'cases.formation',
+    moduleCode: 'cases',
     path: '/cases/formation',
     icon: 'file-plus',
     nameKey: 'menus.caseFormation',
+  },
+  {
+    code: 'finance.payments',
+    moduleCode: 'finance',
+    path: '/finance/payments',
+    icon: 'banknote',
+    nameKey: 'menus.payments',
   },
 ] as const
 
@@ -30,7 +39,7 @@ export function CaseQuickMenu() {
   const ref = useRef<HTMLDivElement>(null)
 
   const items = useMemo(
-    () => CASE_SHORTCUTS.filter((item) => hasMenuAccess(user, item.code, 'cases')),
+    () => CASE_SHORTCUTS.filter((item) => hasMenuAccess(user, item.code, item.moduleCode)),
     [user],
   )
   const paths = useMemo(() => items.map((item) => item.path), [items])

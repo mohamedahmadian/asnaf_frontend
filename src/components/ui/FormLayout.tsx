@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { peekDetailEditTo } from '../../hooks/useDetailEditTo'
 import { CopyableDigits, useCopyDigits } from './CopyableDigits'
@@ -7,7 +7,7 @@ import { CopyableDigits, useCopyDigits } from './CopyableDigits'
 export const cardClassName =
   'rounded-[22px] border border-white bg-white shadow-[0_10px_30px_rgba(20,40,40,0.05)]'
 
-export type FormTone = 'teal' | 'mint' | 'ink'
+export type FormTone = 'teal' | 'mint' | 'ink' | 'red'
 
 export const formToneClass: Record<FormTone, { wrap: string; icon: string; factIcon: string }> = {
   teal: {
@@ -24,6 +24,11 @@ export const formToneClass: Record<FormTone, { wrap: string; icon: string; factI
     wrap: 'border-line bg-gradient-to-b from-cream-50 to-white',
     icon: 'bg-ink-700 text-white',
     factIcon: 'bg-cream-100 text-ink-500',
+  },
+  red: {
+    wrap: 'border-red-300 bg-gradient-to-b from-red-50 to-white',
+    icon: 'bg-red-500 text-white shadow-[0_8px_16px_rgba(239,68,68,0.24)]',
+    factIcon: 'bg-red-100 text-red-600',
   },
 }
 
@@ -45,6 +50,7 @@ function isFormCardInteractiveTarget(target: EventTarget | null) {
  */
 export function FormCard({
   icon,
+  iconImageUrl,
   title,
   titleExtra,
   subtitle,
@@ -58,6 +64,8 @@ export function FormCard({
   onClick,
 }: {
   icon: LucideIcon
+  /** تصویر (مثلاً عکس پرسنلی) به‌جای آیکون در کاشی هدر؛ اگر لود نشود همان آیکون می‌ماند */
+  iconImageUrl?: string | null
   title: ReactNode
   titleExtra?: ReactNode
   subtitle?: ReactNode
@@ -104,6 +112,7 @@ export function FormCard({
     >
       <FormCardHeader
         icon={icon}
+        iconImageUrl={iconImageUrl}
         title={title}
         titleExtra={titleExtra}
         subtitle={subtitle}
@@ -134,6 +143,7 @@ export function FormCardHeaderDecor() {
 
 export function FormCardHeader({
   icon: Icon,
+  iconImageUrl,
   title,
   titleExtra,
   subtitle,
@@ -144,6 +154,7 @@ export function FormCardHeader({
   className = '',
 }: {
   icon: LucideIcon
+  iconImageUrl?: string | null
   title: ReactNode
   titleExtra?: ReactNode
   subtitle?: ReactNode
@@ -154,6 +165,8 @@ export function FormCardHeader({
   className?: string
 }) {
   const Heading = heading
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null)
+  const imageUrl = iconImageUrl && iconImageUrl !== failedImageUrl ? iconImageUrl : null
   const titleClass =
     heading === 'h1'
       ? 'text-xl font-semibold leading-snug text-ink-900 sm:text-2xl'
@@ -166,8 +179,18 @@ export function FormCardHeader({
       <div className="relative flex flex-wrap items-center justify-between gap-3 sm:flex-nowrap">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {leading}
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-teal-500 text-white shadow-[0_10px_22px_rgba(46,189,182,0.32)]">
-            <Icon className="size-6" aria-hidden />
+          <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-teal-500 text-white shadow-[0_10px_22px_rgba(46,189,182,0.32)]">
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt=""
+                draggable={false}
+                className="size-full object-cover"
+                onError={() => setFailedImageUrl(imageUrl)}
+              />
+            ) : (
+              <Icon className="size-6" aria-hidden />
+            )}
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

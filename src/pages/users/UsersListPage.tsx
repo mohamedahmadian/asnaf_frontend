@@ -15,6 +15,7 @@ import {
 import { OpenUserPanelButton } from '../../components/auth/OpenUserPanelButton'
 import { SendUserSmsModal } from '../../components/sms/SendUserSmsModal'
 import { Button, PageHeader, listShellClassName } from '../../components/ui/Form'
+import { PersonAvatar } from '../../components/ui/PersonAvatar'
 import { SearchSelect } from '../../components/ui/SearchSelect'
 import { useConfirmDelete } from '../../hooks/useConfirmDelete'
 import { useListParams } from '../../hooks/useListParams'
@@ -150,10 +151,15 @@ export function UsersListPage() {
             {rows.map((item) => (
               <tr key={item.id} className="border-t border-line">
                 <td className="px-4 py-3">
-                  <div>{item.fullName}</div>
-                  {item.personType === personTypes.LEGAL && item.companyName ? (
-                    <div className="text-xs text-ink-500">{item.companyName}</div>
-                  ) : null}
+                  <div className="flex items-center gap-3">
+                    <PersonAvatar photoId={item.photoId} />
+                    <div className="min-w-0">
+                      <div>{item.fullName}</div>
+                      {item.personType === personTypes.LEGAL && item.companyName ? (
+                        <div className="text-xs text-ink-500">{item.companyName}</div>
+                      ) : null}
+                    </div>
+                  </div>
                 </td>
                 <td className="px-4 py-3">{t(`personTypes.${item.personType ?? personTypes.NATURAL}`)}</td>
                 <td className="px-4 py-3">{item.username}</td>
@@ -174,7 +180,7 @@ export function UsersListPage() {
                     editTo={`/users/${item.id}/edit`}
                     extra={
                       <>
-                        <OpenUserPanelButton userId={item.id} status={item.status} />
+                        <OpenUserPanelButton userId={item.id} status={item.status} roles={item.roles} />
                         <Button type="button" variant="soft" onClick={() => setSmsUser(item)}>
                           <Send className="size-4" aria-hidden />
                           {t('sms.send')}

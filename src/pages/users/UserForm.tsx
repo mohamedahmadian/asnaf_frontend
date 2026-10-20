@@ -121,6 +121,7 @@ export type UserPayload = {
   nationalId: string | null
   phone: string | null
   email: string | null
+  birthDate: string | null
   address: string | null
   notes: string | null
   religion: Religion | null
@@ -180,6 +181,7 @@ export function UserForm({
   const [nationalId, setNationalId] = useState(initial?.nationalId ?? '')
   const [phone, setPhone] = useState(initial?.phone ?? '')
   const [email, setEmail] = useState(initial?.email ?? '')
+  const [birthDate, setBirthDate] = useState(initial?.birthDate ?? '')
   const [address, setAddress] = useState(initial?.address ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
   const [religion, setReligion] = useState(initial?.religion ?? '')
@@ -592,6 +594,7 @@ export function UserForm({
         nationalId: emptyToNull(normalizeNationalId(nationalId)),
         phone: emptyToNull(phoneDigits),
         email: emptyToNull(emailValue),
+        birthDate: emptyToNull(birthDate),
         address: emptyToNull(address),
         notes: emptyToNull(notes),
         religion: religion ? (religion as Religion) : null,
@@ -643,21 +646,12 @@ export function UserForm({
   return (
     <FormCard
       icon={UserRound}
+      iconImageUrl={initial?.photoId ? getImageUrl(initial.photoId) : null}
       title={isEdit ? displayName || t('users.edit') : t('users.create')}
       subtitle={isEdit ? undefined : t('users.createSubtitle')}
       action={
         isEdit && !selfProfile && initial ? (
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button type="button" variant="soft" onClick={() => setPasswordOpen(true)}>
-              <KeyRound className="size-4" aria-hidden />
-              {t('auth.changePassword')}
-            </Button>
-            <Button type="button" variant="soft" onClick={() => setSmsOpen(true)}>
-              <Send className="size-4" aria-hidden />
-              {t('sms.send')}
-            </Button>
-            <OpenUserPanelButton userId={initial.id} status={initial.status} />
-          </div>
+          <OpenUserPanelButton userId={initial.id} status={initial.status} roles={initial.roles} />
         ) : undefined
       }
     >
@@ -1049,6 +1043,13 @@ export function UserForm({
 
           <div className={`space-y-4 ${tab === 'location' ? '' : 'hidden'}`}>
             <div className="grid gap-4 sm:grid-cols-2">
+              <FormField icon={CalendarDays} label={t('users.birthDate')} htmlFor="birthDate">
+                <PersianDateField
+                  id="birthDate"
+                  value={birthDate || undefined}
+                  onChange={(next) => setBirthDate(next ?? '')}
+                />
+              </FormField>
               <FormField icon={Flag} label={t('geo.country')} htmlFor="countryId">
                 <SearchSelect
                   id="countryId"

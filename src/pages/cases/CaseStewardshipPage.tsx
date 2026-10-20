@@ -42,7 +42,7 @@ function focusIdentityField(id: string) {
 
 type StewardState = {
   id: string
-  status: 'ACTIVE' | 'SUSPENDED' | 'REVOKED'
+  status: 'ACTIVE' | 'SUSPENDED' | 'EXPIRED' | 'REVOKED'
   formationStep: number
   cardNumber: string | null
   cardIssuedAt: string | null
@@ -730,12 +730,13 @@ function HeaderBadge({ icon: Icon, children }: { icon: LucideIcon; children: Rea
 function HostBar({ host }: { host: NonNullable<StewardState['host']> }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const lastName = host.lastName.trim()
+  const fullName =
+    [host.firstName, host.lastName].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim() || host.fullName.trim()
   const unitTitle = host.businessUnitTitle?.trim() ?? ''
   return (
     <div className="mb-4 flex flex-wrap items-center gap-3">
       <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-3">
-        <FormFactTile icon={UserRound} label={t('users.lastName')} value={lastName || '—'} empty={!lastName} tone="teal" />
+        <FormFactTile icon={UserRound} label={t('users.fullName')} value={fullName || '—'} empty={!fullName} tone="teal" />
         <FormFactTile
           icon={Building2}
           label={t('cases.unitTitle')}

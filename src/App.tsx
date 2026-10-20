@@ -151,6 +151,10 @@ import { UserEditPage } from './pages/users/UserEditPage'
 import { UserLocationHistoryPage } from './pages/users/UserLocationHistoryPage'
 import { UserLocationPage } from './pages/users/UserLocationPage'
 import { UsersListPage } from './pages/users/UsersListPage'
+import { CaseExpiryEditPage } from './pages/case-expiry/CaseExpiryEditPage'
+import { CaseExpiryListPage } from './pages/case-expiry/CaseExpiryListPage'
+import { ScheduleDetailPage } from './pages/schedules/ScheduleDetailPage'
+import { SchedulesListPage } from './pages/schedules/SchedulesListPage'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 
 const queryClient = new QueryClient()
@@ -180,7 +184,7 @@ function AppToaster() {
       offset={22}
       icons={toastIcons}
       toastOptions={{ closeButtonAriaLabel: t('common.close') }}
-      style={{ ['--width' as string]: 'min(24rem, calc(100vw - 2rem))' }}
+      style={{ ['--width' as string]: 'max-content' }}
     />
   )
 }
@@ -351,6 +355,10 @@ export default function App() {
                   <Route path="/base-info/roles/new" element={<RoleCreatePage />} />
                   <Route path="/base-info/roles/:id" element={<RoleDetailPage />} />
                   <Route path="/base-info/roles/:id/edit" element={<RoleEditPage />} />
+                  <Route path="/management/case-expiry" element={<CaseExpiryListPage />} />
+                  <Route path="/management/case-expiry/:id/edit" element={<CaseExpiryEditPage />} />
+                  <Route path="/management/schedules" element={<SchedulesListPage />} />
+                  <Route path="/management/schedules/:code" element={<ScheduleDetailPage />} />
                 </Route>
               </Route>
               <Route path="*" element={<Navigate to="/login" replace />} />

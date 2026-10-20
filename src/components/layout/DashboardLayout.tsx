@@ -34,7 +34,6 @@ import { APP_NAV } from "../../lib/nav";
 import { isSidebarMenuActive } from "../../lib/nav-path";
 import { filterNavByAccess, sidebarPathnameForUser } from "../../lib/roles";
 import type { NavMenu, NavModule } from "../../types/app";
-import { AppLogo } from "../brand/AppLogo";
 import { FormCardHeaderDecor } from "../ui/FormLayout";
 import { PageTransition } from "../ui/PageTransition";
 import { CaseQuickMenu } from "./CaseQuickMenu";
@@ -388,35 +387,25 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
 
               <div className="relative overflow-hidden border-b border-teal-100/80 bg-gradient-to-e from-mint-50 via-white to-teal-50 px-5 py-6">
                 <FormCardHeaderDecor />
-                <div className="relative flex items-center gap-2">
-                  <div className="flex min-w-0 flex-1 items-center gap-3.5">
-                    <NavLink
-                      to="/dashboard"
-                      onClick={() => setMobileOpen(false)}
-                      className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-white shadow-[0_10px_22px_rgba(46,189,182,0.2)] ring-1 ring-teal-100"
-                    >
-                      <AppLogo
-                        decorative
-                        className="h-12 w-auto max-w-12 shrink-0 object-contain"
-                      />
-                    </NavLink>
-                    <NavLink
-                      to="/dashboard"
-                      onClick={() => setMobileOpen(false)}
-                      aria-label={t("nav.panel")}
-                      className="flex min-w-0 flex-1 items-center"
-                    >
-                      <img
-                        src="/head3.png"
-                        alt=""
-                        draggable={false}
-                        className="h-32 w-auto max-w-full object-contain"
-                      />
-                    </NavLink>
-                  </div>
+                <div className="relative flex items-center justify-center">
+                  <NavLink
+                    to="/dashboard"
+                    onClick={() => setMobileOpen(false)}
+                    aria-label={t("nav.panel")}
+                    className="flex min-w-0 items-center justify-center"
+                  >
+                    <img
+                      src="/head3.png"
+                      alt=""
+                      draggable={false}
+                      className="h-32 w-auto max-w-full object-contain"
+                    />
+                  </NavLink>
+                </div>
+                <div className="absolute bottom-2 end-3 flex items-center">
                   <button
                     type="button"
-                    className="shrink-0 cursor-pointer rounded-lg p-2 text-ink-500 lg:hidden"
+                    className="shrink-0 cursor-pointer rounded-lg p-1.5 text-ink-500 transition hover:bg-teal-50 lg:hidden"
                     onClick={() => setMobileOpen(false)}
                     aria-label={t("nav.closeMenu")}
                   >
@@ -424,7 +413,7 @@ export function DashboardLayout({ children }: { children?: ReactNode }) {
                   </button>
                   <button
                     type="button"
-                    className="hidden shrink-0 cursor-pointer rounded-lg p-2 text-teal-700 transition hover:bg-teal-50 lg:inline-flex"
+                    className="hidden shrink-0 cursor-pointer rounded-lg p-1.5 text-teal-700 transition hover:bg-teal-50 lg:inline-flex"
                     onClick={() => setDesktopSidebarOpen(false)}
                     aria-expanded={true}
                     aria-label={t("nav.closeMenu")}
