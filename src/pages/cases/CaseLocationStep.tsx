@@ -22,7 +22,7 @@ import { FormSectionTitle } from '../../components/ui/FormLayout'
 import { PersianDateField } from '../../components/ui/PersianDateField'
 import { SearchSelect } from '../../components/ui/SearchSelect'
 import { geoName } from '../../lib/geo'
-import type { City, CommercialComplex, RegistrationPlace } from '../../types/app'
+import type { City, RegistrationPlace } from '../../types/app'
 import {
   PREMISE_ESTABLISHMENTS,
   PREMISE_GEO_POSITIONS,
@@ -111,7 +111,7 @@ export function CaseLocationStep({
 }: {
   value: LocationForm
   cities: City[]
-  complexes: CommercialComplex[]
+  complexes: Array<{ id: string; name: string }>
   places: RegistrationPlace[]
   locale: string
   onChange: (patch: Partial<LocationForm>) => void

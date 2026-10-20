@@ -21,7 +21,7 @@ import { FormSectionTitle } from '../../components/ui/FormLayout'
 import { PersianDateField } from '../../components/ui/PersianDateField'
 import { SearchSelect } from '../../components/ui/SearchSelect'
 import { geoName } from '../../lib/geo'
-import type { Country, Job, Religion, UserGender } from '../../types/app'
+import type { Religion, UserGender } from '../../types/app'
 import { EDUCATION_LEVELS, type IdentityPerson } from './formation-types'
 
 function IdentitySection({
@@ -52,8 +52,8 @@ export function CaseIdentityFields({
   locked = false,
 }: {
   person: IdentityPerson
-  countries: Country[]
-  jobs: Job[]
+  countries: Array<{ id: string; nameFa: string; nameEn?: string | null }>
+  jobs: Array<{ id: string; title: string }>
   locale: string
   onChange: <K extends keyof IdentityPerson>(key: K, value: IdentityPerson[K]) => void
   onSubmit: () => void
@@ -188,7 +188,7 @@ export function CaseIdentityFields({
               { value: '', label: t('geo.selectCountry') },
               ...countries.map((country) => ({
                 value: country.id,
-                label: geoName(country, locale),
+                label: geoName({ nameFa: country.nameFa, nameEn: country.nameEn ?? '' }, locale),
               })),
             ]}
           />
