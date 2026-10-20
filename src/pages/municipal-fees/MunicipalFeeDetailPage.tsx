@@ -1,4 +1,4 @@
-import { Banknote, FileText, HandCoins, Landmark, ToggleRight, Type } from 'lucide-react'
+import { Banknote, Calculator, FileText, HandCoins, Landmark, ToggleRight, Type } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -55,9 +55,19 @@ export function MunicipalFeeDetailPage() {
               tone="mint"
             />
             <FormFactTile
+              icon={Calculator}
+              label={t('municipalFees.calcKind')}
+              value={t(`municipalFees.calcKinds.${fee.calcKind ?? 'FIXED'}`)}
+              tone="mint"
+            />
+            <FormFactTile
               icon={Banknote}
               label={t('municipalFees.amount')}
-              value={formatFeeAmount(fee.amount, locale)}
+              value={
+                (fee.calcKind ?? 'FIXED') === 'FIXED'
+                  ? formatFeeAmount(fee.amount, locale)
+                  : t('municipalFees.formulaAmount')
+              }
               tone="teal"
             />
             <FormFactTile

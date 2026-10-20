@@ -33,7 +33,7 @@ import { SearchSelect } from '../../components/ui/SearchSelect'
 import { confirmToast } from '../../components/ui/confirmToast'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { formatGroupedNumber } from '../../lib/datetime'
-import type { FinancialProcessType } from '../../types/app'
+import type { FinancialProcessType, MunicipalFeeCalcKind } from '../../types/app'
 import { bankAccountOptionLabel, defaultBankAccountId } from '../municipal-fees/MunicipalFeeForm'
 
 type Account = {
@@ -48,6 +48,7 @@ type Fee = {
   id: string
   title: string
   amount: number
+  calcKind: MunicipalFeeCalcKind
   bankAccountId: string
   isActive: boolean
   processTypes: FinancialProcessType[]
@@ -209,7 +210,9 @@ function FinancialRequestPanel({
                       {!fee.isActive ? ` (${t('geo.inactive')})` : ''}
                     </span>
                     <span className="shrink-0 text-xs text-ink-500">
-                      {formatGroupedNumber(fee.amount, locale)}
+                      {(fee.calcKind ?? 'FIXED') === 'FIXED'
+                        ? formatGroupedNumber(fee.amount, locale)
+                        : t(`municipalFees.calcKinds.${fee.calcKind}`)}
                     </span>
                   </span>
                 }

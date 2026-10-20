@@ -98,6 +98,20 @@ export function JobTypesListPage() {
                 sortDir={sortDir}
                 onSort={onSort}
               />
+              <SortableTh
+                column="annualAreaTariff"
+                label={t('jobTypes.annualAreaTariff')}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={onSort}
+              />
+              <SortableTh
+                column="dailyAreaTariff"
+                label={t('jobTypes.dailyAreaTariff')}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={onSort}
+              />
               <ActionsTh />
             </tr>
           </thead>
@@ -107,6 +121,8 @@ export function JobTypesListPage() {
                 <td className="px-4 py-3">{item.title}</td>
                 <td className="px-4 py-3">{formatFee(item.annualFee, locale)}</td>
                 <td className="px-4 py-3">{formatFee(dailyFee(item.annualFee), locale)}</td>
+                <td className="px-4 py-3">{formatFee(item.annualAreaTariff, locale)}</td>
+                <td className="px-4 py-3">{formatFee(dailyFee(item.annualAreaTariff), locale)}</td>
                 <td className={actionsColClassName}>
                   <EntityRowActions
                     viewTo={`/base-info/job-types/${item.id}`}

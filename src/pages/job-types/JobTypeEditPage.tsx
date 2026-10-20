@@ -49,6 +49,7 @@ export function JobTypeEditPage() {
               title: query.data.title,
               description: query.data.description ?? '',
               annualFee: query.data.annualFee,
+              annualAreaTariff: query.data.annualAreaTariff,
             }}
             onSubmit={async (payload) => {
               await api.patch(`/job-types/${id}`, payload)

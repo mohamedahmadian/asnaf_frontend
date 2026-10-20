@@ -1208,6 +1208,7 @@ export type PaymentCaseFile = {
   businessUnitTitle: string | null;
   activityJobTitle: string | null;
   jobGroupTitle: string | null;
+  jobTypeTitle: string | null;
   requests?: { id: string; number: string; type: string; status: string }[];
 };
 
@@ -1376,12 +1377,20 @@ export type CaseFinance = {
       municipalFeeId: string;
       title: string;
       amount: number;
+      calcKind: MunicipalFeeCalcKind;
+      calcInputs: FeeCalcInputs | null;
       isActive: boolean;
       status: CaseRequestFeeStatus;
       /** سهم تخفیف این هزینه از پرداخت مربوط */
       discount: number;
     }[];
-    availableFees: { id: string; title: string; amount: number }[];
+    availableFees: {
+      id: string;
+      title: string;
+      amount: number;
+      calcKind: MunicipalFeeCalcKind;
+      calcInputs: FeeCalcInputs | null;
+    }[];
   } | null;
   payments: PaymentRecord[];
   totals: {
@@ -1410,11 +1419,32 @@ export type PaymentReceipt = {
   uploadedBy: { id: string; fullName: string };
 };
 
+export type MunicipalFeeCalcKind =
+  | "FIXED"
+  | "ANNUAL_MEMBERSHIP"
+  | "AREA_LEVY"
+  | "LATE_MEMBERSHIP"
+  | "LATE_AREA_LEVY";
+
+export type FeeCalcInputs = {
+  area: number | null;
+  membershipFee: number | null;
+  areaTariff: number | null;
+  delayDays: number;
+  yearNumber: number;
+  factor: number;
+  jobTypeTitle?: string | null;
+  jobTypeAnnualFee?: number | null;
+  jobTitle?: string | null;
+  jobAnnualFee?: number | null;
+};
+
 export type MunicipalFee = {
   id: string;
   title: string;
   bankAccountId: string;
   amount: number;
+  calcKind: MunicipalFeeCalcKind;
   processTypes: FinancialProcessType[];
   description: string | null;
   isActive: boolean;
@@ -1434,6 +1464,7 @@ export type JobType = {
   title: string;
   description: string | null;
   annualFee: number | null;
+  annualAreaTariff: number | null;
   createdAt: string;
   updatedAt: string;
 };

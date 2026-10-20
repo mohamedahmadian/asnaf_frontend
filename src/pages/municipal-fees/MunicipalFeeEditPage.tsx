@@ -38,15 +38,17 @@ export function MunicipalFeeEditPage() {
           title: query.data.title,
           bankAccountId: query.data.bankAccountId,
           amount: query.data.amount,
+          calcKind: query.data.calcKind,
           description: query.data.description ?? '',
           isActive: query.data.isActive,
           bankAccount: query.data.bankAccount,
         }}
-        onSubmit={async ({ title, bankAccountId, amount, description, isActive }) => {
+        onSubmit={async ({ title, bankAccountId, amount, calcKind, description, isActive }) => {
           await api.patch(`/municipal-fees/${id}`, {
             title,
             bankAccountId,
             amount,
+            calcKind,
             description,
             isActive,
           })

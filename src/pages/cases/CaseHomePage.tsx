@@ -56,7 +56,7 @@ import {
 import { DateText } from '../../components/ui/DateText'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { api, getApiErrorMessage } from '../../lib/api'
-import { formatNumber } from '../../lib/datetime'
+import { formatGroupedNumber, formatNumber } from '../../lib/datetime'
 import { useGeoName } from '../../lib/geo'
 import { violationsPath } from '../../lib/paths/violations'
 import type { Violation, ViolationAttachment } from '../../types/app'
@@ -145,6 +145,7 @@ type CaseHome = {
   licenseIssuedAt: string | null
   licenseExpiresAt: string | null
   violationCount: number
+  unpaidDebt: number
   status: 'ACTIVE' | 'SUSPENDED' | 'EXPIRED' | 'REVOKED'
   revokeReason: string | null
   revokedAt: string | null
@@ -649,9 +650,6 @@ export function CaseHomePage() {
               ) : undefined
             }
             action={
-              (item.violationCount > 0 && item.person.nationalId) ||
-              (item.suspensionCount ?? 0) > 0 ||
-              !stewardWithoutLicense ? (
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {item.violationCount > 0 && item.person.nationalId ? (
                   <ViolationCountBadge
@@ -661,6 +659,12 @@ export function CaseHomePage() {
                     onClick={() => setViolationsOpen(true)}
                   />
                 ) : null}
+                <UnpaidDebtBadge
+                  amount={item.unpaidDebt ?? 0}
+                  label={t('cases.unpaidDebt')}
+                  locale={locale}
+                  onClick={() => navigate(`/cases/${item.id}/finances`)}
+                />
                 {(item.suspensionCount ?? 0) > 0 ? (
                   <SuspensionCountBadge
                     count={item.suspensionCount}
@@ -679,7 +683,6 @@ export function CaseHomePage() {
                   />
                 )}
               </div>
-              ) : undefined
             }
           >
             <div className={formCardBodyClassName}>
@@ -1445,6 +1448,56 @@ function licenseSpan(issuedAt: string | null, expiresAt: string | null) {
   const total = start == null ? null : Math.round((end - start) / 86_400_000)
   const ratio = total == null || total <= 0 ? (remaining > 0 ? 1 : 0) : Math.min(1, remaining / total)
   return { remaining, overdue, ratio }
+}
+
+function UnpaidDebtBadge({
+  amount,
+  label,
+  locale,
+  onClick,
+}: {
+  amount: number
+  label: string
+  locale: string
+  onClick: () => void
+}) {
+  const text = formatGroupedNumber(amount, locale)
+  const due = amount > 0
+  const className = due
+    ? 'items-center gap-2 rounded-2xl bg-white/80 px-2.5 py-1.5 ring-1 ring-rose-200'
+    : 'items-center gap-2 rounded-2xl bg-white/80 px-2.5 py-1.5 ring-1 ring-mint-100'
+  const circleClassName = due
+    ? 'flex h-[3.25rem] min-w-[3.25rem] shrink-0 items-center justify-center rounded-full bg-rose-50 px-2 ring-[5px] ring-rose-200'
+    : 'flex h-[3.25rem] min-w-[3.25rem] shrink-0 items-center justify-center rounded-full bg-mint-50 px-2 ring-[5px] ring-mint-200'
+  const amountClassName = due
+    ? 'max-w-[4.75rem] text-center text-[11px] font-semibold leading-tight text-rose-800'
+    : 'max-w-[4.75rem] text-center text-[11px] font-semibold leading-tight text-teal-800'
+  const iconClassName = due ? 'size-3.5 text-rose-600' : 'size-3.5 text-teal-600'
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation()
+        onClick()
+      }}
+      className={`flex cursor-pointer ${className} transition ${
+        due
+          ? 'hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300'
+          : 'hover:bg-mint-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-300'
+      }`}
+      aria-label={`${label}: ${text}`}
+    >
+      <span className={circleClassName}>
+        <span className={amountClassName} dir="ltr">
+          {text}
+        </span>
+      </span>
+      <span className="flex max-w-16 flex-col items-start gap-0.5">
+        <Wallet className={iconClassName} aria-hidden />
+        <span className="text-[11px] font-medium leading-4 text-ink-500">{label}</span>
+      </span>
+    </button>
+  )
 }
 
 function ViolationCountBadge({

@@ -1,4 +1,4 @@
-import { Banknote, Briefcase, FileText, Type } from 'lucide-react'
+import { Banknote, Briefcase, FileText, Ruler, Type } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ export type JobTypePayload = {
   title: string
   description?: string | null
   annualFee?: number | null
+  annualAreaTariff?: number | null
 }
 
 export function JobTypeForm({
@@ -29,6 +30,9 @@ export function JobTypeForm({
   const [annualFee, setAnnualFee] = useState(
     initial?.annualFee != null ? String(initial.annualFee) : '',
   )
+  const [annualAreaTariff, setAnnualAreaTariff] = useState(
+    initial?.annualAreaTariff != null ? String(initial.annualAreaTariff) : '',
+  )
   const [saving, setSaving] = useState(false)
 
   async function submit(event: FormEvent) {
@@ -39,6 +43,7 @@ export function JobTypeForm({
         title: title.trim(),
         description: description.trim() || null,
         annualFee: parseGroupedAmount(annualFee),
+        annualAreaTariff: parseGroupedAmount(annualAreaTariff),
       })
     } catch (error) {
       toast.error(getApiErrorMessage(error, t('common.error')))
@@ -69,6 +74,14 @@ export function JobTypeForm({
         <FormField icon={Banknote} label={t('jobTypes.annualFee')} htmlFor="jobTypeAnnualFee">
           <AmountInput id="jobTypeAnnualFee" value={annualFee} onChange={setAnnualFee} />
           <p className="text-xs text-ink-500">{t('jobTypes.annualFeeHint')}</p>
+        </FormField>
+        <FormField icon={Ruler} label={t('jobTypes.annualAreaTariff')} htmlFor="jobTypeAnnualAreaTariff">
+          <AmountInput
+            id="jobTypeAnnualAreaTariff"
+            value={annualAreaTariff}
+            onChange={setAnnualAreaTariff}
+          />
+          <p className="text-xs text-ink-500">{t('jobTypes.annualAreaTariffHint')}</p>
         </FormField>
         <FormField icon={FileText} label={t('jobTypes.description')} htmlFor="jobTypeDescription">
           <textarea

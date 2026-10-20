@@ -1,16 +1,21 @@
 import {
   Banknote,
+  Briefcase,
   CircleCheck,
   Clock3,
   CircleDashed,
   ClipboardList,
   Eye,
+  FolderKanban,
   Landmark,
+  Layers,
   ListOrdered,
   Percent,
   Phone,
   Plus,
   ReceiptText,
+  Ruler,
+  Sigma,
   RotateCcw,
   Settings,
   Store,
@@ -59,6 +64,8 @@ import type {
   CaseFinanceHead,
   CaseRequestFeeStatus,
   CaseRequestFinance,
+  FeeCalcInputs,
+  MunicipalFeeCalcKind,
   PaymentRecord,
 } from '../../types/app'
 import { bankAccountOptionLabel } from '../municipal-fees/MunicipalFeeForm'
@@ -73,9 +80,201 @@ type FeeLine = {
   municipalFeeId: string
   title: string
   amount: string
+  calcKind: MunicipalFeeCalcKind
+  calcInputs: FeeCalcInputs | null
   isActive: boolean
   status: CaseRequestFeeStatus
   discount: number
+}
+
+function dailyFee(annual: number | null | undefined) {
+  if (annual == null || !Number.isFinite(annual)) return null
+  return Math.round(annual / 365)
+}
+
+const feeChipClassName =
+  'inline-flex max-w-full items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-medium text-teal-800 ring-1 ring-teal-100'
+const feeFormulaChipClassName =
+  'inline-flex max-w-full items-center gap-1 rounded-full bg-cream-50 px-2 py-0.5 text-[11px] font-medium text-ink-700 ring-1 ring-line'
+
+function FeeChip({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon
+  label?: string
+  value: ReactNode
+}) {
+  return (
+    <span className={feeChipClassName}>
+      <Icon className="size-3 shrink-0" aria-hidden />
+      {label ? <span className="text-teal-600">{label}:</span> : null}
+      <span className="truncate">{value}</span>
+    </span>
+  )
+}
+
+function FormulaChip({ icon: Icon, children }: { icon?: LucideIcon; children: ReactNode }) {
+  return (
+    <span className={feeFormulaChipClassName}>
+      {Icon ? <Icon className="size-3 shrink-0 text-teal-700" aria-hidden /> : null}
+      {children}
+    </span>
+  )
+}
+
+function FeeCalcDetails({
+  kind,
+  inputs,
+}: {
+  kind: MunicipalFeeCalcKind | undefined
+  inputs: FeeCalcInputs | null | undefined
+}) {
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language.split('-')[0] ?? 'fa'
+  if (!kind || kind === 'FIXED' || !inputs) return null
+
+  const money = (value: number | null | undefined) =>
+    value != null && Number.isFinite(value) ? formatGroupedNumber(value, locale) : '—'
+  const area = inputs.area != null ? formatGroupedNumber(inputs.area, locale) : '—'
+  const year = formatNumber(inputs.yearNumber, locale)
+  const jobTypeName = inputs.jobTypeTitle?.trim() || t('jobs.jobType')
+
+  if (kind === 'ANNUAL_MEMBERSHIP') {
+    return (
+      <div className="mt-2 flex flex-col gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {inputs.jobTypeTitle ? (
+            <FeeChip icon={Layers} label={t('jobs.jobType')} value={inputs.jobTypeTitle} />
+          ) : null}
+          <FeeChip
+            icon={Banknote}
+            label={t('caseFinance.calcLabels.jobTypeAnnualFee', { type: jobTypeName })}
+            value={money(inputs.jobTypeAnnualFee)}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {inputs.jobTitle ? (
+            <FeeChip icon={Briefcase} label={t('cases.activityJob')} value={inputs.jobTitle} />
+          ) : null}
+          <FeeChip
+            icon={Wallet}
+            label={t('caseFinance.calcLabels.jobAnnualFee')}
+            value={money(inputs.jobAnnualFee)}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  if (kind === 'AREA_LEVY') {
+    return (
+      <div className="mt-2 flex flex-col gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {inputs.jobTypeTitle ? (
+            <FeeChip icon={Layers} label={t('jobs.jobType')} value={inputs.jobTypeTitle} />
+          ) : null}
+          <FeeChip
+            icon={Ruler}
+            label={t('caseFinance.calcLabels.jobTypeAreaTariff', { type: jobTypeName })}
+            value={money(inputs.areaTariff)}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-1" aria-label={t('caseFinance.calcLabels.formula')}>
+          <FormulaChip icon={Sigma}>{t('caseFinance.calcLabels.formula')}</FormulaChip>
+          <FormulaChip icon={Ruler}>{t('caseFinance.calcLabels.areaValue', { area })}</FormulaChip>
+          <span className="text-[11px] font-semibold text-ink-400" aria-hidden>
+            ×
+          </span>
+          <FormulaChip icon={Banknote}>{money(inputs.areaTariff)}</FormulaChip>
+          {inputs.factor === 0.5 ? (
+            <>
+              <span className="text-[11px] font-semibold text-ink-400" aria-hidden>
+                ×
+              </span>
+              <FormulaChip>{t('caseFinance.calcLabels.halfFactor')}</FormulaChip>
+            </>
+          ) : null}
+          <FormulaChip>{t('caseFinance.calcLabels.year', { year })}</FormulaChip>
+        </div>
+      </div>
+    )
+  }
+
+  if (kind === 'LATE_MEMBERSHIP') {
+    return (
+      <div className="mt-2 flex flex-col gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {inputs.jobTypeTitle ? (
+            <FeeChip icon={Layers} label={t('jobs.jobType')} value={inputs.jobTypeTitle} />
+          ) : null}
+          <FeeChip
+            icon={Banknote}
+            label={t('caseFinance.calcLabels.jobTypeAnnualFee', { type: jobTypeName })}
+            value={money(inputs.jobTypeAnnualFee)}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {inputs.jobTitle ? (
+            <FeeChip icon={Briefcase} label={t('cases.activityJob')} value={inputs.jobTitle} />
+          ) : null}
+          <FeeChip
+            icon={Wallet}
+            label={t('caseFinance.calcLabels.jobAnnualFee')}
+            value={money(inputs.jobAnnualFee)}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-1" aria-label={t('caseFinance.calcLabels.formula')}>
+          <FormulaChip icon={Sigma}>{t('caseFinance.calcLabels.formula')}</FormulaChip>
+          <FormulaChip icon={Clock3}>
+            {t('caseFinance.calcLabels.delayDays', { days: formatNumber(inputs.delayDays, locale) })}
+          </FormulaChip>
+          <span className="text-[11px] font-semibold text-ink-400" aria-hidden>
+            ×
+          </span>
+          <FormulaChip icon={Banknote}>
+            {t('caseFinance.calcLabels.dailyRate', { value: money(dailyFee(inputs.membershipFee)) })}
+          </FormulaChip>
+        </div>
+      </div>
+    )
+  }
+
+  if (kind === 'LATE_AREA_LEVY') {
+    return (
+      <div className="mt-2 flex flex-col gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {inputs.jobTypeTitle ? (
+            <FeeChip icon={Layers} label={t('jobs.jobType')} value={inputs.jobTypeTitle} />
+          ) : null}
+          <FeeChip
+            icon={Ruler}
+            label={t('caseFinance.calcLabels.jobTypeAreaTariff', { type: jobTypeName })}
+            value={money(inputs.areaTariff)}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-1" aria-label={t('caseFinance.calcLabels.formula')}>
+          <FormulaChip icon={Sigma}>{t('caseFinance.calcLabels.formula')}</FormulaChip>
+          <FormulaChip icon={Clock3}>
+            {t('caseFinance.calcLabels.delayDays', { days: formatNumber(inputs.delayDays, locale) })}
+          </FormulaChip>
+          <span className="text-[11px] font-semibold text-ink-400" aria-hidden>
+            ×
+          </span>
+          <FormulaChip icon={Ruler}>{t('caseFinance.calcLabels.areaValue', { area })}</FormulaChip>
+          <span className="text-[11px] font-semibold text-ink-400" aria-hidden>
+            ×
+          </span>
+          <FormulaChip icon={Banknote}>
+            {t('caseFinance.calcLabels.dailyRate', { value: money(dailyFee(inputs.areaTariff)) })}
+          </FormulaChip>
+        </div>
+      </div>
+    )
+  }
+
+  return null
 }
 
 const feeStatusStyles: Record<CaseRequestFeeStatus, { icon: LucideIcon; className: string }> = {
@@ -111,6 +310,8 @@ function toLines(finance: NonNullable<CaseFinance['finance']>): FeeLine[] {
     municipalFeeId: fee.municipalFeeId,
     title: fee.title,
     amount: String(fee.amount),
+    calcKind: fee.calcKind,
+    calcInputs: fee.calcInputs,
     isActive: fee.isActive,
     status: fee.status,
     discount: fee.discount,
@@ -147,6 +348,8 @@ function FeesEditor({
         id: fee.municipalFeeId,
         title: fee.title,
         amount: fee.amount,
+        calcKind: fee.calcKind,
+        calcInputs: fee.calcInputs,
       }))
     return [...finance.availableFees.filter((fee) => !used.has(fee.id)), ...removed].map((fee) => ({
       value: fee.id,
@@ -206,6 +409,8 @@ function FeesEditor({
         municipalFeeId: option.fee.id,
         title: option.fee.title,
         amount,
+        calcKind: option.fee.calcKind ?? 'FIXED',
+        calcInputs: option.fee.calcInputs ?? null,
         isActive: true,
         status: 'UNPAID',
         discount: 0,
@@ -273,16 +478,19 @@ function FeesEditor({
                 return (
                   <tr key={line.municipalFeeId} className="border-t border-line">
                     <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1.5">
-                        {line.status === 'PAID' ? (
-                          <CircleCheck
-                            className="size-5 shrink-0 text-emerald-600"
-                            aria-label={t('caseFinance.feeStatuses.PAID')}
-                          />
-                        ) : null}
-                        {line.title}
-                        {line.isActive ? '' : ` (${t('payments.inactiveFee')})`}
-                      </span>
+                      <div>
+                        <span className="inline-flex items-center gap-1.5">
+                          {line.status === 'PAID' ? (
+                            <CircleCheck
+                              className="size-5 shrink-0 text-emerald-600"
+                              aria-label={t('caseFinance.feeStatuses.PAID')}
+                            />
+                          ) : null}
+                          {line.title}
+                          {line.isActive ? '' : ` (${t('payments.inactiveFee')})`}
+                        </span>
+                        <FeeCalcDetails kind={line.calcKind} inputs={line.calcInputs} />
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       {locked ? (
@@ -484,6 +692,27 @@ export function FinanceSubtitle({ head, request }: { head: CaseFinanceHead; requ
           <span className="truncate">{head.caseFile.businessUnitTitle}</span>
         </span>
       ) : null}
+      {head.caseFile.jobTypeTitle ? (
+        <span className={headerChipClassName}>
+          <Layers className="size-4 shrink-0" aria-hidden />
+          <span className="text-teal-700">{t('jobs.jobType')}</span>
+          <span className="truncate">{head.caseFile.jobTypeTitle}</span>
+        </span>
+      ) : null}
+      {head.caseFile.jobGroupTitle ? (
+        <span className={headerChipClassName}>
+          <FolderKanban className="size-4 shrink-0" aria-hidden />
+          <span className="text-teal-700">{t('cases.activityGroup')}</span>
+          <span className="truncate">{head.caseFile.jobGroupTitle}</span>
+        </span>
+      ) : null}
+      {head.caseFile.activityJobTitle ? (
+        <span className={headerChipClassName}>
+          <Briefcase className="size-4 shrink-0" aria-hidden />
+          <span className="text-teal-700">{t('cases.activityJob')}</span>
+          <span className="truncate">{head.caseFile.activityJobTitle}</span>
+        </span>
+      ) : null}
       {head.payer.phone ? (
         <span className={headerChipClassName}>
           <Phone className="size-4 shrink-0" aria-hidden />
@@ -563,7 +792,7 @@ export function RequestFeesCard({
   const finance = item.finance
   const hasActivePayment = item.payments.some((payment) => !payment.deletedAt && payment.status !== 'FAILED')
   const feesKey = finance
-    ? finance.fees.map((fee) => `${fee.municipalFeeId}:${fee.amount}:${fee.status}:${fee.discount}`).join('|')
+    ? finance.fees.map((fee) => `${fee.municipalFeeId}:${fee.amount}:${fee.status}:${fee.discount}:${fee.calcKind}`).join('|')
     : ''
 
   function askReset() {
@@ -602,9 +831,14 @@ export function RequestFeesCard({
       }
       action={
         finance && item.hasSettings && !hasActivePayment ? (
-          <Button type="button" variant="ghost" onClick={askReset}>
-            <RotateCcw className="size-4" aria-hidden />
-            {t('caseFinance.reset')}
+          <Button
+            type="button"
+            variant="ghost"
+            className="!h-auto max-w-56 whitespace-normal !gap-1 !rounded-xl !px-2.5 !py-1 !text-xs leading-4 [&_svg]:size-3.5"
+            onClick={askReset}
+          >
+            <RotateCcw className="size-3.5 shrink-0" aria-hidden />
+            {t('caseFinance.resetButton')}
           </Button>
         ) : undefined
       }

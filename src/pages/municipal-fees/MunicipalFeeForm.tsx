@@ -1,4 +1,4 @@
-import { Banknote, FileText, HandCoins, Landmark, ToggleRight, Type } from 'lucide-react'
+import { Banknote, Calculator, FileText, HandCoins, Landmark, ToggleRight, Type } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,7 +9,15 @@ import { FormCard, formCardBodyClassName } from '../../components/ui/FormLayout'
 import { SearchSelect } from '../../components/ui/SearchSelect'
 import { api, getApiErrorMessage } from '../../lib/api'
 import { formatGroupedNumber, localizeDigits, parseGroupedAmount } from '../../lib/datetime'
-import type { BankAccount, Paginated } from '../../types/app'
+import type { BankAccount, MunicipalFeeCalcKind, Paginated } from '../../types/app'
+
+const calcKinds: MunicipalFeeCalcKind[] = [
+  'FIXED',
+  'ANNUAL_MEMBERSHIP',
+  'AREA_LEVY',
+  'LATE_MEMBERSHIP',
+  'LATE_AREA_LEVY',
+]
 
 export type MunicipalFeeBankAccount = {
   id: string
@@ -22,6 +30,7 @@ export type MunicipalFeePayload = {
   title: string
   bankAccountId: string
   amount: number
+  calcKind: MunicipalFeeCalcKind
   description?: string | null
   isActive: boolean
   bankAccount?: MunicipalFeeBankAccount | null
@@ -65,6 +74,7 @@ export function MunicipalFeeForm({
   const locale = i18n.language.split('-')[0] ?? 'fa'
   const [title, setTitle] = useState(initial?.title ?? '')
   const [bankAccountId, setBankAccountId] = useState(initial?.bankAccountId ?? '')
+  const [calcKind, setCalcKind] = useState<MunicipalFeeCalcKind>(initial?.calcKind ?? 'FIXED')
   const [amount, setAmount] = useState(
     initial?.amount != null ? formatGroupedNumber(initial.amount, locale) : '',
   )
@@ -114,10 +124,15 @@ export function MunicipalFeeForm({
     event.preventDefault()
     setSaving(true)
     try {
-      const parsedAmount = parseGroupedAmount(amount)
+      const parsedAmount = calcKind === 'FIXED' ? parseGroupedAmount(amount) : 0
+      if (calcKind === 'FIXED' && parsedAmount == null) {
+        toast.error(t('payments.amountInvalid'))
+        return
+      }
       await onSubmit({
         title: title.trim(),
         bankAccountId,
+        calcKind,
         amount: parsedAmount ?? 0,
         description: description.trim() || null,
         isActive,
@@ -161,9 +176,26 @@ export function MunicipalFeeForm({
             options={accountOptions}
           />
         </FormField>
-        <FormField icon={Banknote} label={t('municipalFees.amount')} htmlFor="municipalFeeAmount">
-          <AmountInput id="municipalFeeAmount" value={amount} onChange={setAmount} required />
+        <FormField icon={Calculator} label={t('municipalFees.calcKind')} htmlFor="municipalFeeCalcKind">
+          <SearchSelect
+            id="municipalFeeCalcKind"
+            value={calcKind}
+            onChange={(next) => setCalcKind((next as MunicipalFeeCalcKind) || 'FIXED')}
+            placeholder={t('municipalFees.selectCalcKind')}
+            required
+            options={calcKinds.map((kind) => ({
+              value: kind,
+              label: t(`municipalFees.calcKinds.${kind}`),
+            }))}
+          />
         </FormField>
+        {calcKind === 'FIXED' ? (
+          <FormField icon={Banknote} label={t('municipalFees.amount')} htmlFor="municipalFeeAmount">
+            <AmountInput id="municipalFeeAmount" value={amount} onChange={setAmount} required />
+          </FormField>
+        ) : (
+          <p className="text-sm text-ink-500">{t('municipalFees.amountFormulaHint')}</p>
+        )}
         <FormField icon={FileText} label={t('municipalFees.description')} htmlFor="municipalFeeDescription">
           <textarea
             id="municipalFeeDescription"

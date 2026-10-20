@@ -258,7 +258,11 @@ export function PaymentGroupsModal({ onClose }: { onClose: () => void }) {
                                 {fee.title}
                                 {fee.isActive ? '' : ` (${t('payments.inactiveFee')})`}
                               </span>
-                              <span className="shrink-0">{formatFeeAmount(fee.amount, locale)}</span>
+                              <span className="shrink-0">
+                                {(fee.calcKind ?? 'FIXED') === 'FIXED'
+                                  ? formatFeeAmount(fee.amount, locale)
+                                  : t(`municipalFees.calcKinds.${fee.calcKind}`)}
+                              </span>
                             </span>
                           }
                         />

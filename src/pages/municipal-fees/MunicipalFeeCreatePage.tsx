@@ -14,11 +14,12 @@ export function MunicipalFeeCreatePage() {
     <div className={baseInfoFormShellClassName}>
       <PageHeader icon={HandCoins} title={t('municipalFees.create')} />
       <MunicipalFeeForm
-        onSubmit={async ({ title, bankAccountId, amount, description, isActive }) => {
+        onSubmit={async ({ title, bankAccountId, amount, calcKind, description, isActive }) => {
           await api.post('/municipal-fees', {
             title,
             bankAccountId,
             amount,
+            calcKind,
             description,
             isActive,
           })

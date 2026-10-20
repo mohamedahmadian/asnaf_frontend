@@ -120,6 +120,13 @@ export function MunicipalFeesListPage() {
                 onSort={onSort}
               />
               <SortableTh
+                column="calcKind"
+                label={t('municipalFees.calcKind')}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={onSort}
+              />
+              <SortableTh
                 column="amount"
                 label={t('municipalFees.amount')}
                 sortBy={sortBy}
@@ -140,9 +147,12 @@ export function MunicipalFeesListPage() {
             {rows.map((fee) => (
               <tr key={fee.id} className="border-t border-line">
                 <td className="px-4 py-3">{fee.title}</td>
+                <td className="px-4 py-3">{t(`municipalFees.calcKinds.${fee.calcKind ?? 'FIXED'}`)}</td>
                 <td className="px-4 py-3">
                   <span className="inline-flex whitespace-nowrap rounded-full border border-teal-200 bg-teal-50 px-2.5 py-0.5 text-sm font-semibold tabular-nums text-teal-800">
-                    {formatFeeAmount(fee.amount, locale)}
+                    {(fee.calcKind ?? 'FIXED') === 'FIXED'
+                      ? formatFeeAmount(fee.amount, locale)
+                      : t('municipalFees.formulaAmount')}
                   </span>
                 </td>
                 <td className="px-4 py-3">

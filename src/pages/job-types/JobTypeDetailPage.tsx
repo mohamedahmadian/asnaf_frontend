@@ -1,4 +1,4 @@
-import { Banknote, Briefcase, CalendarDays, FileText, Type } from 'lucide-react'
+import { Banknote, Briefcase, CalendarDays, FileText, Ruler, Type } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -88,6 +88,20 @@ export function JobTypeDetailPage() {
               label={t('jobTypes.dailyFee')}
               value={formatFee(dailyFee(item.annualFee), locale)}
               empty={item.annualFee == null}
+              tone="teal"
+            />
+            <FormFactTile
+              icon={Ruler}
+              label={t('jobTypes.annualAreaTariff')}
+              value={formatFee(item.annualAreaTariff, locale)}
+              empty={item.annualAreaTariff == null}
+              tone="mint"
+            />
+            <FormFactTile
+              icon={CalendarDays}
+              label={t('jobTypes.dailyAreaTariff')}
+              value={formatFee(dailyFee(item.annualAreaTariff), locale)}
+              empty={item.annualAreaTariff == null}
               tone="teal"
             />
             <FormFactTile
