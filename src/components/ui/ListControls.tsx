@@ -330,6 +330,7 @@ export function ActionsTh({ className = '', children }: { className?: string; ch
 
 export function EntityRowActions({
   viewTo,
+  onView,
   showView = true,
   viewLabel,
   viewClassName = '',
@@ -341,7 +342,9 @@ export function EntityRowActions({
   onDelete,
   canDelete = true,
 }: {
-  viewTo: string
+  viewTo?: string
+  /** مشاهده بدون صفحهٔ جزئیات؛ کلیک سطر / اینتر هم همین را می‌زند. */
+  onView?: () => void
   showView?: boolean
   viewLabel?: string
   viewClassName?: string
@@ -357,12 +360,24 @@ export function EntityRowActions({
 }) {
   const { t } = useTranslation()
   const label = viewLabel ?? t('common.view')
-  const rowOpensEdit = Boolean(editTo) && !rowOpensView
+  const rowOpensEdit = Boolean(editTo) && !rowOpensView && !onView
   const viewCarriesRow = !rowTo && !rowOpensEdit
-  const separateRowLink = Boolean(rowTo) || (!showView && !rowOpensEdit)
+  const rowHref = rowTo ?? viewTo
+  const separateRowLink = Boolean(rowHref) && (Boolean(rowTo) || (!showView && !rowOpensEdit && !onView))
   return (
     <div data-row-actions className="flex flex-nowrap items-center gap-2 whitespace-nowrap">
-      {showView ? (
+      {showView && onView ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className={viewClassName}
+          {...(viewCarriesRow ? { 'data-row-view': '' } : {})}
+          onClick={onView}
+        >
+          <ViewIcon className="size-4" aria-hidden />
+          {label}
+        </Button>
+      ) : showView && viewTo ? (
         <Link to={viewTo} {...(viewCarriesRow ? { 'data-row-view': '' } : {})}>
           <Button type="button" variant="ghost" className={viewClassName}>
             <ViewIcon className="size-4" aria-hidden />
@@ -370,8 +385,8 @@ export function EntityRowActions({
           </Button>
         </Link>
       ) : null}
-      {separateRowLink ? (
-        <Link to={rowTo ?? viewTo} data-row-view tabIndex={showView ? -1 : undefined} className="sr-only">
+      {separateRowLink && rowHref ? (
+        <Link to={rowHref} data-row-view tabIndex={showView ? -1 : undefined} className="sr-only">
           {label}
         </Link>
       ) : null}

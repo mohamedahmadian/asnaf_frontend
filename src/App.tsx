@@ -17,6 +17,7 @@ import { ImpersonateEndedPage } from './pages/ImpersonateEndedPage'
 import { ImpersonateEntryPage } from './pages/ImpersonateEntryPage'
 import { LoginPage } from './pages/LoginPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { SmsHistoryPage } from './pages/sms/SmsHistoryPage'
 import { SmsSendPage } from './pages/sms/SmsSendPage'
 import { SmsSettingsPage } from './pages/sms/SmsSettingsPage'
 import { CaseAuctionDetailPage } from './pages/cases/CaseAuctionDetailPage'
@@ -214,6 +215,7 @@ export default function App() {
                   <Route path="/settings/password" element={<ChangePasswordPage />} />
                   <Route path="/sms/settings" element={<SmsSettingsPage />} />
                   <Route path="/sms/send" element={<SmsSendPage />} />
+                  <Route path="/sms/history" element={<SmsHistoryPage />} />
                   <Route path="/users" element={<UsersListPage />} />
                   <Route path="/users/new" element={<UserCreatePage />} />
                   <Route path="/users/register" element={<UserRegisterPage />} />
